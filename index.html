@@ -1085,7 +1085,7 @@ async function addLead(){const v=i=>$(i).value||null;const r={first_name:v('a_fi
   r.full_name=[r.first_name,r.last_name].filter(Boolean).join(' ')||null;const {data,error}=await sb.from('leads').insert(r).select('id').single();if(error)return toast(error.message);openLead(data.id)}
 
 // ---------- buyers ----------
-const BB_LINK='https://dominionlandgroup-hub.github.io/dlg-hq/buybox.html?t=',BB_FORM='https://dominionlandgroup-hub.github.io/dlg-hq/buybox.html';
+const BB_LINK='https://dominionlandgroup.land/bb/',BB_FORM='https://dominionlandgroup.land/buybox';
 async function vBuyers(){
   $('actions').innerHTML=`<button class="btn ghost" onclick="navigator.clipboard.writeText(BB_FORM);toast('Form link copied')">Copy buy-box form link</button><button class="btn" onclick="editBuyer(0)">+ Add Buyer</button>`;
   let data=[];for(let f=0;;f+=1000){const r=await sb.from('buyers').select('*').order('name').range(f,f+999);data.push(...(r.data||[]));if(!r.data||r.data.length<1000)break}
