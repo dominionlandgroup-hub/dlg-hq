@@ -120,6 +120,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
 .msg.in{background:#f0efe9;align-self:flex-start}.msg.out{background:var(--brand);color:#fff;align-self:flex-end}
 .msg .when{font-size:11px;opacity:.7;margin-top:3px}
 .composer{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px}
+.newmsg{position:fixed;right:18px;bottom:76px;z-index:60;max-width:340px;background:#fff;border-left:4px solid var(--gold);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px 14px;cursor:pointer;display:flex;flex-direction:column;gap:3px;font-size:13px}.newmsg span{color:#333}.newmsg small{color:#888}
 .cmode{display:flex;gap:4px;flex:1 1 100%}.cmode button{font-size:11.5px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:inherit;cursor:pointer}.cmode button.on{background:var(--brand);color:#fff;border-color:transparent}
 #map{height:calc(100vh - 210px);min-height:380px;border-radius:12px;border:1px solid var(--line)}
 .split{display:grid;grid-template-columns:360px 1fr;gap:14px}
@@ -214,10 +215,21 @@ async function boot(){
   $('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=data.session.user.email;
   const {data:st}=await sb.from('board_stages').select('*').order('position');STAGES=st||[];
   if(!STAGES.length) toast('Database update needed: run schema_v2.sql in Supabase');
-  go(location.hash.slice(1)||store.get('view')||'dashboard');refreshBadges();setInterval(refreshBadges,60000);
+  go(location.hash.slice(1)||store.get('view')||'dashboard');refreshBadges();setInterval(refreshBadges,60000);setInterval(livePoll,15000);livePoll();
 }
 async function signIn(){const {error}=await sb.auth.signInWithPassword({email:$('email').value,password:$('pw').value});if(error){$('loginErr').textContent=error.message;return}boot()}
 async function signUp(){const {error}=await sb.auth.signUp({email:$('email').value,password:$('pw').value});$('loginErr').textContent=error?error.message:'Login created. Confirm the email Supabase sent, then sign in.'}
+// live inbox: new texts/calls/emails show up without refreshing
+let _lastIn=null;
+async function livePoll(){if(document.hidden)return;
+  const {data}=await sb.from('messages').select('id,inbox,thread_id,channel,body,threads(title,phone)').eq('direction','in').order('id',{ascending:false}).limit(5);
+  if(!data?.length)return;const top=data[0].id;if(_lastIn===null){_lastIn=top;return}
+  const fresh=data.filter(m=>m.id>_lastIn).reverse();if(!fresh.length)return;_lastIn=top;refreshBadges();
+  for(const m of fresh){const who=m.threads?.title||m.threads?.phone||'Someone';const what=m.channel==='call'?'Call':m.channel==='email'?'Email':'Text';
+    const n=document.createElement('div');n.className='newmsg';n.innerHTML=`<b>New ${what} · ${esc(who)}</b><span>${esc((m.body||'').slice(0,90))}</span><small>${m.inbox==='buyer'?'Buyer':'Seller'} Inbox · click to open</small>`;
+    n.onclick=()=>{n.remove();go('inbox-'+m.inbox);setTimeout(()=>{IST2.tid=m.thread_id;openThreadT(m.thread_id)},500)};
+    n.style.bottom=(76+document.querySelectorAll('.newmsg').length*92)+'px';document.body.appendChild(n);setTimeout(()=>n.remove(),20000)}
+  if($('tl')&&IST2?.box&&fresh.some(m=>m.inbox===IST2.box)){const open=IST2.tid;loadThreads().then(()=>{if(open)document.querySelectorAll('.titem').forEach(e=>e.classList.toggle('on',e.getAttribute('onclick')===`openThreadT(${open})`))})}}
 async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=await sb.from('messages').select('id',{count:'exact',head:true}).eq('inbox',b).eq('direction','in').eq('is_read',false);const e=$('b_'+b);e.textContent=count||'';e.classList.toggle('hidden',!count)}}
 
 // ---------- router ----------
@@ -1147,7 +1159,7 @@ async function vImport(){const {data:camps}=await sb.from('campaigns').select('i
   <div class="row"><select id="impSource"><option value="hq">Other list</option><option value="pebble">Pebble export</option><option value="ghl">GoHighLevel export</option></select><input id="impTag" placeholder="Tag (optional)"></div><br>
   <div class="small" style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-bottom:12px"><b>Leave off this campaign:</b>
    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skDnm" checked style="width:auto"> Do not mail</label>
-   <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skNi" checked style="width:auto"> Not interested / opted out</label>
+   <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skNi" checked style="width:auto"> People who said no <span class="small muted">(Sold &amp; Bad lot: never. Not selling, Overpriced, Listed, Opted out: wait 6 months)</span></label>
    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skRec" style="width:auto"> Mailed in the last <input id="skDays" type="number" value="60" min="1" style="width:70px;padding:4px 6px"> days</label></div>
   <input type="file" id="impFile" accept=".csv" onchange="previewImport()"><div id="impMap" class="small" style="margin-top:10px"></div><br>
   <button class="btn" onclick="runImport()">Import</button><div id="impMsg" class="small" style="margin-top:10px"></div></div>
