@@ -436,12 +436,159 @@ async function addTask(dealId,leadId){const t=$('d_task').value.trim();if(!t)ret
 async function toggleTask(id,done){await sb.from('tasks').update({status:done?'done':'todo'}).eq('id',id)}
 async function enroll(leadId,dealId){const p=$('d_plan').value;if(!p)return;await sb.from('followup_enrollments').insert({plan_id:+p,lead_id:leadId,deal_id:dealId});toast('Enrolled');openDeal(dealId)}
 async function stopEnroll(id,dealId){await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'manual'}).eq('id',id);openDeal(dealId)}
-async function contractsFor(id){const {data:d}=await sb.from('deals').select('*, leads(full_name), properties(apn,address,city,state,zip), buyers(name)').eq('id',id).single();
-  const deal={contract_date:new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}),sellers:[d.leads?.full_name].filter(Boolean),
-    property_address:[d.properties?.address,d.properties?.city,d.properties?.state,d.properties?.zip].filter(Boolean).join(', ')||d.property_label,apn:d.properties?.apn||'',
-    purchase_price:d.purchase_price,emd:d.emd,closing_agent:d.attorney||'',assignment:{assignee:d.buyers?.name||'',assignment_fee:d.assignment_price&&d.purchase_price?d.assignment_price-d.purchase_price:undefined,close_by:d.closing_date||''}};
-  const b=new Blob([JSON.stringify(deal,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`deal-${id}.json`;a.click();
-  toast('Deal details saved. Tell Claude "make contracts for this deal" and both contracts get filled in.')}
+// ---------- contracts: DLG one-page documents (wording verbatim; only blanks get filled) ----------
+let _docxLib=null;
+async function docxLib(){if(_docxLib)return _docxLib;await new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/docx@9.0.2/build/index.umd.js';sc.onload=res;sc.onerror=()=>rej(new Error('Could not load the document builder'));document.head.appendChild(sc)});_docxLib=window.docx;return _docxLib}
+function buildDocs(deal,which){const {Document,Packer,Paragraph,TextRun,AlignmentType,TabStopType}=_docxLib;
+  const F='Arial';let S=19,LINE=252;
+  const v=(x,len=20)=>(x===undefined||x===null||x==='')?'_'.repeat(len):String(x);
+  const money=(n,len=12)=>(n===undefined||n===null||n==='')?'$'+'_'.repeat(len):'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const u=(x,len)=>({text:v(x,len),underline:x?{}:undefined});
+  const um=(x,len)=>(x===undefined||x===null||x==='')?{text:'$'+'_'.repeat(len)}:{text:money(x),underline:{}};
+  const p=(runs,o={})=>new Paragraph({spacing:{after:o.after??60,line:o.line??LINE},indent:o.indent,alignment:o.align,tabStops:o.tabs,
+    children:(Array.isArray(runs)?runs:[runs]).map(r=>typeof r==='string'?new TextRun({text:r,font:F,size:S}):new TextRun({font:F,size:S,...r}))});
+  const b=t=>({text:t,bold:true});
+  const doc=(title,kids)=>new Document({sections:[{properties:{page:{size:{width:12240,height:15840},margin:{top:864,bottom:864,left:1080,right:1080}}},
+    children:[p([{text:title,bold:true,size:26}],{align:AlignmentType.CENTER,after:160}),...kids]}]});
+  const L='______________________________';
+  const sig=who=>[p([b(who)],{after:40}),p('Signature: '+L+'    Date: _______________',{after:40}),p('Printed Name: '+L,{after:120})];
+  const box=on=>on?'☒':'☐';
+  const sellers=Array.isArray(deal.sellers)?deal.sellers.filter(Boolean).join(' and '):deal.sellers;
+  const extraLines=t=>(t||'').split('\n').filter(Boolean);
+  const out=[];
+  if(which.psa){S=19;LINE=252;const extra=extraLines(deal.additional_terms);
+    const pc=[
+      p(['This Contract dated ',u(deal.contract_date,15),' in which Buyer: Dominion Land Group, offers to purchase and/or assign from Seller(s): ',u(sellers,44),' the following described real estate, together with all improvements thereon and all appurtenant rights, located at:'],{after:120}),
+      p([b('Address: '),u(deal.property_address,71)],{after:100}),
+      p([b('Parcel ID: '),u(deal.apn,69)],{after:100}),
+      p([b('Legal Description: '),u(deal.legal_description,63)],{after:deal.legal_description?120:40}),
+      ...(deal.legal_description?[]:[p('_'.repeat(84),{after:40}),p('_'.repeat(84),{after:120})]),
+      p('Seller agrees:',{after:80}),
+      p([b('1.\t'),'The purchase price is to be ',um(deal.purchase_price||null,15)]),
+      p([b('2.\t'),'The conditions of this Purchase are as follows:'],{after:80}),
+      p([b('a.\t'),'Property is sold in “AS-IS CONDITION” with no warranties made by the seller. Seller will make the Buyer aware of any known facts that affect the value of the property.']),
+      p([b('b.\t'),'If property does not pass inspection standards during the feasibility study period or any unknown defaults then the buyer shall be released from any further obligation under this contract. Feasibility study will continue for a period of ',u(deal.feasibility_days,6),' days']),
+      p([b('c.\t'),'If Seller cannot provide a clear title or does not allow a feasibility study. Buyer will be released from any further obligation under this contract.']),
+      p([b('d.\t'),'Closing Agent located at: ',u(deal.closing_agent,30)]),
+      p([b('3.\t'),'In consideration of the sum of ',um(deal.emd,10),' Earnest Money will be deposited by Buyer and held at the closing agents office.']),
+      p([b('4.\t'),'Buyer to pay all title related charges, closing fees, recording fees, and doc stamps'],{after:0}),
+      p('Seller to pay Prorated Taxes',{indent:{left:720}}),
+      p([b('5.\t'),'Closing date shall be on or before ',u(deal.closing_days,6),' days from the date signed below by Seller. Title is to be free, clear, and unencumbered, free of any county, city, and federal liens.']),
+      p([b('6.\t'),'Additional Terms:'],{after:40}),
+      ...(extra.length?extra.map((t,i)=>p(t,{indent:{left:720},after:i===extra.length-1?200:40})):[0,1,2].map(i=>p('_'.repeat(74),{indent:{left:720},after:i===2?200:40}))),
+      ...sig('SELLER'),...sig('SELLER'),...sig('BUYER: Dominion Land Group')];
+    out.push(['Purchase and Sale Contract',doc('Purchase and Sale Contract',pc)])}
+  if(which.asg){S=18;LINE=240;const a=deal.assignment||{};
+    const price=Number(deal.purchase_price||0),fee=Number(a.assignment_fee||0),dep=Number(a.deposit||0);
+    const haveNums=deal.purchase_price&&a.assignment_fee!==undefined&&a.assignment_fee!=='';const has=x=>x!==undefined&&x!=='';
+    const row=(amt,label)=>p([{text:amt},{text:'\t'+label}],{indent:{left:2880},tabs:[{type:TabStopType.LEFT,position:1800}],after:20});
+    const ac=[
+      p(['This agreement is between Dominion Land Group (“Assignor”) ',u(a.assignee,40),' (“Assignee”). The Assignor and Assignee, when mentioned together, may be referred to as Parties.'],{after:100}),
+      p(['The Assignor entered into a contract with ',u(sellers,40),' on ',u(deal.contract_date,15),' (“Contract” or “Underlying Transaction”). The Contract is attached hereto as Exhibit “A.” Under the Contract, the Assignor has certain rights in the property commonly known as ',u(deal.property_address,40),' and which is legally described as: APN# ',u(deal.apn,20)],{after:80}),
+      p('The Assignor wants to assign the rights that he/she acquired under the Contract to the Assignee.',{after:100}),
+      p([b('TERMS AND CONDITIONS')],{align:AlignmentType.CENTER,after:60}),
+      p('The parties agree to the following terms and conditions:',{after:60}),
+      p('1. Assignor assigns all rights that he/she acquired under the Contract to Assignee.'),
+      p('2. Assignee accepts all terms and conditions of the Contract. Assignee has reviewed the Contract, which is attached hereto as Exhibit “A.” Assignee fully understands the terms and conditions in the Contract and represents to Assignor that it is willing and able to close the Underlying Transaction.'),
+      p(['3. The Assignee will deliver to ',u(a.deposit_to,20),' or wire transfer it as a deposit in the amount of ',u(has(a.deposit)?money(dep):null,10),' as the earnest money deposit for this transaction by ',u(a.deposit_due,12),'. This Assignment is not effective until the deposit is paid and both Parties sign the Assignment.']),
+      p(['4. Assignee will pay the Assignor a total assignment fee of ',u(has(a.assignment_fee)?money(fee):null,10),'. This amount may or may not include the deposit listed in paragraph 1. This fee will be paid at the closing of the Underlying Transaction.']),
+      p(['5. At closing, the assignor will receive ',u(has(a.assignment_fee)?money(fee):null,10),' in assignment fees.']),
+      p('6. The assignment fee will be added to the purchase price identified in the Contract. The total amounts owed by the Assignee are as follows:',{after:40}),
+      row(haveNums?money(price):'$__________','Purchase price in Underlying Transaction'),
+      row(haveNums?money(fee):'$__________','Assignment Fee'),
+      row(haveNums?'('+money(dep)+')':'($__________)','-/ Minus Deposit'),
+      row(haveNums?money(price+fee-dep):'$__________','Total Due at Closing plus closing'),
+      p(['7. Assignee must close the Underlying Transaction on or before ',u(a.close_by,18),'. Examination Period Ends: ',u(a.exam_ends,18),'. Time is of the essence, and the Assignor will be harmed if the Assignee fails to timely close. The Assignor will select the closing agent.'],{after:60}),
+      p('8. If Assignee fails to close the Underlying Transaction by the date indicated in paragraph 5, Assignee will forfeit its deposit, and all rights to the Property under the Contract will automatically revert back to Assignor.'),
+      p('9. If the Assignee attempts to communicate with the sellers in any form, it will immediately terminate this agreement and forfeit their deposit for liquidated damages'),
+      p('10. Assignor must deliver a clear title at closing. If a clear title cannot be given, then this Assignment will be canceled and the deposit will be refunded to the Assignee.'),
+      p('11. Assignee will not contact the Seller identified in the Contract. Assignee agrees to communicate solely with and through Assignor.'),
+      p('12. Assignors may at any time before closing renegotiate the underlying purchase price in the Contract with the original seller. Assignors are entitled to the entire difference between the Contract purchase price and this Assignment. The difference, if any, will be paid as an additional assignment fee at closing. Assignor’s negotiation of the purchase price will not affect the Total Due at Closing by Assignee.'),
+      p('13. The Property is sold as is. The Assignor makes no representation of the Property\'s condition. This includes permitting, major structures, foundations, occupancy, mold, and any other property defect. Assignee must do their own due diligence. Assignee acknowledges that they are not relying on any representation of the condition of the Property by Assignor, and Assignee has willfully agreed to assume all risks related to the condition of the Property.'),
+      p(['14. This agreement is null and void if a deposit of ',u(has(a.deposit)?money(dep):null,10),' is NOT received on or before ',u(a.deposit_due,12),'.'],{after:200}),
+      p('ASSIGNOR: Dominion Land Group, by Damien Dupee  '+'_'.repeat(28)+'     DATE: ___________',{after:120}),
+      p('ASSIGNEE: '+(a.assignee?a.assignee+'  ':'')+'_'.repeat(a.assignee?30:50)+'     DATE: ___________',{after:120}),
+      p('ASSIGNEE: '+'_'.repeat(50)+'     DATE: ___________',{after:0})];
+    out.push(['Assignment of Contract',doc('ASSIGNMENT OF CONTRACT',ac)])}
+  if(which.cancel){S=19;LINE=252;const c=deal.cancel||{};const extra=extraLines(c.additional_terms);const r=c.reason||'';const em=c.emd_to||'';const ind={indent:{left:720}};
+    const cc=[
+      p(['This Cancellation dated ',u(c.date,15),' is between Buyer: Dominion Land Group, and Seller(s): ',u(sellers,44),'.'],{after:120}),
+      p(['Buyer and Seller agree to cancel the Purchase and Sale Contract dated ',u(deal.contract_date,15),' (the "Contract") for the following described real estate:'],{after:120}),
+      p([b('Address: '),u(deal.property_address,71)],{after:100}),
+      p([b('Parcel ID: '),u(deal.apn,69)],{after:120}),
+      p('Buyer and Seller agree:',{after:80}),
+      p([b('1.\t'),'The Contract is cancelled as of the date of this Cancellation and is of no further force or effect.']),
+      p([b('2.\t'),'Reason for cancellation (check one):'],{after:40}),
+      p(box(r==='feasibility')+"  Property did not pass Buyer's feasibility study (Contract, Section 2b)",{...ind,after:30}),
+      p(box(r==='title')+'  Seller could not provide clear title (Contract, Section 2c)',{...ind,after:30}),
+      p(box(r==='mutual')+'  Mutual agreement of Buyer and Seller',{...ind,after:30}),
+      p([box(r==='other')+'  Other: ',u(r==='other'?c.other:null,44)],{...ind,after:60}),
+      p([b('3.\t'),'Earnest Money in the amount of ',um(deal.emd,10),' held by the closing agent shall be (check one):'],{after:40}),
+      p(box(em==='buyer')+'  Returned to Buyer          '+box(em==='seller')+'  Released to Seller          '+box(em==='none')+'  No Earnest Money was deposited',{...ind,after:60}),
+      p([b('4.\t'),'Buyer and Seller authorize the closing agent located at ',u(deal.closing_agent,30),' to disburse the Earnest Money as stated above.']),
+      p([b('5.\t'),'If the Contract was assigned, this Cancellation also ends the rights of any assignee under the Contract.']),
+      p([b('6.\t'),'Buyer and Seller release each other from any further obligation under the Contract. Seller is free to sell the property to any other party.']),
+      p([b('7.\t'),'If a memorandum or notice of the Contract was recorded, Buyer will record a release within ',u(c.release_days,6),' days of this Cancellation.']),
+      p([b('8.\t'),'Additional Terms:'],{after:40}),
+      ...(extra.length?extra.map((t,i)=>p(t,{...ind,after:i===extra.length-1?200:40})):[0,1].map(i=>p('_'.repeat(74),{...ind,after:i===1?200:40}))),
+      ...sig('SELLER'),...sig('SELLER'),...sig('BUYER: Dominion Land Group')];
+    out.push(['Cancellation of Contract',doc('Cancellation of Purchase and Sale Contract',cc)])}
+  if(which.notice){S=19;LINE=252;const n=deal.notice||{};const r=n.reason||'';const ind={indent:{left:720}};
+    const nc=[
+      p(['Date of Notice: ',u(n.date,15)],{after:120}),
+      p(['To Seller(s): ',u(sellers,44)],{after:120}),
+      p(['Buyer, Dominion Land Group, gives notice that it is terminating the Purchase and Sale Contract dated ',u(deal.contract_date,15),' (the "Contract") for the following described real estate:'],{after:120}),
+      p([b('Address: '),u(deal.property_address,71)],{after:100}),
+      p([b('Parcel ID: '),u(deal.apn,69)],{after:120}),
+      p([b('1.\t'),'Buyer terminates the Contract under the following section (check one):'],{after:40}),
+      p(box(r==='feasibility')+"  Property did not pass Buyer's feasibility study (Contract, Section 2b)",{...ind,after:30}),
+      p(box(r==='title')+'  Seller could not provide clear title (Contract, Section 2c)',{...ind,after:30}),
+      p(box(r==='nostudy')+'  Seller did not allow a feasibility study (Contract, Section 2c)',{...ind,after:60}),
+      p([b('2.\t'),'This notice is given within the feasibility study period of ',u(deal.feasibility_days,6),' days stated in the Contract.']),
+      p([b('3.\t'),'Under the Contract, Buyer is released from any further obligation, and the Earnest Money of ',um(deal.emd,10),' held by the closing agent located at ',u(deal.closing_agent,30),' shall be returned to Buyer.']),
+      p([b('4.\t'),'Seller is free to sell the property to any other party.'],{after:200}),
+      ...sig('BUYER: Dominion Land Group'),
+      p('Copy sent to closing agent on _______________ by ☐ Email  ☐ Mail  ☐ Hand delivery',{after:0})];
+    out.push(['Notice of Termination',doc('Notice of Termination of Purchase and Sale Contract',nc)])}
+  return out}
+async function contractsFor(id){const {data:d}=await sb.from('deals').select('*, leads(full_name), properties(apn,address,city,state,zip,county), buyers(name)').eq('id',id).single();
+  const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const addr=[d.properties?.address,d.properties?.city,d.properties?.state,d.properties?.zip].filter(Boolean).join(', ')||d.property_label||'';
+  const f=(id2,label,val,type='text',ph='')=>`<div><label class="f">${label}</label><input id="k_${id2}" type="${type}" value="${esc(val??'')}" placeholder="${esc(ph)}"></div>`;
+  openDrawer(head('Contracts')+`<div class="card"><p class="small muted" style="margin-top:0">The contract wording never changes. Fill or fix the blanks, add anything special under Additional Terms, then create. Blank fields print as fill-in lines.</p>
+   <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">${[['psa','Purchase and Sale',true],['asg','Assignment',!!d.buyers?.name],['cancel','Cancellation',false],['notice','Notice of Termination',false]].map(([k,l,on])=>`<label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="w_${k}" ${on?'checked':''} style="width:auto" onchange="$('kx_${k}')&&($('kx_${k}').style.display=this.checked?'':'none')"> ${l}</label>`).join('')}</div>
+   <h4 style="margin:10px 0 4px">Deal</h4>
+   ${f('contract_date','Contract date',today)}${f('sellers','Seller name(s) — separate two sellers with " and "',d.leads?.full_name||'')}${f('address','Property address',addr)}${f('apn','Parcel ID / APN',d.properties?.apn||'')}
+   ${f('legal','Legal description (optional)','')}
+   <div class="row" style="flex-wrap:nowrap;gap:8px">${f('price','Purchase price $',d.purchase_price??d.value??'','number')}${f('emd','Earnest money $',d.emd??'','number')}</div>
+   <div class="row" style="flex-wrap:nowrap;gap:8px">${f('feas','Feasibility days','30','number')}${f('closedays','Closing within (days)','45','number')}</div>
+   ${f('agent','Closing agent',d.attorney||'','text','e.g. Merritt Law, PLLC, Kannapolis, NC')}
+   <label class="f">Additional Terms (one per line)</label><div class="row" style="flex-wrap:nowrap;gap:6px;align-items:flex-start"><textarea id="k_terms" style="min-height:70px;flex:1" placeholder="e.g. Buyer may assign this contract."></textarea>${micBtn('k_terms')}</div>
+   <div id="kx_asg" style="display:${d.buyers?.name?'':'none'}"><h4 style="margin:14px 0 4px">Assignment</h4>
+    ${f('assignee','Assignee (buyer)',d.buyers?.name||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('fee','Assignment fee $',d.assignment_price&&d.purchase_price?d.assignment_price-d.purchase_price:'','number')}${f('adep','Assignee deposit $','','number')}</div>
+    ${f('depto','Deposit delivered to',d.attorney||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('depdue','Deposit due by','')}${f('closeby','Close on or before',d.closing_date?fmtDate(d.closing_date):'')}</div>${f('exam','Examination period ends','')}</div>
+   <div id="kx_cancel" style="display:none"><h4 style="margin:14px 0 4px">Cancellation</h4>${f('cdate','Cancellation date',today)}
+    <label class="f">Reason</label><select id="k_creason"><option value="feasibility">Did not pass feasibility (2b)</option><option value="title">No clear title (2c)</option><option value="mutual">Mutual agreement</option><option value="other">Other</option></select>${f('cother','If other, reason','')}
+    <label class="f">Earnest money</label><select id="k_cemd"><option value="buyer">Returned to Buyer</option><option value="seller">Released to Seller</option><option value="none">No Earnest Money was deposited</option></select>
+    ${f('crel','Record release within (days)','')}<label class="f">Additional Terms (cancellation)</label><textarea id="k_cterms" style="min-height:50px"></textarea></div>
+   <div id="kx_notice" style="display:none"><h4 style="margin:14px 0 4px">Notice of Termination</h4>${f('ndate','Date of notice',today)}
+    <label class="f">Section</label><select id="k_nreason"><option value="feasibility">Did not pass feasibility (2b)</option><option value="title">No clear title (2c)</option><option value="nostudy">Seller did not allow feasibility study (2c)</option></select></div>
+   <br><button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">Create documents</button><div id="k_msg" class="small" style="margin-top:8px"></div></div>`)}
+async function makeContracts(id){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?undefined:Number(g(k));
+  const which={psa:$('w_psa').checked,asg:$('w_asg').checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};if(!Object.values(which).some(Boolean))return toast('Pick at least one document');
+  const deal={contract_date:g('contract_date'),sellers:g('sellers').split(/\s+and\s+/i).filter(Boolean),property_address:g('address'),apn:g('apn'),legal_description:g('legal'),purchase_price:num('price'),emd:num('emd'),
+    feasibility_days:g('feas'),closing_days:g('closedays'),closing_agent:g('agent'),additional_terms:$('k_terms').value,
+    assignment:{assignee:g('assignee'),assignment_fee:num('fee'),deposit:num('adep'),deposit_to:g('depto'),deposit_due:g('depdue'),close_by:g('closeby'),exam_ends:g('exam')},
+    cancel:{date:g('cdate'),reason:$('k_creason')?.value,other:g('cother'),emd_to:$('k_cemd')?.value,release_days:g('crel'),additional_terms:$('k_cterms')?.value||''},
+    notice:{date:g('ndate'),reason:$('k_nreason')?.value}};
+  const btn=$('k_go');btn.disabled=true;btn.textContent='Creating…';
+  try{await docxLib();const docs=buildDocs(deal,which);const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
+    for(const [name,d] of docs){const blob=await _docxLib.Packer.toBlob(d);const fname=`${name} - ${slug}.docx`;
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;document.body.appendChild(a);a.click();a.remove();
+      const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {error}=await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+      if(!error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`${name} (${new Date().toLocaleDateString()})`,storage_path:path,source:'hq'})}
+    $('k_msg').innerHTML=`<b>Done.</b> ${docs.length} document${docs.length>1?'s':''} downloaded and saved to this deal's files. Open them in Word to review before sending for signature.`}
+  catch(e){$('k_msg').textContent='Could not create: '+e.message}finally{btn.disabled=false;btn.textContent='Create documents'}}
 
 // ---------- inboxes ----------
 // ---------- inboxes (modeled on Pebble: list · conversation · contact/deal panel) ----------
