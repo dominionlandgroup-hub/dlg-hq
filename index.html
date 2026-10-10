@@ -191,6 +191,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <a class="nav" data-v="contacts">Contacts</a>
     <a class="nav" data-v="buyers">Buyers</a>
     <a class="nav" data-v="testimonials">Testimonials</a>
+    <a class="nav" data-v="course">Course (WALS)</a>
     <div class="grp">Configure</div>
     <a class="nav" data-v="followup">Auto Followup</a>
     <a class="nav" data-v="templates">Templates</a>
@@ -252,8 +253,8 @@ async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=
 // ---------- router ----------
 const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox('seller'),'inbox-buyer':()=>vInbox('buyer'),
  'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,
- followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials};
-const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials'};
+ followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse};
+const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
 function go(v){const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch(decodeURIComponent(m[2]));return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
@@ -1086,6 +1087,34 @@ async function addLead(){const v=i=>$(i).value||null;const r={first_name:v('a_fi
 
 // ---------- buyers ----------
 const BB_LINK='https://dominionlandgroup.land/bb/',BB_FORM='https://dominionlandgroup.land/buybox';
+// ---------- WALS course: students, invites, downloads ----------
+async function vCourse(){
+  $('actions').innerHTML=`<a class="btn ghost" href="https://dominionlandgroup-hub.github.io/dlg-hq/wals/" target="_blank" rel="noopener">View course site</a>`;
+  const [{data:st},{data:fl},{data:pr}]=await Promise.all([sb.from('wals_students').select('id,email,name,plan,source,active,created_at,last_login,pw_hash').order('created_at',{ascending:false}),sb.from('wals_files').select('*').order('position'),sb.from('wals_progress').select('student_id')]);
+  const cnt={};(pr||[]).forEach(x=>cnt[x.student_id]=(cnt[x.student_id]||0)+1);
+  $('view').innerHTML=`<div class="grid2"><div class="card"><h3 class="sec" style="margin-top:0">Add a student</h3>
+     <div class="g2"><div><label class="f">Email</label><input id="ws_em" type="email"></div><div><label class="f">Name</label><input id="ws_nm"></div></div>
+     <label class="f">Plan</label><select id="ws_pl"><option value="course">Course ($997)</option><option value="coaching">Coaching ($1,997)</option></select>
+     <div class="row" style="margin-top:10px;gap:8px"><button class="btn" style="flex:0" onclick="wsInvite(0)">Create login link</button><button class="btn ghost" style="flex:0" onclick="wsInvite(1)">Create + email it</button></div>
+     <div id="ws_out" class="small" style="margin-top:8px"></div>
+     <details style="margin-top:12px"><summary><b>Add many at once</b> <span class="small muted">(your GHL students)</span></summary><p class="small muted">One per line: email, name, plan (plan is optional, "course" or "coaching"). Logins are created but nothing is emailed until you click Send.</p>
+       <textarea id="ws_bulk" style="min-height:110px" placeholder="jane@example.com, Jane Smith, course"></textarea><div class="row" style="margin-top:8px;gap:8px"><button class="btn ghost" style="flex:0" onclick="wsBulk(0)">Create logins</button><button class="btn ghost" style="flex:0" onclick="wsBulk(1)">Create + email all</button></div><div id="ws_bout" class="small" style="margin-top:6px"></div></details></div>
+   <div class="card"><h3 class="sec" style="margin-top:0">Downloads students see</h3>${(fl||[]).map(f=>`<div class="frow"><span class="fic">${/xlsx?$/i.test(f.path)?'X':'W'}</span><span style="flex:1">${esc(f.name)}</span><button class="ico" title="Remove" onclick="wsDelFile(${f.id})">🗑</button></div>`).join('')||'<div class="muted small">None yet.</div>'}
+     <div class="row" style="margin-top:10px"><input type="file" id="ws_up" multiple><button class="btn ghost" style="flex:0" onclick="wsUpload()">Upload</button></div></div></div>
+   <div class="card" style="padding:0;overflow-x:auto"><table><tr><th>Student</th><th>Plan</th><th>From</th><th>Login</th><th class="right">Lessons done</th><th>Joined</th><th></th></tr>
+     ${(st||[]).map(x=>`<tr><td><b>${esc(x.name||'')}</b><div class="small muted">${esc(x.email)}</div></td><td>${x.plan}</td><td class="small">${esc(x.source||'')}</td><td class="small">${x.pw_hash?(x.last_login?'last in '+fmtDate(x.last_login):'set'):'<span class="muted">not set yet</span>'}</td><td class="right">${cnt[x.id]||0}</td><td class="small">${fmtDate(x.created_at)}</td>
+       <td style="white-space:nowrap"><button class="btn ghost sm" onclick="wsInviteFor('${esc(x.email)}','${esc(x.name||'')}','${x.plan}')">New login link</button> <button class="btn ghost sm" onclick="wsActive(${x.id},${!x.active})">${x.active?'Turn off':'Turn on'}</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">No students yet.</td></tr>'}</table></div>`}
+async function wsCall(b){const {data,error}=await sb.functions.invoke('wals/invite',{body:b});if(error)throw new Error((await error.context?.json?.().catch(()=>null))?.error||error.message);return data}
+async function wsInvite(send){const b={email:$('ws_em').value.trim(),name:$('ws_nm').value.trim(),plan:$('ws_pl').value,send:!!send};try{const j=await wsCall(b);$('ws_out').innerHTML=`Login link (works 14 days)${j.queued?', emailed':''}: <a href="#" onclick="navigator.clipboard.writeText('${j.link}');toast('Copied');return false">copy link</a>`;setTimeout(vCourse,1500)}catch(e){toast(e.message)}}
+async function wsInviteFor(email,name,plan){try{const j=await wsCall({email,name,plan});await navigator.clipboard.writeText(j.link).catch(()=>{});toast('New login link copied')}catch(e){toast(e.message)}}
+async function wsBulk(send){const lines=$('ws_bulk').value.split('\n').map(l=>l.split(',').map(x=>x.trim())).filter(x=>x[0]&&x[0].includes('@'));let ok=0,bad=[];
+  for(const [email,name,plan] of lines){try{await wsCall({email,name:name||'',plan:/coach/i.test(plan||'')?'coaching':'course',send:!!send,source:'ghl'});ok++}catch(e){bad.push(email)}}
+  $('ws_bout').textContent=`${ok} created${send?' and emailed':''}${bad.length?'; failed: '+bad.join(', '):''}.`;setTimeout(vCourse,1500)}
+async function wsActive(id,v){await sb.from('wals_students').update({active:v}).eq('id',id);vCourse()}
+async function wsUpload(){const fs=$('ws_up').files;if(!fs.length)return toast('Pick a file first');const {data:ex}=await sb.from('wals_files').select('position').order('position',{ascending:false}).limit(1);let pos=(ex?.[0]?.position||0);
+  for(const f of fs){const path=`${Date.now()}-${f.name.replace(/[^\w.\- ()]+/g,'_')}`;const {error}=await sb.storage.from('wals-files').upload(path,f);if(error)return toast(error.message);await sb.from('wals_files').insert({name:f.name,path,position:++pos})}
+  toast('Uploaded');vCourse()}
+async function wsDelFile(id){if(!confirm('Remove this download from the course?'))return;await sb.from('wals_files').delete().eq('id',id);vCourse()}
 async function vBuyers(){
   $('actions').innerHTML=`<button class="btn ghost" onclick="navigator.clipboard.writeText(BB_FORM);toast('Form link copied')">Copy buy-box form link</button><button class="btn" onclick="editBuyer(0)">+ Add Buyer</button>`;
   let data=[];for(let f=0;;f+=1000){const r=await sb.from('buyers').select('*').order('name').range(f,f+999);data.push(...(r.data||[]));if(!r.data||r.data.length<1000)break}
