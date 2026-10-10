@@ -56,7 +56,12 @@ async function load(){try{D=await call('me')}catch(e){if(e.status===401||e.statu
   const all=D.modules.flatMap(m=>m.lessons);const done=new Set(D.done);
   let last=null;try{last=localStorage.getItem('wals_last')}catch(e){}
   CUR=all.find(l=>l.id===last)||all.find(l=>!done.has(l.id))||all[0];draw()}
-function draw(){const all=D.modules.flatMap(m=>m.lessons);const done=new Set(D.done);const pct=all.length?Math.round(done.size/all.length*100):0;
+function drawCoaching(){$('app').innerHTML=`<div class="course"><main class="main" style="max-width:760px;margin:0 auto"><h2>Welcome${D.name?', '+esc(D.name.split(' ')[0]):''}</h2><p>You're in 1-on-1 coaching: six weekly 45-minute calls with Damien.</p>
+     ${D.booking?`<div class="card"><b>Book your coaching calls</b><p style="margin:6px 0 10px">Pick your weekly call times (Tuesdays and Thursdays).</p><a class="btn gold" href="${esc(D.booking)}" target="_blank" rel="noopener">Book a call</a></div>`:''}
+     ${D.files.length?`<div class="card files"><b>Downloads</b>${D.files.map(f=>`<a data-f="${f.id}">⬇ ${esc(f.name)}</a>`).join('')}</div>`:''}
+     <p class="small" style="color:var(--mut);margin-top:22px">Questions? Email <a href="mailto:wearelandspecialists@gmail.com">wearelandspecialists@gmail.com</a></p></main></div>`;
+  document.querySelectorAll('[data-f]').forEach(a=>a.onclick=async()=>{try{const j=await call('file',{id:+a.dataset.f});location.href=j.url}catch(e){alert(e.message)}})}
+function draw(){if(D.plan==='coaching')return drawCoaching();const all=D.modules.flatMap(m=>m.lessons);const done=new Set(D.done);const pct=all.length?Math.round(done.size/all.length*100):0;
   const curMod=D.modules.find(m=>m.lessons.some(l=>l.id===CUR?.id));const idx=all.findIndex(l=>l.id===CUR?.id);
   $('app').innerHTML=`<div class="course"><aside class="side"><div class="prog"><b>${pct}% complete</b> <span class="small" style="color:var(--mut)">${done.size} of ${all.length} lessons</span><div class="t"><div class="f" style="width:${pct}%"></div></div></div>
    ${D.modules.map((m,i)=>`<div class="mod ${m===curMod?'open':''}"><button aria-expanded="${m===curMod}" data-m="${i}"><span>${esc(m.num)}</span>${esc(m.name)}<small>${m.lessons.filter(l=>done.has(l.id)).length}/${m.lessons.length}</small></button>
