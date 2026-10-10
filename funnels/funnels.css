@@ -24,7 +24,10 @@ section{padding:72px 0}
 /* top bar */
 .bar{position:sticky;top:0;z-index:20;background:rgba(20,17,20,.94);backdrop-filter:blur(6px)}
 .bar .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;gap:16px}
-.bar img{height:46px;width:auto}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:#fff;line-height:1.05}
+.brand img{height:40px;width:auto}
+.brand span{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+.brand b{display:block;font-size:17px;letter-spacing:.02em;color:#fff;font-weight:800}
 .bar nav{display:flex;gap:22px;font-size:14px;font-weight:600}
 .bar nav a{color:#e8e1ec;text-decoration:none}
 .bar nav a:hover{color:var(--gold)}
@@ -57,7 +60,7 @@ section{padding:72px 0}
 /* cards */
 .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:32px}
 .card{background:#1e1a20;border-radius:12px;overflow:hidden;border:1px solid #2e2833}
-.card img{aspect-ratio:4/3;width:100%;object-fit:cover}
+.card img{width:100%;height:auto}
 .card h3{font-size:15px;color:var(--gold);padding:14px 16px 16px;margin:0;text-transform:uppercase;letter-spacing:.02em}
 .list{list-style:none;padding:0;margin:0}
 .list li{padding:12px 0 12px 30px;border-bottom:1px solid var(--line);position:relative}
