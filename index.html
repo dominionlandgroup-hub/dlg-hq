@@ -101,6 +101,15 @@ h3.sec{margin:0 0 10px;font-size:14px}
 .drawer .panel{position:absolute;right:0;top:0;bottom:0;width:min(640px,100%);background:var(--bg);overflow:auto;padding:18px}
 .tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}.tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 14px}
 .tabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.inbox3{display:grid;grid-template-columns:300px 1fr 300px;gap:12px;height:calc(100vh - 150px)}.tlist{background:#fff;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+.tl-top{padding:10px;border-bottom:1px solid var(--line)}.seg{display:flex;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{flex:1;border:0;background:#fff;padding:5px 0;font-size:12.5px}.seg button.on{background:var(--brand);color:#fff}
+#tl{overflow:auto;flex:1}.tsec{padding:8px 12px 4px;font-size:12px;font-weight:700;color:var(--gold-d)}.titem{display:flex;gap:9px;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f2f0f5;position:relative}.titem:hover{background:#faf8fc}.titem.on{background:var(--chip);box-shadow:inset 3px 0 0 var(--brand)}
+.titem .av{width:34px;height:34px;flex:0 0 34px;border-radius:50%;border:1.5px solid var(--brand);color:var(--brand);display:grid;place-items:center;font-size:12px;font-weight:700}.titem .tb{flex:1;min-width:0}.titem .tr1{display:flex;justify-content:space-between;gap:6px}.titem .tr1 b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.titem .tr2{display:flex;gap:6px;font-size:12px;color:var(--muted)}.titem .tr2 span:first-child{flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.titem .d{white-space:nowrap}.titem.unread b{color:var(--brand)}.titem .ub{position:absolute;right:10px;bottom:8px;background:var(--gold);color:#fff;border-radius:999px;font-size:11px;padding:0 6px}
+.chead{display:flex;align-items:center;gap:6px;padding:12px 14px;border-bottom:1px solid var(--line)}.msgs2{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:#fcfbfd}
+.bub{max-width:78%}.bub.out{align-self:flex-end;text-align:right}.bub .meta{font-size:11.5px;color:var(--muted);margin-bottom:3px}.bub .bb{display:inline-block;text-align:left;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid var(--line)}.bub.out .bb{background:#fbf3dd;border-color:#f1e2b5}
+.cpanel{overflow:auto}
+@media(max-width:1100px){.inbox3{grid-template-columns:260px 1fr}.cpanel{display:none}}@media(max-width:700px){.inbox3{grid-template-columns:1fr;height:auto}.tlist{max-height:45vh}}
 .inbox{display:grid;grid-template-columns:320px 1fr;gap:14px;height:calc(100vh - 110px)}
 .threads{overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
 .thread{padding:11px 13px;border-bottom:1px solid var(--line);cursor:pointer}.thread:hover{background:#fafaf6}
@@ -416,27 +425,68 @@ async function contractsFor(id){const {data:d}=await sb.from('deals').select('*,
   toast('Deal details saved. Tell Claude "make contracts for this deal" and both contracts get filled in.')}
 
 // ---------- inboxes ----------
-async function vInbox(box){
-  const {data,error}=await sb.from('messages').select('id,lead_id,channel,direction,body,is_read,created_at, leads(id,full_name,first_name,last_name,phone,prop_address)').eq('inbox',box).order('created_at',{ascending:false}).limit(800);
-  if(error){$('view').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
-  const th={};(data||[]).forEach(m=>{const t=th[m.lead_id]||(th[m.lead_id]={lead:m.leads,last:m,unread:0});if(m.direction==='in'&&!m.is_read)t.unread++});
-  const list=Object.values(th);
-  $('view').innerHTML=`<div class="inbox"><div class="threads">${list.map(t=>`<div class="thread ${t.unread?'unread':''}" data-l="${t.lead?.id}" onclick="openThread(${t.lead?.id},'${box}')"><div style="display:flex;gap:6px"><span class="nm" style="flex:1">${esc(leadName(t.lead)||t.lead?.phone||'Unknown')}</span>${t.unread?`<span class="pill">${t.unread}</span>`:''}<span class="small muted">${ago(t.last.created_at)}</span></div><div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.last.channel==='call'?'📞 ':t.last.channel==='web'?'🌐 ':''}${esc(t.last.body||'')}</div></div>`).join('')||'<div class="muted" style="padding:16px">No conversations yet. Website form leads land here now. Texts and calls land here once your Quo numbers are connected.</div>'}</div>
-   <div class="convo" id="convo"><div class="muted" style="padding:20px">Pick a conversation. Opening one marks it read.</div></div></div>`;
-}
+// ---------- inboxes (modeled on Pebble: list · conversation · contact/deal panel) ----------
+let IST2={status:'inbox',term:'',tid:null,box:'seller'};
+async function vInbox(box){if(IST2.box!==box)IST2={status:'inbox',term:'',tid:null,box};
+  $('actions').innerHTML=`<button class="btn" onclick="startConversation('${box}')">+ Start Conversation</button>`;
+  $('view').innerHTML=`<div class="inbox3"><div class="tlist"><div class="tl-top"><input id="tq" placeholder="Search conversations" value="${esc(IST2.term)}">
+     <div class="seg">${['inbox','sent','unread','all'].map(x=>`<button class="${IST2.status===x?'on':''}" onclick="IST2.status='${x}';loadThreads()">${x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div></div><div id="tl"></div></div>
+   <div class="convo" id="convo"><div class="muted" style="padding:20px">Pick a conversation.</div></div><div class="cpanel" id="cpanel"></div></div>`;
+  let t;$('tq').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{IST2.term=e.target.value.trim();loadThreads()},300)};loadThreads(true)}
+async function loadThreads(first){const {data,error}=await sb.rpc('inbox_threads',{box:IST2.box,status:IST2.status,term:IST2.term||null,lim:200,off:0});
+  if(error){$('tl').innerHTML=`<div class="muted small" style="padding:12px">${esc(error.message)}</div>`;return}
+  document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.textContent.toLowerCase()===IST2.status));
+  const ic=c=>c==='call'?'📞':c==='email'?'✉':c==='web'?'🌐':'💬';const ini=n=>(n||'').split(/\s+/).filter(w=>/^[A-Za-z]/.test(w)).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  const item=t=>`<div class="titem ${t.unread?'unread':''} ${t.id===IST2.tid?'on':''}" onclick="openThreadT(${t.id})"><div class="av">${ini(t.lead_name||t.title)||'👤'}</div><div class="tb"><div class="tr1"><b>${esc(t.lead_name||t.title||t.phone||'Unknown')}</b><span>${ic(t.last_channel)}</span></div>
+     <div class="tr2"><span>${t.last_channel==='call'?'Call':t.last_channel==='email'?'Email':'Text Message'} ${esc((t.last_body||'').slice(0,70))}</span><span class="d">${t.last_at?new Date(t.last_at).toLocaleDateString('en-US',{month:'short',day:'2-digit'}):''}</span></div></div>${t.unread?`<span class="ub">${t.unread}</span>`:''}</div>`;
+  const P=(data||[]).filter(t=>t.pinned),A=(data||[]).filter(t=>!t.pinned);
+  $('tl').innerHTML=(P.length?'<div class="tsec">Pinned</div>'+P.map(item).join(''):'')+'<div class="tsec">All</div>'+(A.map(item).join('')||'<div class="muted small" style="padding:12px">No conversations.</div>');
+  if(first&&data&&data.length&&!IST2.tid)openThreadT(data[0].id)}
+async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem').forEach(e=>e.classList.toggle('on',e.getAttribute('onclick')===`openThreadT(${tid})`));
+  const [{data:t},{data:msgs},{data:tpl}]=await Promise.all([sb.from('threads').select('*, leads(*)').eq('id',tid).single(),sb.from('messages').select('*').eq('thread_id',tid).order('created_at'),sb.from('templates').select('id,name,body').eq('kind','text').order('name')]);
+  const l=t.leads||{};_tl=l;window._tpl=tpl||[];
+  const bubble=m=>{const out=m.direction==='out';const who=m.sender||(out?'Damien Dupee':(l.full_name||t.title||''));const when=new Date(m.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    let inner='';if(m.channel==='call'){inner=`<div><b>${out?'Outgoing call':m.duration_s?'Incoming call':'Missed call'}</b>${m.duration_s?` · ${Math.floor(m.duration_s/60)}:${String(m.duration_s%60).padStart(2,'0')}`:''}</div>${m.body?`<div style="margin-top:6px">${esc(m.body)}</div>`:''}${m.recording_url?`<audio controls preload="none" src="${esc(/^https?:/.test(m.recording_url)?m.recording_url:'https://app.pebblerei.com'+m.recording_url)}" style="width:100%;margin-top:6px"></audio>`:''}`}
+    else if(m.channel==='email'){inner=`<div class="small muted">${esc(m.email_from||'')}${m.email_to?' → '+esc(m.email_to):''}</div>${m.subject?`<b>${esc(m.subject)}</b><br>`:''}<div style="white-space:pre-wrap">${esc((m.body||'').slice(0,3000))}</div>`}
+    else inner=`<div style="white-space:pre-wrap">${esc(m.body||'')}</div>`;
+    return `<div class="bub ${out?'out':'in'}"><div class="meta"><b>${esc(who)}</b> · ${when}</div><div class="bb">${inner}</div></div>`};
+  $('convo').innerHTML=`<div class="chead"><div style="flex:1"><b style="font-size:16px">${esc(t.phone||t.title||'')}</b> ${t.phone?`<a href="tel:${esc(t.phone)}" title="Call">📞</a>`:''}<div class="small muted">${l.full_name?esc(l.full_name)+' · ':''}via ${esc(t.our_number||'(980) 217-8806')}</div></div>
+     <button class="btn ghost sm" title="${t.pinned?'Unpin':'Pin'}" onclick="threadFlag(${tid},'pinned',${!t.pinned})">📌</button><button class="btn ghost sm" title="Mark unread" onclick="threadUnread(${tid})">●</button><button class="btn ghost sm" title="Archive" onclick="threadFlag(${tid},'archived',true)">🗄</button></div>
+   <div class="msgs2" id="msgs">${(msgs||[]).map(bubble).join('')||'<div class="muted small">No messages yet.</div>'}</div>
+   <div class="composer"><select id="tplpick" style="flex:0 0 140px" onchange="useTpl(this)"><option value="">Template…</option>${(tpl||[]).map((x,i)=>`<option value="${i}">${esc(x.name)}</option>`).join('')}</select>
+     <textarea id="reply" style="min-height:44px" placeholder="Write a text"></textarea><button class="btn" onclick="sendTextT(${tid})">Send Now</button></div>`;
+  $('msgs').scrollTop=1e9;drawCPanel(t,l);
+  if((msgs||[]).some(m=>m.direction==='in'&&!m.is_read)){await sb.from('messages').update({is_read:true}).eq('thread_id',tid).eq('direction','in').eq('is_read',false);refreshBadges();loadThreads()}}
+async function drawCPanel(t,l){const {data:deals}=l.id?await sb.from('deals').select('id,board,stage_id,property_label,value,status').eq('lead_id',l.id).order('id',{ascending:false}):{data:[]};
+  $('cpanel').innerHTML=`<div class="card" style="margin:0 0 12px"><div style="display:flex;justify-content:space-between"><b>Contact</b>${l.id?`<a href="#" onclick="openLead(${l.id});return false" class="small">Open</a>`:''}</div>
+    <label class="f">Full Name (Required) <span style="float:right"><input type="checkbox" id="cp_dnm" style="width:auto" ${l.do_not_mail?'checked':''}> Do Not Mail</span></label><input id="cp_name" value="${esc(l.full_name||'')}">
+    <label class="f">Contact Category</label><select id="cp_cat"><option value="">None</option>${['seller','buyer','real_estate_agent','builder','attorney','other'].map(c=>`<option ${l.category===c?'selected':''} value="${c}">${c.replace(/_/g,' ')}</option>`).join('')}</select>
+    <label class="f">Email</label><input id="cp_email" value="${esc(l.email||'')}"><label class="f">Phone - Primary</label><input id="cp_phone" value="${esc(l.phone||t.phone||'')}">
+    <label class="f">Phone - Secondary</label><input id="cp_phone2" value="${esc(l.phone2||'')}"><label class="f">Address</label><input id="cp_addr" value="${esc([l.mail_address,l.mail_city,l.mail_state,l.mail_zip].filter(Boolean).join(', '))}">
+    <label class="f">Description</label><textarea id="cp_desc" placeholder="Looking to sell by, wants an offer of...">${esc(l.notes||'')}</textarea><br><br><button class="btn" style="width:100%" onclick="saveCPanel(${t.id},${l.id||'null'})">Save</button></div>
+   <div class="card" style="margin:0"><div style="display:flex;justify-content:space-between"><b>Deal</b><a href="#" class="small" onclick="dealFromThread(${t.id});return false">+ Add deal</a></div>
+    ${(deals||[]).map(d=>`<div class="small" style="padding:6px 0;border-top:1px solid var(--line)"><a href="#" onclick="openDeal(${d.id});return false">${esc(d.property_label||'Deal')}</a><br><span class="muted">${d.board==='buyer'?'Buyer Deals':'Seller Deals'} · ${esc(STAGES.find(s=>s.id===d.stage_id)?.name||'')}${d.value?' · '+money(d.value):''}</span></div>`).join('')||'<div class="muted small" style="margin-top:6px">No deal yet.</div>'}</div>`}
+async function saveCPanel(tid,lid){const parts=$('cp_addr').value.split(',').map(x=>x.trim());const st=(parts[2]||'').split(' ');
+  const r={full_name:$('cp_name').value.trim()||null,category:$('cp_cat').value||null,email:$('cp_email').value.trim()||null,phone:$('cp_phone').value.trim()||null,phone2:$('cp_phone2').value.trim()||null,do_not_mail:$('cp_dnm').checked,notes:$('cp_desc').value||null,
+    mail_address:parts[0]||null,mail_city:parts[1]||null,mail_state:st[0]||null,mail_zip:st[1]||parts[3]||null,updated_at:new Date().toISOString()};
+  if(!r.full_name)return toast('Full name is required');
+  if(lid){const {error}=await sb.from('leads').update(r).eq('id',lid);if(error)return toast(error.message)}else{const {data,error}=await sb.from('leads').insert({...r,source:'hq',status:'new',inbox:IST2.box}).select().single();if(error)return toast(error.message);await sb.from('threads').update({lead_id:data.id}).eq('id',tid)}
+  toast('Contact saved');openThreadT(tid);loadThreads()}
+async function threadFlag(tid,k,v){await sb.from('threads').update({[k]:v}).eq('id',tid);if(k==='archived'){IST2.tid=null;$('convo').innerHTML='<div class="muted" style="padding:20px">Archived.</div>';$('cpanel').innerHTML=''}loadThreads();if(k==='pinned')openThreadT(tid)}
+async function threadUnread(tid){const {data}=await sb.from('messages').select('id').eq('thread_id',tid).eq('direction','in').order('created_at',{ascending:false}).limit(1);if(data&&data[0])await sb.from('messages').update({is_read:false}).eq('id',data[0].id);IST2.tid=null;refreshBadges();loadThreads()}
+async function sendTextT(tid){const b=$('reply').value.trim();if(!b)return;const {data:t}=await sb.from('threads').select('lead_id,inbox,phone').eq('id',tid).single();
+  await sb.from('messages').insert({thread_id:tid,lead_id:t.lead_id,inbox:t.inbox,channel:'sms',direction:'out',body:b,is_read:true,their_number:t.phone,sender:'Damien Dupee'});
+  await sb.from('threads').update({last_at:new Date().toISOString()}).eq('id',tid);
+  if(t.lead_id)await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'manual reply'}).eq('lead_id',t.lead_id).eq('status','active');
+  toast('Saved to the conversation. Texts go out once Quo is connected.');openThreadT(tid);loadThreads()}
+async function dealFromThread(tid){const {data:t}=await sb.from('threads').select('*, leads(id,full_name,prop_address)').eq('id',tid).single();const b=t.inbox==='buyer'?'buyer':'seller';const st=STAGES.find(s=>s.board===b);
+  const {data,error}=await sb.from('deals').insert({board:b,stage_id:st?.id,lead_id:t.lead_id,property_label:t.leads?.full_name||t.title,source:'inbox',status:'open'}).select().single();if(error)return toast(error.message);openDeal(data.id)}
+async function startConversation(box){const q=prompt('Phone number or contact name');if(!q)return;const {data}=await sb.rpc('global_search',{q,lim:5});const c=data?.contacts?.[0];
+  let lid=c?.id;if(!lid){const {data:n,error}=await sb.from('leads').insert({phone:q,source:'hq',status:'new',inbox:box}).select().single();if(error)return toast(error.message);lid=n.id}
+  const {data:tid,error}=await sb.rpc('thread_for_lead',{lid,box});if(error)return toast(error.message);IST2.tid=tid;loadThreads();openThreadT(tid)}
+// legacy helpers used elsewhere
+async function openThread(leadId,box){const {data:tid}=await sb.rpc('thread_for_lead',{lid:leadId,box:box||'seller'});go('inbox-'+(box||'seller'));setTimeout(()=>openThreadT(tid),400)}
 let _tl=null;
-async function openThread(leadId,box){
-  document.querySelectorAll('.thread').forEach(t=>t.classList.toggle('on',+t.dataset.l===leadId));
-  const [{data:l},{data:msgs},{data:tpl}]=await Promise.all([sb.from('leads').select('*').eq('id',leadId).single(),sb.from('messages').select('*').eq('lead_id',leadId).order('created_at'),sb.from('templates').select('id,name,body').eq('kind','text').order('name')]);
-  _tl=l;window._tpl=tpl||[];
-  $('convo').innerHTML=`<div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:160px"><b>${esc(leadName(l))}</b><div class="small muted">${esc(l.phone||'')} ${l.prop_address?'· '+esc(l.prop_address):''} ${l.offer_code?'· Code '+esc(l.offer_code):''}</div></div>
-   <button class="btn ghost sm" onclick="openLead(${l.id})">Contact</button><button class="btn sm" onclick="dealFromLead(${l.id},'${box}')">+ Deal</button></div>
-   <div class="msgs" id="msgs">${(msgs||[]).map(m=>`<div class="msg ${m.direction}">${m.channel==='call'?'📞 '+(m.direction==='in'?(m.duration_s?'Call '+Math.round(m.duration_s/60)+' min':'Missed call'):'Outgoing call')+(m.body?'\n'+esc(m.body):''):esc(m.body||'')}<div class="when">${new Date(m.created_at).toLocaleString()}</div></div>`).join('')}</div>
-   <div class="composer"><select id="tplpick" style="flex:0 0 150px" onchange="useTpl(this)"><option value="">Template…</option>${(tpl||[]).map((t,i)=>`<option value="${i}">${esc(t.name)}</option>`).join('')}</select>
-   <textarea id="reply" style="min-height:42px" placeholder="Type a text…"></textarea><button class="btn" onclick="sendText(${l.id},'${box}')">Send</button></div>`;
-  $('msgs').scrollTop=1e9;
-  await sb.from('messages').update({is_read:true}).eq('lead_id',leadId).eq('direction','in').eq('is_read',false);refreshBadges();
-}
 function fillTpl(b,l){return String(b||'').replace(/{{\s*(\w+)\s*}}/g,(m,k)=>({first_name:l.first_name||(l.full_name||'').split(' ')[0],contact_name:leadName(l),property_address:l.prop_address,contact_address:l.mail_address,county:l.county,county_name:l.county,your_name:'Damien',your_company:'Dominion Land Group',your_phone_number:'(980) 990-2356',your_website:'dominionlandgroup.land'}[k]??''))}
 function useTpl(sel){if(sel.value==='')return;$('reply').value=fillTpl(_tpl[+sel.value].body,_tl);sel.value=''}
 async function sendText(leadId,box){const b=$('reply').value.trim();if(!b)return;
@@ -792,16 +842,37 @@ async function vTasks(){const {data}=await sb.from('tasks').select('*, deals(id,
   $('view').innerHTML=`<div class="card" style="padding:0"><table><tr><th></th><th>To do (${open.length})</th><th>Due</th></tr>${open.map(row).join('')||'<tr><td colspan="3" class="muted">All clear.</td></tr>'}</table></div><div class="card" style="padding:0"><table><tr><th></th><th>Done recently</th><th></th></tr>${done.map(row).join('')}</table></div>`}
 
 // ---------- import ----------
-function vImport(){$('view').innerHTML=`<div class="card"><h3 style="margin-top:0">Import a CSV</h3><p class="muted small">For small lists. Your full Pebble and GoHighLevel history gets loaded by Claude.</p>
-  <div class="row"><select id="impSource"><option value="hq">Other list</option><option value="pebble">Pebble export</option><option value="ghl">GoHighLevel export</option></select><input id="impTag" placeholder="Tag (e.g. 2026 Gaston mail)"></div><br>
-  <input type="file" id="impFile" accept=".csv"><br><br><button class="btn" onclick="runImport()">Import</button><div id="impMsg" class="small" style="margin-top:10px"></div></div>`}
-async function runImport(){const f=$('impFile').files[0];if(!f)return;Papa.parse(f,{header:true,skipEmptyLines:true,complete:async r=>{
-  const pick=(o,...ks)=>{for(const k of ks){const m=Object.keys(o).find(x=>x.toLowerCase().replace(/[^a-z0-9]/g,'')===k);if(m&&o[m])return String(o[m]).trim()}return null};
-  const recs=r.data.map(o=>{const x={source:$('impSource').value,status:'record',first_name:pick(o,'firstname'),last_name:pick(o,'lastname'),full_name:pick(o,'name','fullname','ownername'),phone:pick(o,'phone','phoneprimary','phone1','mobile'),email:pick(o,'email'),
-    mail_address:pick(o,'mailingaddress','addressline1','address'),mail_city:pick(o,'mailingcity','addresscity','city'),mail_state:pick(o,'mailingstate','addressstate','state'),mail_zip:pick(o,'mailingzip','addresszip','zip'),
-    apn:pick(o,'apn','parcel','parcelid','propertyassessorsparcelnumberapn'),county:pick(o,'county','countyname'),offer_code:pick(o,'offercode','code','referencecode'),tags:$('impTag').value?[$('impTag').value]:[]};
-    if(!x.full_name)x.full_name=[x.first_name,x.last_name].filter(Boolean).join(' ')||null;return x}).filter(x=>x.full_name||x.phone||x.apn);
-  let done=0;for(let i=0;i<recs.length;i+=500){const {error}=await sb.from('leads').insert(recs.slice(i,i+500));if(error){$('impMsg').textContent=error.message;return}done+=Math.min(500,recs.length-i);$('impMsg').textContent=`Imported ${done.toLocaleString()} of ${recs.length.toLocaleString()}`}}})}
+// Pebble-style Import List: pick or create a campaign, upload the list, offer codes are assigned automatically
+async function vImport(){const {data:camps}=await sb.from('campaigns').select('id,name,drop_date,records').order('created_at',{ascending:false}).limit(300);
+  $('view').innerHTML=`<div class="card"><h3 style="margin-top:0">Import List</h3><p class="muted small">Upload a mailing list into a campaign. Each row becomes a contact, a property and a campaign record, and every record gets its offer code automatically (next prefix ${await nextPrefix()}). Existing contacts and parcels are matched, not duplicated.</p>
+  <label class="f">Campaign</label><select id="impCamp" onchange="$('impNew').style.display=this.value==='new'?'':'none'"><option value="new">+ New campaign</option>${(camps||[]).map(c=>`<option value="${c.id}">${esc(c.name)} · ${fmtDate(c.drop_date)} · ${(c.records||0).toLocaleString()} records</option>`).join('')}<option value="none">No campaign (contacts only)</option></select>
+  <div id="impNew" class="row" style="margin-top:8px"><input id="icName" placeholder="Campaign name (e.g. Gaston NC Oct 2026)"><input id="icCounty" placeholder="County"><input id="icState" placeholder="State" style="max-width:90px"><input id="icDate" type="date" value="${new Date().toISOString().slice(0,10)}"><input id="icCost" type="number" placeholder="Cost $" style="max-width:120px"></div><br>
+  <div class="row"><select id="impSource"><option value="hq">Other list</option><option value="pebble">Pebble export</option><option value="ghl">GoHighLevel export</option></select><input id="impTag" placeholder="Tag (optional)"></div><br>
+  <input type="file" id="impFile" accept=".csv" onchange="previewImport()"><div id="impMap" class="small" style="margin-top:10px"></div><br>
+  <button class="btn" onclick="runImport()">Import</button><div id="impMsg" class="small" style="margin-top:10px"></div></div>`}
+async function nextPrefix(){const {data}=await sb.rpc('next_code_prefix');return data??'—'}
+const IMP_FIELDS={full_name:['ownername','owner','name','fullname','owner1fullname','owner1name'],first_name:['firstname','owner1firstname'],last_name:['lastname','owner1lastname'],
+  phone:['phone','phoneprimary','phone1','mobile'],email:['email'],
+  mail_address:['mailingaddress','mailaddress','mailingstreetaddress','addressline1'],mail_city:['mailingcity','mailcity'],mail_state:['mailingstate','mailstate'],mail_zip:['mailingzip','mailzip','mailingzipcode'],
+  apn:['apn','parcel','parcelid','parcelnumber','propertyassessorsparcelnumberapn'],address:['propertyaddress','situsaddress','siteaddress','address'],city:['propertycity','situscity','city'],state:['propertystate','situsstate','state'],zip:['propertyzip','situszip','zip'],
+  county:['county','countyname','propertycounty'],acres:['acres','lotacres','acreage','lotsizeacres'],lat:['latitude','lat'],lng:['longitude','lng','long'],offer_price:['offerprice','offer','offeramount'],offer_code:['offercode','code','referencecode']};
+const impKey=k=>k.toLowerCase().replace(/[^a-z0-9]/g,'');
+function impMapCols(cols){const m={};for(const [f,ks] of Object.entries(IMP_FIELDS)){const c=cols.find(x=>ks.includes(impKey(x)));if(c)m[f]=c}return m}
+function previewImport(){const f=$('impFile').files[0];if(!f)return;Papa.parse(f,{header:true,preview:3,complete:r=>{const m=impMapCols(r.meta.fields||[]);
+  $('impMap').innerHTML='<b>Columns matched:</b> '+Object.entries(m).map(([k,v])=>`${k.replace('_',' ')} ← <i>${esc(v)}</i>`).join(' · ')+(m.offer_code?'':' <br><span class="muted">No offer code column — codes will be assigned automatically.</span>')}})}
+async function runImport(){const f=$('impFile').files[0];if(!f)return toast('Choose a CSV');const msg=t=>$('impMsg').innerHTML=t;
+  let cid=$('impCamp').value;
+  if(cid==='new'){if(!$('icName').value)return toast('Name the campaign');const {data,error}=await sb.from('campaigns').insert({name:$('icName').value,channel:'mail',county:$('icCounty').value||null,state:$('icState').value||null,drop_date:$('icDate').value||null,cost:Number($('icCost').value)||0,source:'hq',mail_status:'not_sent'}).select('id').single();if(error)return toast(error.message);cid=data.id}
+  Papa.parse(f,{header:true,skipEmptyLines:true,complete:async r=>{const m=impMapCols(r.meta.fields||[]);
+    const rows=r.data.map(o=>{const x={};for(const [k,c] of Object.entries(m)){let v=o[c]==null?'':String(o[c]).trim();if(!v)continue;if(['acres','lat','lng','offer_price'].includes(k)){v=Number(v.replace(/[$,]/g,''));if(isNaN(v))continue}x[k]=v}
+      if(!x.full_name&&(x.first_name||x.last_name))x.full_name=[x.first_name,x.last_name].filter(Boolean).join(' ');return x}).filter(x=>x.full_name||x.phone||x.apn||x.address);
+    if(cid==='none'){let done=0;for(let i=0;i<rows.length;i+=500){const part=rows.slice(i,i+500).map(x=>({source:$('impSource').value,status:'record',full_name:x.full_name,first_name:x.first_name,last_name:x.last_name,phone:x.phone,email:x.email,mail_address:x.mail_address,mail_city:x.mail_city,mail_state:x.mail_state,mail_zip:x.mail_zip,apn:x.apn,county:x.county,offer_code:x.offer_code,tags:$('impTag').value?[$('impTag').value]:[]}));
+      const {error}=await sb.from('leads').insert(part);if(error)return msg(error.message);done+=part.length;msg(`Imported ${done.toLocaleString()} of ${rows.length.toLocaleString()} contacts`)}return}
+    const tot={leads:0,properties:0,records:0};
+    for(let i=0;i<rows.length;i+=1000){const {data,error}=await sb.rpc('import_campaign_list',{cid:Number(cid),rows:rows.slice(i,i+1000),src:$('impSource').value,tag:$('impTag').value||null});
+      if(error)return msg('Stopped: '+esc(error.message));for(const k in tot)tot[k]+=data[k];msg(`Imported ${tot.records.toLocaleString()} of ${rows.length.toLocaleString()} records…`)}
+    const {data:fin,error:e2}=await sb.rpc('finish_campaign_import',{cid:Number(cid)});if(e2)return msg(esc(e2.message));
+    msg(`<b>Done.</b> ${tot.records.toLocaleString()} records · ${tot.leads.toLocaleString()} new contacts · ${tot.properties.toLocaleString()} new properties · ${fin.coded.toLocaleString()} offer codes assigned (starting ${esc(fin.first_code||'')}). <a href="#" onclick="go('campaign:${cid}');return false">Open campaign →</a>`)}})}
 
 boot();
 </script>
