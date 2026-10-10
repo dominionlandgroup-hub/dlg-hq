@@ -442,11 +442,12 @@ async function loadThreads(first){const {data,error}=await sb.rpc('inbox_threads
   const P=(data||[]).filter(t=>t.pinned),A=(data||[]).filter(t=>!t.pinned);
   $('tl').innerHTML=(P.length?'<div class="tsec">Pinned</div>'+P.map(item).join(''):'')+'<div class="tsec">All</div>'+(A.map(item).join('')||'<div class="muted small" style="padding:12px">No conversations.</div>');
   if(first&&data&&data.length&&!IST2.tid)openThreadT(data[0].id)}
+async function hydrateRec(){const els=[...document.querySelectorAll('audio[data-rec]')];if(!els.length)return;const {data}=await sb.storage.from('call-recordings').createSignedUrls(els.map(e=>e.dataset.rec),21600);(data||[]).forEach((d,i)=>{if(d.signedUrl)els[i].src=d.signedUrl})}
 async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem').forEach(e=>e.classList.toggle('on',e.getAttribute('onclick')===`openThreadT(${tid})`));
   const [{data:t},{data:msgs},{data:tpl}]=await Promise.all([sb.from('threads').select('*, leads(*)').eq('id',tid).single(),sb.from('messages').select('*').eq('thread_id',tid).order('created_at'),sb.from('templates').select('id,name,body').eq('kind','text').order('name')]);
   const l=t.leads||{};_tl=l;window._tpl=tpl||[];
   const bubble=m=>{const out=m.direction==='out';const who=m.sender||(out?'Damien Dupee':(l.full_name||t.title||''));const when=new Date(m.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
-    let inner='';if(m.channel==='call'){inner=`<div><b>${out?'Outgoing call':m.duration_s?'Incoming call':'Missed call'}</b>${m.duration_s?` · ${Math.floor(m.duration_s/60)}:${String(m.duration_s%60).padStart(2,'0')}`:''}</div>${m.body?`<div style="margin-top:6px">${esc(m.body)}</div>`:''}${m.recording_url?`<audio controls preload="none" src="${esc(/^https?:/.test(m.recording_url)?m.recording_url:'https://app.pebblerei.com'+m.recording_url)}" style="width:100%;margin-top:6px"></audio>`:''}`}
+    let inner='';if(m.channel==='call'){inner=`<div><b>${out?'Outgoing call':m.duration_s?'Incoming call':'Missed call'}</b>${m.duration_s?` · ${Math.floor(m.duration_s/60)}:${String(m.duration_s%60).padStart(2,'0')}`:''}</div>${m.body?`<div style="margin-top:6px">${esc(m.body)}</div>`:''}${m.recording_url?(m.recording_url.startsWith('storage:')?`<audio controls preload="none" data-rec="${esc(m.recording_url.slice(8))}" style="width:100%;margin-top:6px"></audio>`:`<audio controls preload="none" src="${esc(/^https?:/.test(m.recording_url)?m.recording_url:'https://app.pebblerei.com'+m.recording_url)}" style="width:100%;margin-top:6px"></audio>`):''}`}
     else if(m.channel==='email'){inner=`<div class="small muted">${esc(m.email_from||'')}${m.email_to?' → '+esc(m.email_to):''}</div>${m.subject?`<b>${esc(m.subject)}</b><br>`:''}<div style="white-space:pre-wrap">${esc((m.body||'').slice(0,3000))}</div>`}
     else inner=`<div style="white-space:pre-wrap">${esc(m.body||'')}</div>`;
     return `<div class="bub ${out?'out':'in'}"><div class="meta"><b>${esc(who)}</b> · ${when}</div><div class="bb">${inner}</div></div>`};
@@ -454,7 +455,7 @@ async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem')
      <button class="btn ghost sm" title="${t.pinned?'Unpin':'Pin'}" onclick="threadFlag(${tid},'pinned',${!t.pinned})">📌</button><button class="btn ghost sm" title="Mark unread" onclick="threadUnread(${tid})">●</button><button class="btn ghost sm" title="Archive" onclick="threadFlag(${tid},'archived',true)">🗄</button></div>
    <div class="msgs2" id="msgs">${(msgs||[]).map(bubble).join('')||'<div class="muted small">No messages yet.</div>'}</div>
    <div class="composer"><select id="tplpick" style="flex:0 0 140px" onchange="useTpl(this)"><option value="">Template…</option>${(tpl||[]).map((x,i)=>`<option value="${i}">${esc(x.name)}</option>`).join('')}</select>
-     <textarea id="reply" style="min-height:44px" placeholder="Write a text"></textarea><button class="btn" onclick="sendTextT(${tid})">Send Now</button></div>`;
+     <textarea id="reply" style="min-height:44px" placeholder="Write a text"></textarea><button class="btn" onclick="sendTextT(${tid})">Send Now</button></div>`;hydrateRec();
   $('msgs').scrollTop=1e9;drawCPanel(t,l);
   if((msgs||[]).some(m=>m.direction==='in'&&!m.is_read)){await sb.from('messages').update({is_read:true}).eq('thread_id',tid).eq('direction','in').eq('is_read',false);refreshBadges();loadThreads()}}
 async function drawCPanel(t,l){const {data:deals}=l.id?await sb.from('deals').select('id,board,stage_id,property_label,value,status').eq('lead_id',l.id).order('id',{ascending:false}):{data:[]};
@@ -849,7 +850,25 @@ async function vImport(){const {data:camps}=await sb.from('campaigns').select('i
   <div id="impNew" class="row" style="margin-top:8px"><input id="icName" placeholder="Campaign name (e.g. Gaston NC Oct 2026)"><input id="icCounty" placeholder="County"><input id="icState" placeholder="State" style="max-width:90px"><input id="icDate" type="date" value="${new Date().toISOString().slice(0,10)}"><input id="icCost" type="number" placeholder="Cost $" style="max-width:120px"></div><br>
   <div class="row"><select id="impSource"><option value="hq">Other list</option><option value="pebble">Pebble export</option><option value="ghl">GoHighLevel export</option></select><input id="impTag" placeholder="Tag (optional)"></div><br>
   <input type="file" id="impFile" accept=".csv" onchange="previewImport()"><div id="impMap" class="small" style="margin-top:10px"></div><br>
-  <button class="btn" onclick="runImport()">Import</button><div id="impMsg" class="small" style="margin-top:10px"></div></div>`}
+  <button class="btn" onclick="runImport()">Import</button><div id="impMsg" class="small" style="margin-top:10px"></div></div>${recToolCard()}`}
+// ---- move Pebble call recordings (Desktop / DLG Recordings) into storage ----
+function recToolCard(){return `<div class="card"><h3 style="margin-top:0">Move call recordings off Pebble</h3><p class="muted small">Pick the <b>DLG Recordings</b> folder on your Desktop. Each recording is uploaded to DLG HQ and the inbox switches to playing it from here, so nothing is lost when Pebble is cancelled. Safe to run again; it skips files already moved.</p>
+  <input type="file" id="recDir" webkitdirectory multiple><br><br><button class="btn" onclick="moveRecordings()">Upload recordings</button><div id="recMsg" class="small" style="margin-top:10px"></div></div>`}
+async function moveRecordings(){const fs=[...$('recDir').files];const msg=t=>$('recMsg').innerHTML=t;if(!fs.length)return toast('Pick the DLG Recordings folder');
+  const idx=fs.find(f=>/(^|\/)index\.tsv$/.test(f.webkitRelativePath));if(!idx)return msg('index.tsv is missing from that folder.');
+  const byPath=Object.fromEntries(fs.map(f=>[f.webkitRelativePath,f]));
+  const rows=(await idx.text()).trim().split('\n').map(l=>l.split('\t')).filter(r=>r.length>=4);
+  const left=[];for(let o=0;;o+=1000){const {data}=await sb.from('messages').select('recording_url').like('recording_url','%/uploads/phone_recordings/%').range(o,o+999);left.push(...(data||[]));if(!data||data.length<1000)break}
+  const need=new Set((left||[]).map(m=>m.recording_url.replace(/^.*\/uploads\/phone_recordings\//,'')));
+  const todo=rows.filter(r=>need.has(r[2])&&byPath[r[3]]);let ok=0,bad=0,pend=[];
+  msg(`Uploading ${todo.length.toLocaleString()} recordings…`);
+  const flush=async()=>{if(!pend.length)return;const p=pend;pend=[];await sb.rpc('set_recording_paths',{rows:p})};
+  let i=0;const worker=async()=>{while(i<todo.length){const r=todo[i++];const path=`${r[0]}/${r[1]}.mp3`;
+    const {error}=await sb.storage.from('call-recordings').upload(path,byPath[r[3]],{upsert:true,contentType:'audio/mpeg'});
+    if(error){bad++}else{ok++;pend.push({pebble:r[2],path});if(pend.length>=50)await flush()}
+    if((ok+bad)%10===0)msg(`Uploaded ${ok.toLocaleString()} of ${todo.length.toLocaleString()}${bad?` · ${bad} failed`:''}… keep this tab open.`)}};
+  await Promise.all([worker(),worker(),worker(),worker()]);await flush();
+  msg(`<b>Done.</b> ${ok.toLocaleString()} recordings moved${bad?`, ${bad} failed (run again to retry)`:''}.`)}
 async function nextPrefix(){const {data}=await sb.rpc('next_code_prefix');return data??'—'}
 const IMP_FIELDS={full_name:['ownername','owner','name','fullname','owner1fullname','owner1name'],first_name:['firstname','owner1firstname'],last_name:['lastname','owner1lastname'],
   phone:['phone','phoneprimary','phone1','mobile'],email:['email'],
