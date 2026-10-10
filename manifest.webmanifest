@@ -1,0 +1,16 @@
+{
+  "name": "DLG HQ",
+  "short_name": "DLG HQ",
+  "description": "Dominion Land Group command center: inbox, deals, tasks and campaigns.",
+  "start_url": "./?source=app",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f4f8",
+  "theme_color": "#5C2977",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

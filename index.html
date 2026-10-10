@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#5C2977">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DLG HQ">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <title>DLG HQ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
@@ -161,6 +169,37 @@ h3.sec{margin:0 0 10px;font-size:14px}
 .aska{margin:6px 0 12px;font-size:14px;line-height:1.5}.aska p{margin:0 0 8px}.aska ul{margin:0 0 8px;padding-left:18px}
 .askt{border-collapse:collapse;font-size:12.5px;margin:6px 0 10px;width:100%}.askt th,.askt td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left}
 .askbox textarea{min-height:70px}
+</style>
+<style id="mobile-app">
+#tabbar{display:none}
+.mback{display:none}
+@media(max-width:900px){
+ html,body{overflow-x:hidden}
+ input,select,textarea{font-size:16px!important}
+ #tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:1400;background:#fff;border-top:1px solid #e6e0ea;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 18px rgba(35,27,48,.06)}
+ #tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;font-size:11px;font-weight:600;color:#7a7186;text-decoration:none;position:relative;cursor:pointer;-webkit-tap-highlight-color:transparent}
+ #tabbar a.on{color:var(--brand)}
+ #tabbar a.on svg{stroke:var(--brand)}
+ #tabbar svg{width:24px;height:24px;fill:none;stroke:#7a7186;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+ #tabbar .tbb{position:absolute;top:3px;left:calc(50% + 6px);background:#d33;color:#fff;border-radius:999px;font-size:10px;font-weight:700;padding:1px 5px;min-width:16px;text-align:center}
+ #tabbar .tbb:empty{display:none}
+ main{padding-bottom:calc(92px + env(safe-area-inset-bottom))!important}
+ .askfab{bottom:calc(72px + env(safe-area-inset-bottom));right:12px;padding:9px 13px;font-size:13px}
+ #side-dim{position:fixed;inset:0;background:rgba(20,14,28,.35);z-index:1450;display:none}
+ aside.open~#side-dim,body.sideopen #side-dim{display:block}
+ .board{scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+ .board .col{width:84vw;scroll-snap-align:start;max-height:none}
+ .btn{min-height:40px}
+ #view table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
+@media(max-width:700px){
+ .inbox3 .tlist{max-height:none}
+ .inbox3 .convo{display:none}
+ .inbox3.showc .tlist{display:none}
+ .inbox3.showc .convo{display:block}
+ .mback{display:inline-flex;align-items:center;gap:4px;margin:8px 0 6px;font:inherit;font-weight:700;font-size:14px;color:var(--brand);background:none;border:0;padding:6px 2px;cursor:pointer}
+}
+@media(display-mode:standalone){body{padding-top:env(safe-area-inset-top)}}
 </style>
 </head>
 <body>
@@ -692,7 +731,7 @@ async function loadThreads(first){const {data,error}=await sb.rpc('inbox_threads
      <div class="tr2"><span>${t.last_channel==='call'?'Call':t.last_channel==='email'?'Email':'Text Message'} ${esc((t.last_body||'').slice(0,70))}</span><span class="d">${t.last_at?new Date(t.last_at).toLocaleDateString('en-US',{month:'short',day:'2-digit'}):''}</span></div></div>${t.unread?`<span class="ub">${t.unread}</span>`:''}</div>`;
   const P=(data||[]).filter(t=>t.pinned),A=(data||[]).filter(t=>!t.pinned);
   $('tl').innerHTML=(P.length?'<div class="tsec">Pinned</div>'+P.map(item).join(''):'')+'<div class="tsec">All</div>'+(A.map(item).join('')||'<div class="muted small" style="padding:12px">No conversations.</div>');
-  if(first&&data&&data.length&&!IST2.tid)openThreadT(data[0].id)}
+  if(first&&data&&data.length&&!IST2.tid&&window.innerWidth>700)openThreadT(data[0].id)}
 async function hydrateRec(){const els=[...document.querySelectorAll('audio[data-rec]')];if(!els.length)return;const {data}=await sb.storage.from('call-recordings').createSignedUrls(els.map(e=>e.dataset.rec),21600);(data||[]).forEach((d,i)=>{if(d.signedUrl)els[i].src=d.signedUrl})}
 async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem').forEach(e=>e.classList.toggle('on',e.getAttribute('onclick')===`openThreadT(${tid})`));
   const [{data:t},{data:msgs},{data:tpl},{data:obx}]=await Promise.all([sb.from('threads').select('*, leads(*)').eq('id',tid).single(),sb.from('messages').select('*').eq('thread_id',tid).order('created_at'),sb.from('templates').select('id,name,body').eq('kind','text').order('name'),sb.from('email_outbox').select('id,subject,body,status,error,created_at').eq('thread_id',tid).in('status',['pending','sending','failed']).order('id')]);
@@ -1365,6 +1404,26 @@ async function runImport(){const f=$('impFile').files[0];if(!f)return toast('Cho
     msg(`<b>Done.</b> ${tot.records.toLocaleString()} records · ${tot.leads.toLocaleString()} new contacts · ${tot.properties.toLocaleString()} new properties · ${fin.coded.toLocaleString()} offer codes assigned (starting ${esc(fin.first_code||'')}).${tot.skipped_dnm+tot.skipped_not_interested+tot.skipped_recent?`<br>Left off: ${tot.skipped_dnm} do-not-mail · ${tot.skipped_not_interested} not interested · ${tot.skipped_recent} mailed recently.`:''}${tot.duplicate_codes?`<br>${tot.duplicate_codes} codes in your file were already used, so they got new codes.`:''} <a href="#" onclick="go('campaign:${cid}');return false">Open campaign →</a>`)}})}
 
 boot();
+</script>
+<div id="side-dim" onclick="$('side').classList.remove('open');document.body.classList.remove('sideopen')"></div>
+<nav id="tabbar" aria-label="Main">
+ <a data-tv="dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a>
+ <a data-tv="inbox-seller"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Inbox</span><i class="tbb" id="tb_seller"></i></a>
+ <a data-tv="board-seller"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></svg><span>Deals</span></a>
+ <a data-tv="tasks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg><span>Tasks</span></a>
+ <a data-tv="more"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>More</span></a>
+</nav>
+<script>
+(function(){
+ const side=()=>document.getElementById('side');
+ const sync=v=>document.querySelectorAll('#tabbar a').forEach(a=>a.classList.toggle('on',a.dataset.tv===v||(a.dataset.tv==='inbox-seller'&&/^inbox/.test(v||''))||(a.dataset.tv==='board-seller'&&/^board/.test(v||''))));
+ document.querySelectorAll('#tabbar a').forEach(a=>a.onclick=()=>{const v=a.dataset.tv;if(v==='more'){side().classList.toggle('open');document.body.classList.toggle('sideopen',side().classList.contains('open'));return}side().classList.remove('open');document.body.classList.remove('sideopen');go(v);window.scrollTo(0,0)});
+ if(typeof go==='function'){const _go=go;go=function(v){const r=_go.apply(this,arguments);sync(v);if(window.innerWidth<=900){side().classList.remove('open');document.body.classList.remove('sideopen')}return r};}
+ try{sync(CUR)}catch(e){}
+ setInterval(()=>{const b=document.getElementById('b_seller'),t=document.getElementById('tb_seller');if(b&&t)t.textContent=b.classList.contains('hidden')?'':b.textContent.trim()},3000);
+ if(typeof openThreadT==='function'){const _o=openThreadT;openThreadT=async function(tid){const r=await _o.apply(this,arguments);const box=document.querySelector('.inbox3');if(box)box.classList.add('showc');const c=document.getElementById('convo');if(c&&!c.querySelector('.mback'))c.insertAdjacentHTML('afterbegin','<button class="mback" onclick="document.querySelector(\'.inbox3\').classList.remove(\'showc\')">&#8249; All conversations</button>');return r};}
+ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+})();
 </script>
 <button class="askfab" onclick="openAsk()" title="Ask Claude about your data">✦ Ask Claude</button>
 </body>
