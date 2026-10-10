@@ -1,0 +1,35 @@
+<!-- DLG HQ website lead form.
+     Paste into dominionlandgroup.land where the current form is.
+     Replace SUPABASE_URL and SUPABASE_ANON_KEY with your project's values
+     (the anon key is meant to be public; the database only lets it call submit_web_lead). -->
+<form id="dlgLeadForm" style="display:grid;gap:10px;max-width:520px">
+  <input name="name" placeholder="Your name" required autocomplete="name">
+  <input name="phone" type="tel" placeholder="Phone" required autocomplete="tel">
+  <input name="email" type="email" placeholder="Email (optional)" autocomplete="email">
+  <input name="address" placeholder="Property address or parcel number" required>
+  <input name="county" placeholder="County">
+  <input name="offer_code" placeholder="Code from your letter (if you have one)">
+  <textarea name="message" placeholder="Anything we should know?" rows="3"></textarea>
+  <label style="font-size:13px;line-height:1.4"><input type="checkbox" name="sms_ok" required style="width:auto">
+    I agree to receive calls and texts from Dominion Land Group about my property. Msg &amp; data rates may apply. Reply STOP to opt out.</label>
+  <button type="submit">Get my offer</button>
+  <div id="dlgFormMsg" style="font-size:14px"></div>
+</form>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  const sb = supabase.createClient('https://gdejlpdltnstbwtdpggm.supabase.co', 'sb_publishable_E9jIHC9hz6oleR4Qd-68bA_ZWEVcAQ_');
+  const f = document.getElementById('dlgLeadForm'), msg = document.getElementById('dlgFormMsg');
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(f));
+    const btn = f.querySelector('button'); btn.disabled = true; msg.textContent = 'Sending…';
+    const { error } = await sb.rpc('submit_web_lead', {
+      p_name: d.name, p_phone: d.phone, p_email: d.email, p_address: d.address,
+      p_county: d.county, p_apn: null, p_offer_code: d.offer_code, p_message: d.message });
+    btn.disabled = false;
+    if (error) { msg.textContent = 'Something went wrong. Please call (980) 990-2356.'; return; }
+    f.reset(); msg.textContent = "Thanks — we got it. We'll reach out within one business day.";
+  });
+})();
+</script>

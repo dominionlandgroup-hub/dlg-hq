@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DLG HQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f5f4ef;--card:#fff;--ink:#1b2a22;--muted:#6b7a71;--line:#e4e2da;--brand:#1f4d36;--brand2:#2f6b4c;--accent:#c8a24a;--red:#b23b3b;--chip:#eef3ef;--side:#16382a;--hot:#d9480f}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+a{color:var(--brand2)}button{font:inherit;cursor:pointer}
+.hidden{display:none!important}
+.center{max-width:400px;margin:12vh auto;padding:0 16px}
+#app{display:flex;height:100vh}
+aside{width:220px;background:var(--side);color:#dfe9e2;display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+aside .logo{padding:18px 18px 14px;font-weight:700;font-size:17px;color:#fff;letter-spacing:.2px}
+aside .logo small{display:block;font-weight:500;font-size:11px;color:#9fb8a8;letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
+aside .grp{padding:14px 18px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:#86a294}
+aside a.nav{display:flex;align-items:center;gap:8px;padding:8px 18px;color:#dfe9e2;text-decoration:none;border-left:3px solid transparent;cursor:pointer}
+aside a.nav:hover{background:#ffffff10}
+aside a.nav.on{background:#ffffff18;border-left-color:var(--accent);color:#fff;font-weight:600}
+aside a.nav .badge{margin-left:auto;background:var(--accent);color:#1b2a22;border-radius:999px;font-size:11px;padding:1px 7px;font-weight:700}
+aside .foot{margin-top:auto;padding:14px 18px;font-size:12px;color:#9fb8a8}
+aside .foot button{background:none;border:1px solid #ffffff40;color:#dfe9e2;border-radius:7px;padding:5px 10px;margin-top:6px}
+main{flex:1;overflow:auto;padding:22px 26px}
+.topbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.topbar h1{font-size:21px;margin:0;flex:1;min-width:160px}
+#actions{display:flex;gap:8px;flex-wrap:wrap}
+#mtoggle{display:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.btn{background:var(--brand);color:#fff;border:0;border-radius:9px;padding:9px 14px;font-weight:600;white-space:nowrap}
+.btn.ghost{background:#fff;color:var(--brand);border:1px solid var(--line)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn.danger{background:#fff;color:var(--red);border:1px solid #e9c9c9}
+input,select,textarea{font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);width:100%}
+textarea{min-height:80px}
+label.f{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:130px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.filters>*{width:auto;flex:1;min-width:130px}
+.muted{color:var(--muted)}.small{font-size:12px}
+.pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--brand);font-weight:600}
+.pill.hot{background:#fde8dc;color:var(--hot)}.pill.warm{background:#fff4d6;color:#7a5a00}.pill.cold{background:#e7eef7;color:#2d5a8a}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500;font-size:12px}tr.click{cursor:pointer}tr.click:hover{background:#fafaf6}
+.right{text-align:right}.num{font-variant-numeric:tabular-nums}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kpi .v{font-size:22px;font-weight:700;color:var(--brand)}.kpi .l{color:var(--muted);font-size:12px}
+.kpi.gold{border-top:3px solid var(--accent)}
+.ctable th{white-space:nowrap}.sortable{cursor:pointer;user-select:none}.sortable .arr{color:var(--muted);font-size:11px}
+a.cname{color:#e05a3a;font-weight:600;text-decoration:none}.pager{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:8px 0}
+.mprog{display:flex;align-items:center;gap:8px;min-width:170px}.mprog .trk{flex:1;height:7px;background:var(--chip);border-radius:6px;overflow:hidden}.mprog .trk span{display:block;height:100%;background:#15B79E}.mprog .ok{color:#1a9e5a;font-weight:600}
+.menu{position:relative;display:inline-block}.mlist{display:none;position:absolute;right:0;top:100%;z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:190px;padding:6px}
+.mlist a{display:block;padding:8px 10px;border-radius:7px;color:var(--ink);text-decoration:none;font-size:14px}.mlist a:hover{background:var(--chip)}
+.card.rec{display:flex;gap:12px;align-items:flex-start}.card.rec .rl{flex:1;min-width:0}.card.rec .rr{flex:1.6;margin:0;padding:10px 12px}.card.rec address{font-style:normal;margin:4px 0 8px;color:var(--muted)}
+.code{display:inline-block;background:#e8f1fb;color:#2d5a8a;border-radius:6px;padding:3px 10px;font-size:13px}
+@media(max-width:900px){.card.rec{flex-direction:column}}
+.pgrid{display:grid;grid-template-columns:1.6fr 1fr;gap:14px}.pgrid>.card{margin:0}
+.pstats{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;text-align:center;align-items:end}
+.pst .l{color:var(--ink);font-size:12px;line-height:1.25}.pst .l.big{color:#e05a3a;font-weight:700;font-size:17px}.pst .v{font-weight:700;font-size:17px;margin-top:8px}
+table.roi th{font-size:11.5px;color:var(--muted);font-weight:600;vertical-align:bottom}table.roi tr.grp th{background:#f1f0eb;color:var(--ink);font-size:13px;text-align:left}
+table.roi .bl{border-left:1px solid var(--line)}table.roi tr.tot td{background:#f5f4ef}
+@media(max-width:900px){.pgrid{grid-template-columns:1fr}.pstats{grid-template-columns:repeat(3,1fr)}}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grid2>.card{margin:0}
+h3.sec{margin:0 0 10px;font-size:14px}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px}.kv>div:nth-child(odd){color:var(--muted)}
+.bar{display:flex;align-items:center;gap:8px;margin:6px 0}.bar .lbl{width:150px;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .trk{flex:1;height:9px;background:var(--chip);border-radius:6px;overflow:hidden}.bar .fill{height:100%;background:var(--brand2)}
+.bar .n{width:46px;text-align:right;font-weight:600}
+.board{display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;align-items:flex-start}
+.col{background:#ecebe4;border-radius:12px;width:280px;flex-shrink:0;display:flex;flex-direction:column;max-height:calc(100vh - 150px)}
+.col .hd{padding:10px 12px 2px;font-weight:600}
+.col .meta{color:var(--muted);font-size:12px;padding:0 12px 8px}
+.col .cards{padding:0 8px 8px;overflow-y:auto;flex:1;min-height:40px}
+.col.over{outline:2px dashed var(--brand2);outline-offset:-4px}
+.dcard{background:#fff;border:1px solid var(--line);border-left:4px solid var(--brand2);border-radius:9px;padding:9px 10px;margin-bottom:8px;cursor:grab}
+.dcard.dragging{opacity:.4}
+.dcard .t{font-weight:600;display:flex;gap:6px;align-items:flex-start}.dcard .t span:first-child{flex:1}
+.dcard .s{color:var(--muted);font-size:12px;margin-top:3px}
+.dcard .val{background:var(--chip);color:var(--brand);font-weight:700;font-size:12px;border-radius:6px;padding:1px 6px;white-space:nowrap}
+.addcard{display:block;width:calc(100% - 16px);margin:0 8px 10px;background:none;border:1px dashed #c9c7bc;border-radius:9px;padding:7px;color:var(--muted)}
+.drawer{position:fixed;inset:0;background:#0007;display:none;z-index:2000}
+.drawer .panel{position:absolute;right:0;top:0;bottom:0;width:min(640px,100%);background:var(--bg);overflow:auto;padding:18px}
+.tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}.tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 14px}
+.tabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.inbox{display:grid;grid-template-columns:320px 1fr;gap:14px;height:calc(100vh - 110px)}
+.threads{overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
+.thread{padding:11px 13px;border-bottom:1px solid var(--line);cursor:pointer}.thread:hover{background:#fafaf6}
+.thread.on{background:var(--chip)}.thread.unread .nm{font-weight:700}
+.convo{display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.msgs{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:75%;padding:8px 11px;border-radius:12px;white-space:pre-wrap}
+.msg.in{background:#f0efe9;align-self:flex-start}.msg.out{background:var(--brand);color:#fff;align-self:flex-end}
+.msg .when{font-size:11px;opacity:.7;margin-top:3px}
+.composer{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px}
+#map{height:calc(100vh - 210px);min-height:380px;border-radius:12px;border:1px solid var(--line)}
+.split{display:grid;grid-template-columns:360px 1fr;gap:14px}
+.plist{max-height:calc(100vh - 210px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
+.pitem{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}.pitem:hover{background:#fafaf6}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:9px;z-index:3000;font-size:13px;max-width:90vw}
+@media(max-width:900px){
+ aside{position:fixed;inset:0 auto 0 0;z-index:1500;transform:translateX(-100%);transition:transform .2s}
+ aside.open{transform:none}#mtoggle{display:inline-block}
+ main{padding:16px}.kpis{grid-template-columns:repeat(2,1fr)}.grid2,.split,.inbox{grid-template-columns:1fr}
+ .inbox{height:auto}.threads{max-height:40vh}#map{height:55vh}.kv{grid-template-columns:110px 1fr}
+}
+</style>
+</head>
+<body>
+
+<section id="login" class="center hidden">
+  <div class="card">
+    <h2 style="margin-top:0">DLG HQ</h2>
+    <input id="email" type="email" placeholder="Email" style="margin-bottom:8px">
+    <input id="pw" type="password" placeholder="Password" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')signIn()">
+    <div class="row"><button class="btn" onclick="signIn()">Sign in</button><button class="btn ghost" onclick="signUp()">Create login</button></div>
+    <div id="loginErr" class="small" style="color:var(--red);margin-top:8px"></div>
+  </div>
+</section>
+
+<div id="app" class="hidden">
+  <aside id="side">
+    <div class="logo">DLG HQ<small>Dominion Land Group</small></div>
+    <a class="nav" data-v="dashboard">Dashboard</a>
+    <a class="nav" data-v="campaigns">Campaigns</a>
+    <div class="grp">Inboxes</div>
+    <a class="nav" data-v="inbox-seller">Seller Inbox <span class="badge hidden" id="b_seller"></span></a>
+    <a class="nav" data-v="inbox-buyer">Buyer Inbox <span class="badge hidden" id="b_buyer"></span></a>
+    <div class="grp">Boards</div>
+    <a class="nav" data-v="board-seller">Seller Deals</a>
+    <a class="nav" data-v="board-buyer">Buyer Deals</a>
+    <div class="grp">Database</div>
+    <a class="nav" data-v="properties">Properties</a>
+    <a class="nav" data-v="contacts">Contacts</a>
+    <a class="nav" data-v="buyers">Buyers</a>
+    <div class="grp">Configure</div>
+    <a class="nav" data-v="followup">Auto Followup</a>
+    <a class="nav" data-v="templates">Templates</a>
+    <a class="nav" data-v="tasks">Tasks</a>
+    <a class="nav" data-v="import">Import</a>
+    <div class="foot"><span id="who"></span><br><button onclick="sb.auth.signOut().then(boot)">Sign out</button></div>
+  </aside>
+  <main>
+    <div class="topbar"><button class="btn ghost sm" id="mtoggle" onclick="$('side').classList.toggle('open')">☰</button><h1 id="title">Dashboard</h1><div id="actions"></div></div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div class="drawer" id="drawer" onclick="if(event.target===this)closeDrawer()"><div class="panel" id="panel"></div></div>
+
+<script>
+const SB_URL='https://gdejlpdltnstbwtdpggm.supabase.co', SB_KEY='sb_publishable_E9jIHC9hz6oleR4Qd-68bA_ZWEVcAQ_';
+const MAIL_HOUSE={to:'brandon@impactmailingservices.com',cc:'paul@impactmailingservices.com'};
+let sb=null, CUR='dashboard', STAGES=[], BUYERS=null, map=null, mapLayer=null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>n==null||n===''?'—':(Number(n)<0?'$-':'$')+Math.abs(Number(n)).toLocaleString('en-US',{minimumFractionDigits:Number(n)%1?2:0,maximumFractionDigits:2});
+const ago=d=>{if(!d)return'';const s=(Date.now()-new Date(d))/1e3;if(s<3600)return Math.max(1,Math.round(s/60))+'m ago';if(s<86400)return Math.round(s/3600)+'h ago';if(s<86400*30)return Math.round(s/86400)+'d ago';return new Date(d).toLocaleDateString()};
+const toast=m=>{const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)};
+const leadName=l=>l?(l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' ')||l.company||'(no name)'):'';
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const head=t=>`<div class="row" style="align-items:center;flex-wrap:nowrap"><h2 style="margin:0;flex:1">${t}</h2><button class="btn ghost sm" style="flex:0" onclick="closeDrawer()">Close</button></div><br>`;
+function closeDrawer(){$('drawer').style.display='none'}
+function openDrawer(html){$('panel').innerHTML=html;$('drawer').style.display='block';$('panel').scrollTop=0}
+function fmtDate(v){if(!v)return '—';const d=new Date(String(v).slice(0,10)+'T12:00:00');return isNaN(d)?String(v).slice(0,10):d.toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'})}
+function dlCSV(name,rows){const b=new Blob([Papa.unparse(rows)],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click()}
+
+// ---------- auth ----------
+async function boot(){
+  sb=supabase.createClient(store.get('sbUrl')||SB_URL,store.get('sbKey')||SB_KEY);
+  const {data}=await sb.auth.getSession();
+  if(!data.session){$('login').classList.remove('hidden');$('app').classList.add('hidden');return}
+  $('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=data.session.user.email;
+  const {data:st}=await sb.from('board_stages').select('*').order('position');STAGES=st||[];
+  if(!STAGES.length) toast('Database update needed: run schema_v2.sql in Supabase');
+  go(location.hash.slice(1)||store.get('view')||'dashboard');refreshBadges();setInterval(refreshBadges,60000);
+}
+async function signIn(){const {error}=await sb.auth.signInWithPassword({email:$('email').value,password:$('pw').value});if(error){$('loginErr').textContent=error.message;return}boot()}
+async function signUp(){const {error}=await sb.auth.signUp({email:$('email').value,password:$('pw').value});$('loginErr').textContent=error?error.message:'Login created. Confirm the email Supabase sent, then sign in.'}
+async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=await sb.from('messages').select('id',{count:'exact',head:true}).eq('inbox',b).eq('direction','in').eq('is_read',false);const e=$('b_'+b);e.textContent=count||'';e.classList.toggle('hidden',!count)}}
+
+// ---------- router ----------
+const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox('seller'),'inbox-buyer':()=>vInbox('buyer'),
+ 'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,
+ followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights};
+const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights'};
+document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
+function go(v){const m=/^campaign:(\d+)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');vCampaign(+m[1]);return}
+  if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
+  document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v===v));
+  $('title').textContent=TITLES[v];$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');VIEWS[v]()}
+
+// ---------- dashboard ----------
+// ---------- dashboard (modeled on Pebble) ----------
+function dashRange(){const k=store.get('dashRange')||'30d';const t=new Date();t.setHours(12,0,0,0);const iso=d=>d.toISOString().slice(0,10);let a=new Date(t),b=new Date(t);
+  if(k==='week'){a.setDate(t.getDate()-t.getDay())}else if(k==='month'){a=new Date(t.getFullYear(),t.getMonth(),1,12)}else if(k==='quarter'){a=new Date(t.getFullYear(),Math.floor(t.getMonth()/3)*3,1,12)}
+  else if(k==='year'){a=new Date(t.getFullYear(),0,1,12)}else if(k==='all'){a=new Date('2025-01-01T12:00:00')}else if(k==='custom'){return [store.get('dashA')||iso(new Date(t-30*864e5)),store.get('dashB')||iso(t),k]}else{a=new Date(t-30*864e5)}
+  return [iso(a),iso(b),k]}
+const dnum=s=>{if(s==null)return 0;s=String(s).replace(/,/g,'');return /k$/i.test(s)?parseFloat(s)*1000:parseFloat(s)||0};
+const talkSec=s=>{if(!s)return 0;const p=String(s).split(':').map(Number);return p.length===2?p[0]*60+p[1]:+p[0]||0};
+const fmtTalk=sec=>`${Math.floor(sec/60)}:${String(Math.round(sec%60)).padStart(2,'0')}`;
+const kfmt=n=>n>=1000?(n/1000).toFixed(1).replace(/\.0$/,'')+'k':String(Math.round(n));
+// Pebble history comes in month rows (older) and day rows (recent); a partly covered month counts pro rata.
+function histSum(H,a,b){const A=new Date(a+'T12:00:00'),B=new Date(b+'T12:00:00'),o={deals:0,seller:0,buyer:0,offers:0,conv:0,calls:0,missed:0,talk:0,texts:0,emails:0};
+  for(const h of H){const s=new Date(h.start_date+'T12:00:00'),e=new Date(h.end_date+'T12:00:00');const lo=Math.max(s,A),hi=Math.min(e,B);if(hi<lo)continue;
+    const f=(hi-lo)/864e5+1>=(e-s)/864e5+1?1:((hi-lo)/864e5+1)/((e-s)/864e5+1);
+    o.deals+=h.deals*f;o.seller+=h.deals_seller*f;o.buyer+=h.deals_buyer*f;o.offers+=h.offers*f;o.conv+=h.conversations*f;o.calls+=h.calls*f;o.missed+=h.missed*f;o.talk+=h.talk_sec*f;o.texts+=h.texts*f;o.emails+=h.emails*f}
+  return o}
+function buckets(a,b,n=6){const A=new Date(a+'T12:00:00'),B=new Date(b+'T12:00:00');const step=Math.max(1,Math.ceil(((B-A)/864e5+1)/n));const out=[];
+  for(let d=new Date(A);d<=B;d.setDate(d.getDate()+step)){const e=new Date(d);e.setDate(e.getDate()+step-1);out.push([d.toISOString().slice(0,10),(e>B?B:e).toISOString().slice(0,10)])}return out}
+const lbl=s=>{const d=new Date(s+'T12:00:00');return `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`};
+let CHARTS=[];
+async function vDashboard(){
+  const [a,b,k]=dashRange();
+  const opts=[['week','This week'],['month','This month'],['quarter','This quarter'],['year','This year'],['30d','Past 30 days'],['all','All time'],['custom','Custom']];
+  $('actions').innerHTML=`<div class="row" style="flex-wrap:nowrap;gap:6px;align-items:center"><span class="small muted">Date</span><select id="dr" style="width:auto">${opts.map(([v,t])=>`<option value="${v}" ${v===k?'selected':''}>${t}</option>`).join('')}</select>
+    <span id="drc" style="display:${k==='custom'?'flex':'none'};gap:6px"><input type="date" id="dra" value="${a}" style="width:auto"><input type="date" id="drb" value="${b}" style="width:auto"></span><span class="small muted">${fmtDate(a)} – ${fmtDate(b)}</span></div>`;
+  $('dr').onchange=e=>{store.set('dashRange',e.target.value);vDashboard()};
+  if($('dra')){const f=()=>{store.set('dashA',$('dra').value);store.set('dashB',$('drb').value);vDashboard()};$('dra').onchange=f;$('drb').onchange=f}
+  const end=b+'T23:59:59';
+  const [{data:H},{data:tx},{data:camps},{data:dl},{data:msgs}]=await Promise.all([
+    sb.from('pebble_history').select('*'),
+    sb.from('transactions').select('id,property_id,kind,tx_date,price,costs,notes,properties(id,apn,address,city)').order('tx_date',{ascending:false}).limit(5000),
+    sb.from('campaigns').select('id,name,drop_date,records,cost').limit(2000),
+    sb.from('deals').select('id,board,created_at,source,campaign_id').neq('source','pebble').gte('created_at',a).lte('created_at',end).limit(5000),
+    sb.from('messages').select('lead_id,channel,direction,duration_s,created_at').gte('created_at',a).lte('created_at',end).limit(10000)]);
+  const inR=d=>d&&d>=a&&d<=b;
+  const h=histSum(H||[],a,b);
+  // Live numbers made in DLG HQ after the move
+  const liveDeals=(dl||[]).length,liveSeller=(dl||[]).filter(d=>d.board==='seller').length;
+  const M=msgs||[];const live={conv:new Set(M.map(m=>m.lead_id)).size,calls:M.filter(m=>m.channel==='call'&&m.direction==='out').length,missed:M.filter(m=>m.channel==='call'&&m.direction==='in'&&!m.duration_s).length,
+    talk:M.filter(m=>m.channel==='call').reduce((s,m)=>s+(m.duration_s||0),0),texts:M.filter(m=>m.channel==='sms'&&m.direction==='out').length,emails:M.filter(m=>m.channel==='email'&&m.direction==='out').length};
+  const T=tx||[];const offersLive=T.filter(t=>t.kind==='offer'&&inR(t.tx_date)).length;
+  // ROI rows: a purchase and its sale on the same property; shown when the sale (or purchase if unsold) falls in range
+  const byP={};T.filter(t=>t.kind!=='offer').forEach(t=>{const key=t.property_id||('n'+t.id);const p=byP[key]||(byP[key]={p:t.properties,notes:t.notes,buy:null,sell:null});if(t.kind==='purchase'&&!p.buy)p.buy=t;if(t.kind==='sale'&&!p.sell)p.sell=t});
+  const rows=Object.values(byP).filter(r=>inR(r.sell?.tx_date||r.buy?.tx_date)).sort((x,y)=>(y.sell?.tx_date||y.buy?.tx_date).localeCompare(x.sell?.tx_date||x.buy?.tx_date));
+  const purchased=T.filter(t=>t.kind==='purchase'&&inR(t.tx_date)).length,sold=T.filter(t=>t.kind==='sale'&&inR(t.tx_date)).length;
+  let spent=0,rev=0,durs=[];rows.forEach(r=>{if(r.buy&&r.sell){spent+=(+r.buy.price||0)+(+r.buy.costs||0)+(+r.sell.costs||0);rev+=+r.sell.price||0;durs.push(Math.round((new Date(r.sell.tx_date)-new Date(r.buy.tx_date))/864e5))}});
+  const profit=rev-spent,roi=spent?profit/spent*100:0,avgDur=durs.length?Math.round(durs.reduce((s,x)=>s+x,0)/durs.length):0;
+  const C=(camps||[]).filter(c=>inR(c.drop_date));const cSpent=C.reduce((s,c)=>s+(+c.cost||0),0),cRec=C.reduce((s,c)=>s+(c.records||0),0);
+  const deals=Math.round(h.deals)+liveDeals;
+  // ROAS: profit from sold properties that were mailed in a campaign created in this range, over that range's mail spend
+  const cIds=new Set(C.map(c=>c.id));let attrProfit=0;
+  if(cIds.size){const pids=rows.filter(r=>r.buy&&r.sell&&r.p?.id).map(r=>r.p.id);if(pids.length){const {data:crs}=await sb.from('campaign_records').select('property_id,campaign_id').in('property_id',pids);
+    const hit=new Set((crs||[]).filter(x=>cIds.has(x.campaign_id)).map(x=>x.property_id));rows.forEach(r=>{if(r.buy&&r.sell&&hit.has(r.p?.id))attrProfit+=(+r.sell.price)-(+r.buy.price)-(+r.buy.costs||0)-(+r.sell.costs||0)})}}
+  const roas=cSpent?attrProfit/cSpent*100:0;
+  const S={conv:Math.round(h.conv)+live.conv,calls:Math.round(h.calls)+live.calls,missed:Math.round(h.missed)+live.missed,talk:h.talk+live.talk,texts:Math.round(h.texts)+live.texts,emails:Math.round(h.emails)+live.emails};
+  const pc=v=>`<span style="color:${v>0?'#1a9e5a':v<0?'var(--red)':'#e05a3a'}">${v.toFixed(2)}%</span>`;
+  const stat=(l,v)=>`<div class="pst"><div class="l">${l}</div><div class="v">${v}</div></div>`;
+  $('view').innerHTML=`
+  <div class="pgrid">
+   <div class="card"><h3 class="sec">Summary</h3><div class="pstats">${stat('Deals<br>added',kfmt(deals))}${stat('Offers<br>made',Math.round(h.offers)+offersLive)}${stat('Properties<br>purchased',purchased)}${stat('Properties<br>sold',sold)}${stat('Transaction<br>duration (Avg.)',avgDur+' days')}<div class="pst"><div class="l big">ROI</div><div class="v">${pc(roi)}</div></div></div></div>
+   <div class="card"><h3 class="sec">Deals added</h3><div style="height:150px"><canvas id="chDeals"></canvas></div></div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+   <div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="sec" style="margin:0">Campaign report</h3><button class="btn ghost sm" onclick="go('campaigns')">See campaigns</button></div>
+     <div class="pstats" style="margin-top:14px">${stat('Campaigns<br>created',C.length)}${stat('Amount<br>spent','$'+kfmt(cSpent))}${stat('Total<br>records',kfmt(cRec))}${stat('Total<br>deals',deals.toLocaleString())}${stat('Response<br>rate',cRec?(deals/cRec*100).toFixed(2)+'%':'0.00%')}<div class="pst"><div class="l big">ROAS</div><div class="v">${pc(roas)}</div></div></div>
+     <h3 class="sec" style="margin-top:18px">Mailings</h3><div style="height:170px"><canvas id="chMail"></canvas></div></div>
+   <div class="card"><h3 class="sec">Communication report</h3>
+     <div class="pstats" style="margin-top:14px">${stat('Total<br>conversations',S.conv.toLocaleString())}${stat('Calls<br>made',S.calls.toLocaleString())}${stat('Calls<br>missed',S.missed.toLocaleString())}${stat('Talk<br>time',fmtTalk(S.talk))}${stat('Text messages<br>sent',S.texts.toLocaleString())}${stat('Emails<br>sent',S.emails.toLocaleString())}</div>
+     <h3 class="sec" style="margin-top:18px">Communication channels</h3><div style="height:170px"><canvas id="chComm"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:14px;overflow-x:auto"><h3 class="sec">ROI Numbers</h3>
+   <table class="roi"><tr class="grp"><th colspan="5">Properties purchased</th><th colspan="5" class="bl">Properties sold</th><th colspan="5" class="bl">Result</th></tr>
+   <tr><th>Property</th><th>Purchase Date</th><th class="right">Purchase Price</th><th class="right">Funding</th><th class="right">Costs</th><th class="bl">Sell Date</th><th class="right">Sell Price</th><th>Estimated payback date</th><th class="right">Costs</th><th class="right">Funding payout</th><th class="right bl">Money spent</th><th class="right">Revenue</th><th class="right">Profit</th><th class="right">Duration</th><th class="right">My ROI</th></tr>
+   ${rows.map(r=>{const bp=r.buy?+r.buy.price:null,bc=r.buy?+(r.buy.costs||0):0,sp=r.sell?+r.sell.price:null,sc=r.sell?+(r.sell.costs||0):0,ms=bp!=null?bp+bc+sc:null,pr=ms!=null&&sp!=null?sp-ms:null,du=r.buy&&r.sell?Math.round((new Date(r.sell.tx_date)-new Date(r.buy.tx_date))/864e5):null;
+     const apn=r.p?.apn||(r.notes||'').replace('Pebble ROI: APN ','');
+     return `<tr>${'<td>'+(r.p?.id?`<a href="#" onclick="openProperty(${r.p.id});return false">${esc(apn)}</a>`:esc(apn||'—'))+'</td>'}<td>${fmtDate(r.buy?.tx_date)}</td><td class="right num">${money(bp)}</td><td class="right">-</td><td class="right num">${bc?money(bc):'-'}</td><td class="bl">${fmtDate(r.sell?.tx_date)}</td><td class="right num">${money(sp)}</td><td>-</td><td class="right num">${sc?money(sc):'-'}</td><td class="right">-</td>
+       <td class="right num bl" style="color:#e07a1f">${money(ms)}</td><td class="right num" style="color:#1a9e5a">${money(sp)}</td><td class="right num" style="color:${pr<0?'var(--red)':'#1a9e5a'}">${money(pr)}</td><td class="right">${du!=null?du+' days':'-'}</td><td class="right num"><b>${pr!=null&&ms?pc(pr/ms*100):'-'}</b></td></tr>`}).join('')||'<tr><td colspan="15" class="muted">No purchases or sales in this date range.</td></tr>'}
+   ${rows.length?`<tr class="tot"><td colspan="10"><b>TOTAL:</b></td><td class="bl"></td><td class="right num" style="color:#1a9e5a"><b>${money(rev)}</b></td><td class="right num" style="color:#1a9e5a"><b>${money(profit)}</b></td><td></td><td class="right num"><b>${pc(roi)}</b></td></tr>`:''}</table></div>`;
+  // charts
+  CHARTS.forEach(c=>c.destroy());CHARTS=[];if(!window.Chart)return;
+  const bk=buckets(a,b),L=bk.map(x=>lbl(x[0]));
+  const per=bk.map(([x,y])=>{const hh=histSum(H||[],x,y);const dd=(dl||[]).filter(d=>d.created_at.slice(0,10)>=x&&d.created_at.slice(0,10)<=y);const mm=M.filter(m=>m.created_at.slice(0,10)>=x&&m.created_at.slice(0,10)<=y);
+    return {seller:Math.round(hh.seller)+dd.filter(d=>d.board==='seller').length,buyer:Math.round(hh.buyer)+dd.filter(d=>d.board==='buyer').length,
+      mail:(camps||[]).filter(c=>c.drop_date>=x&&c.drop_date<=y).reduce((s,c)=>s+(c.records||0),0),
+      calls:Math.round(hh.calls)+mm.filter(m=>m.channel==='call').length,texts:Math.round(hh.texts)+mm.filter(m=>m.channel==='sms'&&m.direction==='out').length,emails:Math.round(hh.emails)+mm.filter(m=>m.channel==='email'&&m.direction==='out').length}});
+  const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,boxWidth:6,boxHeight:6},align:'end'}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{precision:0}}}};
+  CHARTS.push(new Chart($('chDeals'),{type:'bar',data:{labels:L,datasets:[{label:'Seller Deals',data:per.map(p=>p.seller),backgroundColor:'#EF643D'},{label:'Buyer Deals',data:per.map(p=>p.buyer),backgroundColor:'#15B79E'}]},options:base}));
+  CHARTS.push(new Chart($('chMail'),{type:'line',data:{labels:L,datasets:[{label:'Mailings sent',data:per.map(p=>p.mail),borderColor:'#EF643D',backgroundColor:'#EF643D',tension:.4}]},options:base}));
+  CHARTS.push(new Chart($('chComm'),{type:'line',data:{labels:L,datasets:[{label:'Calls',data:per.map(p=>p.calls),borderColor:'#EF643D',backgroundColor:'#EF643D',tension:.4},{label:'Text Messages',data:per.map(p=>p.texts),borderColor:'#15B79E',backgroundColor:'#15B79E',tension:.4},{label:'Emails',data:per.map(p=>p.emails),borderColor:'#FFD953',backgroundColor:'#FFD953',tension:.4}]},options:base}));
+}
+
+// ---------- boards ----------
+async function vBoard(board){
+  $('actions').innerHTML=`<input id="bf" placeholder="Filter name / address / APN" style="width:210px"><select id="bp" style="width:auto"><option value="">Any priority</option><option>hot</option><option>warm</option><option>cold</option></select><button class="btn" onclick="newDeal('${board}')">+ Add Deal</button><button class="btn ghost" onclick="addStage('${board}')">+ Stage</button>`;
+  const {data,error}=await sb.from('deals').select('*, leads(id,full_name,first_name,last_name,phone), properties(apn,address,city,county,county_state,acres)').eq('board',board).order('position');
+  if(error){$('view').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
+  window._deals=data||[];
+  const draw=()=>{
+    const f=($('bf').value||'').toLowerCase(),pr=$('bp').value;
+    const list=_deals.filter(d=>(!pr||d.priority===pr)&&(!f||[d.property_label,leadName(d.leads),d.properties?.address,d.properties?.apn].join(' ').toLowerCase().includes(f)));
+    const st=STAGES.filter(s=>s.board===board);
+    $('view').innerHTML=`<div class="board">${st.map(s=>{const ds=list.filter(d=>d.stage_id===s.id),tot=ds.reduce((a,d)=>a+(+d.value||0),0);
+      return `<div class="col" data-stage="${s.id}"><div class="hd">${esc(s.name)}</div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
+      <div class="cards">${ds.map(card).join('')}</div><button class="addcard" onclick="newDeal('${board}',${s.id})">+ Add Deal</button></div>`}).join('')}</div>`;
+    wireDnD(board);};
+  $('bf').oninput=draw;$('bp').onchange=draw;draw();
+}
+function card(d){const p=d.properties||{},l=d.leads;
+  return `<div class="dcard" draggable="true" data-id="${d.id}" style="border-left-color:${d.priority==='hot'?'var(--hot)':d.priority==='warm'?'var(--accent)':'var(--brand2)'}" onclick="openDeal(${d.id})">
+   <div class="t"><span>${esc(leadName(l)||d.property_label||'Deal')}</span>${d.value?`<span class="val">${money(d.value)}</span>`:''}</div>
+   ${p.apn?`<div class="s">APN ${esc(p.apn)}</div>`:''}
+   <div class="s">${esc([p.address||d.property_label,p.city].filter(Boolean).join(', '))}</div>
+   ${p.county?`<div class="s">${esc(p.county)}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' ac':''}</div>`:''}
+   <div class="s" style="display:flex;gap:6px;align-items:center;margin-top:6px">${d.priority?`<span class="pill ${d.priority}">${d.priority}</span>`:''}${d.closing_date?`<span>Close ${d.closing_date}</span>`:''}<span style="margin-left:auto">${ago(d.updated_at||d.created_at)}</span></div></div>`}
+function wireDnD(board){let dragId=null;
+  document.querySelectorAll('.dcard').forEach(c=>{c.ondragstart=e=>{dragId=+c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c.dataset.id)};c.ondragend=()=>c.classList.remove('dragging')});
+  document.querySelectorAll('.col').forEach(col=>{col.ondragover=e=>{e.preventDefault();col.classList.add('over')};col.ondragleave=()=>col.classList.remove('over');
+    col.ondrop=async e=>{e.preventDefault();col.classList.remove('over');if(!dragId)return;const sid=+col.dataset.stage;const d=_deals.find(x=>x.id===dragId);if(!d||d.stage_id===sid)return;
+      const s=STAGES.find(x=>x.id===sid);
+      const upd={stage_id:sid,updated_at:new Date().toISOString(),status:s.closed?'won':/dead|no go/i.test(s.name)?'lost':'open'};
+      const {error}=await sb.from('deals').update(upd).eq('id',dragId);
+      if(error)toast(error.message);else{toast('Moved to '+s.name);if(d.lead_id)sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:'Deal moved to '+s.name})}
+      vBoard(board)}});}
+async function addStage(board){const n=prompt('New stage name');if(!n)return;const pos=Math.max(0,...STAGES.filter(s=>s.board===board).map(s=>s.position))+1;
+  const {data,error}=await sb.from('board_stages').insert({board,name:n,position:pos}).select().single();if(error)return toast(error.message);STAGES.push(data);vBoard(board)}
+
+function newDeal(board,stageId){openDealForm({board,stage_id:stageId||STAGES.find(s=>s.board===board)?.id})}
+async function openDeal(id){const {data:d,error}=await sb.from('deals').select('*, leads(*), properties(*)').eq('id',id).single();if(error)return toast(error.message);openDealForm(d)}
+async function openDealForm(d){
+  if(!BUYERS){const {data}=await sb.from('buyers').select('id,name').order('name');BUYERS=data||[]}
+  const none={data:[]};
+  const [{data:camps},{data:tasks},{data:plans},{data:enr},{data:msgs}]=await Promise.all([
+    sb.from('campaigns').select('id,name,drop_date').order('created_at',{ascending:false}).limit(1000),
+    d.id?sb.from('tasks').select('*').eq('deal_id',d.id).order('due_at'):none,
+    sb.from('followup_plans').select('id,name').order('name'),
+    d.lead_id?sb.from('followup_enrollments').select('*, followup_plans(name)').eq('lead_id',d.lead_id).eq('status','active'):none,
+    d.lead_id?sb.from('messages').select('*').eq('lead_id',d.lead_id).order('created_at',{ascending:false}).limit(20):none]);
+  const st=STAGES.filter(s=>s.board===(d.board||'seller'));const l=d.leads,p=d.properties;
+  const f=(k,lab,t='text')=>`<label class="f">${lab}</label><input id="d_${k}" type="${t}" value="${esc(d[k]??'')}">`;
+  openDrawer(head(esc(leadName(l)||d.property_label||'New deal'))+`
+   <div class="card"><div class="row">
+     <div><label class="f">Stage</label><select id="d_stage_id">${st.map(s=>`<option value="${s.id}" ${s.id===d.stage_id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+     <div><label class="f">Priority</label><select id="d_priority"><option value="">None</option>${['hot','warm','cold'].map(x=>`<option ${x===d.priority?'selected':''}>${x}</option>`).join('')}</select></div>
+     <div>${f('value','Estimated value','number')}</div></div>
+     ${f('property_label','Property (address or name)')}
+     <div class="row"><div><label class="f">Campaign</label><select id="d_campaign_id"><option value="">—</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div><div>${f('source','Source')}</div></div>
+     <div class="row"><div>${f('purchase_price','Contract price','number')}</div><div>${f('assignment_price','Assignment / sale price','number')}</div><div>${f('emd','EMD','number')}</div></div>
+     <div class="row"><div>${f('closing_date','Closing date','date')}</div><div>${f('attorney','Closing attorney')}</div></div>
+     <label class="f">Buyer</label><select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>`<option value="${b.id}" ${b.id===d.buyer_id?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
+     <label class="f">Notes</label><textarea id="d_notes">${esc(d.notes||'')}</textarea><br><br>
+     <div class="row" style="flex-wrap:nowrap"><button class="btn" onclick="saveDeal(${d.id||0},'${d.board||'seller'}')">Save deal</button>
+     ${d.id?`<button class="btn ghost" onclick="contractsFor(${d.id})">Generate contracts</button>${(d.board||'seller')==='seller'?`<button class="btn" style="background:var(--accent)" onclick="moveToBuyer(${d.id})">Under contract → Buyer Deals</button>`:`<button class="btn ghost" onclick="moveToSeller(${d.id})">← Back to Seller Deals</button>`}<button class="btn danger" onclick="delDeal(${d.id},'${d.board}')">Delete</button>`:''}</div></div>
+   ${d.id?`<div class="card"><b>Contracts &amp; files</b><div id="d_files" class="small" style="margin-top:6px">Loading…</div>
+     <div class="row" style="margin-top:10px"><input type="file" id="d_up" multiple><button class="btn ghost" style="flex:0" onclick="uploadDealFiles(${d.id},${d.property_id||'null'})">Upload</button></div></div>`:''}
+   ${d.id?`
+   <div class="card"><b>Contact</b>${l?`<div style="margin-top:8px"><a href="#" onclick="openLead(${l.id});return false">${esc(leadName(l))}</a> · ${l.phone?`<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>`:'no phone'}<div class="small muted">${esc([l.mail_address,l.mail_city,l.mail_state].filter(Boolean).join(', '))}</div></div>`:`<div class="row" style="margin-top:8px"><input id="d_lq" placeholder="Search contact by name, phone or APN"><button class="btn ghost" style="flex:0" onclick="pickLead(${d.id})">Find</button></div><div id="d_lres"></div>`}</div>
+   ${p?`<div class="card"><b>Property</b><div style="margin-top:6px"><a href="#" onclick="openProperty(${p.id});return false">APN ${esc(p.apn||'—')}</a> · ${esc([p.address,p.city].filter(Boolean).join(', '))}<div class="small muted">${esc(p.county||'')}, ${esc(p.county_state||'')} ${p.acres?'· '+(+p.acres).toFixed(2)+' ac':''}</div></div></div>`:''}
+   <div class="card"><b>Tasks</b>${(tasks||[]).map(t=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked)"><span style="${t.status==='done'?'text-decoration:line-through;color:var(--muted)':''}">${esc(t.title)}</span><span class="small muted" style="margin-left:auto">${t.due_at?new Date(t.due_at).toLocaleDateString():''}</span></div>`).join('')||'<div class="muted small" style="margin-top:6px">No tasks.</div>'}
+     <div class="row" style="margin-top:10px"><input id="d_task" placeholder="New task"><input id="d_taskdue" type="date" style="flex:0 0 150px"><button class="btn ghost" style="flex:0" onclick="addTask(${d.id},${d.lead_id||'null'})">Add</button></div></div>
+   ${d.lead_id?`<div class="card"><b>Auto followup</b>${(enr||[]).map(e=>`<div style="margin-top:8px">${esc(e.followup_plans?.name)} <span class="small muted">· started ${new Date(e.started_at).toLocaleDateString()} · step ${e.next_step+1}</span> <button class="btn ghost sm" onclick="stopEnroll(${e.id},${d.id})">Stop</button></div>`).join('')||'<div class="muted small" style="margin-top:6px">Not enrolled.</div>'}
+     <div class="row" style="margin-top:10px"><select id="d_plan"><option value="">Pick a plan…</option>${(plans||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn ghost" style="flex:0" onclick="enroll(${d.lead_id},${d.id})">Enroll</button></div></div>
+   <div class="card"><b>Conversation</b>${(msgs||[]).map(m=>`<div class="small" style="border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span class="muted">${new Date(m.created_at).toLocaleString()} · ${m.channel} · ${m.direction==='in'?'from them':'from you'}</span><br>${esc(m.body||'')}</div>`).join('')||'<div class="muted small" style="margin-top:6px">No messages yet.</div>'}</div>`:''}`:''}`);
+  if(d.id)loadDealFiles(d.id);
+}
+async function loadDealFiles(id){const {data}=await sb.from('deal_files').select('*').eq('deal_id',id).order('created_at',{ascending:false});
+  const el=$('d_files');if(!el)return;if(!data||!data.length){el.innerHTML='<span class="muted">No files yet.</span>';return}
+  el.innerHTML=data.map(f=>`<div style="border-top:1px solid var(--line);padding:6px 0;display:flex;gap:8px"><a href="#" onclick="openDealFile('${esc(f.storage_path||'')}');return false">${esc(f.name)}</a><span class="muted" style="margin-left:auto">${new Date(f.created_at).toLocaleDateString()}</span></div>`).join('')}
+async function openDealFile(path){if(!path)return toast('File is on your Desktop in DLG Contracts');const {data,error}=await sb.storage.from('deal-files').createSignedUrl(path,3600);if(error)return toast(error.message);window.open(data.signedUrl,'_blank')}
+async function uploadDealFiles(dealId,propId){const fs=$('d_up').files;if(!fs.length)return toast('Pick a file first');
+  for(const f of fs){const path=`${dealId}/${Date.now()}-${f.name.replace(/[^\w.\- ]+/g,'_')}`;const {error}=await sb.storage.from('deal-files').upload(path,f);if(error){toast(error.message);return}
+    await sb.from('deal_files').insert({deal_id:dealId,property_id:propId,name:f.name.replace(/\.[^.]+$/,''),storage_path:path,source:'hq'})}
+  toast('Uploaded');loadDealFiles(dealId)}
+async function moveToBuyer(id){const s=STAGES.find(x=>x.board==='buyer');if(!s)return toast('No buyer stages');
+  const {data:d,error}=await sb.from('deals').update({board:'buyer',stage_id:s.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id).select().single();if(error)return toast(error.message);
+  if(d.lead_id)sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:'Under contract, moved to Buyer Deals'});
+  toast('Moved to Buyer Deals → '+s.name);closeDrawer();go('board-buyer')}
+async function moveToSeller(id){const s=STAGES.find(x=>x.board==='seller');const {error}=await sb.from('deals').update({board:'seller',stage_id:s.id,updated_at:new Date().toISOString()}).eq('id',id);if(error)return toast(error.message);toast('Moved back to Seller Deals');closeDrawer();go('board-seller')}
+async function saveDeal(id,board){
+  const n=k=>{const v=$('d_'+k).value;return v===''?null:Number(v)};
+  const r={board,stage_id:n('stage_id'),priority:$('d_priority').value||null,value:n('value'),property_label:$('d_property_label').value||null,campaign_id:n('campaign_id'),
+    source:$('d_source').value||null,purchase_price:n('purchase_price'),assignment_price:n('assignment_price'),emd:n('emd'),closing_date:$('d_closing_date').value||null,
+    attorney:$('d_attorney').value||null,buyer_id:n('buyer_id'),notes:$('d_notes').value||null,updated_at:new Date().toISOString()};
+  const {data,error}=id?await sb.from('deals').update(r).eq('id',id).select().single():await sb.from('deals').insert(r).select().single();
+  if(error)return toast(error.message);toast('Saved');if(!id)openDeal(data.id);else closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
+async function delDeal(id,board){if(!confirm('Delete this deal?'))return;await sb.from('deals').delete().eq('id',id);closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
+async function pickLead(dealId){const q=$('d_lq').value.trim();if(!q)return;const {data}=await sb.rpc('search_leads',{q,lim:8});
+  $('d_lres').innerHTML=(data||[]).map(l=>`<div class="pitem" onclick="linkLead(${dealId},${l.id})">${esc(leadName(l))} <span class="small muted">${esc(l.phone||'')} ${esc(l.prop_address||'')}</span></div>`).join('')||'<div class="muted small">No match.</div>'}
+async function linkLead(dealId,leadId){await sb.from('deals').update({lead_id:leadId}).eq('id',dealId);openDeal(dealId)}
+async function addTask(dealId,leadId){const t=$('d_task').value.trim();if(!t)return;await sb.from('tasks').insert({deal_id:dealId,lead_id:leadId,title:t,due_at:$('d_taskdue').value||null});openDeal(dealId)}
+async function toggleTask(id,done){await sb.from('tasks').update({status:done?'done':'todo'}).eq('id',id)}
+async function enroll(leadId,dealId){const p=$('d_plan').value;if(!p)return;await sb.from('followup_enrollments').insert({plan_id:+p,lead_id:leadId,deal_id:dealId});toast('Enrolled');openDeal(dealId)}
+async function stopEnroll(id,dealId){await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'manual'}).eq('id',id);openDeal(dealId)}
+async function contractsFor(id){const {data:d}=await sb.from('deals').select('*, leads(full_name), properties(apn,address,city,state,zip), buyers(name)').eq('id',id).single();
+  const deal={contract_date:new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}),sellers:[d.leads?.full_name].filter(Boolean),
+    property_address:[d.properties?.address,d.properties?.city,d.properties?.state,d.properties?.zip].filter(Boolean).join(', ')||d.property_label,apn:d.properties?.apn||'',
+    purchase_price:d.purchase_price,emd:d.emd,closing_agent:d.attorney||'',assignment:{assignee:d.buyers?.name||'',assignment_fee:d.assignment_price&&d.purchase_price?d.assignment_price-d.purchase_price:undefined,close_by:d.closing_date||''}};
+  const b=new Blob([JSON.stringify(deal,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`deal-${id}.json`;a.click();
+  toast('Deal details saved. Tell Claude "make contracts for this deal" and both contracts get filled in.')}
+
+// ---------- inboxes ----------
+async function vInbox(box){
+  const {data,error}=await sb.from('messages').select('id,lead_id,channel,direction,body,is_read,created_at, leads(id,full_name,first_name,last_name,phone,prop_address)').eq('inbox',box).order('created_at',{ascending:false}).limit(800);
+  if(error){$('view').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
+  const th={};(data||[]).forEach(m=>{const t=th[m.lead_id]||(th[m.lead_id]={lead:m.leads,last:m,unread:0});if(m.direction==='in'&&!m.is_read)t.unread++});
+  const list=Object.values(th);
+  $('view').innerHTML=`<div class="inbox"><div class="threads">${list.map(t=>`<div class="thread ${t.unread?'unread':''}" data-l="${t.lead?.id}" onclick="openThread(${t.lead?.id},'${box}')"><div style="display:flex;gap:6px"><span class="nm" style="flex:1">${esc(leadName(t.lead)||t.lead?.phone||'Unknown')}</span>${t.unread?`<span class="pill">${t.unread}</span>`:''}<span class="small muted">${ago(t.last.created_at)}</span></div><div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.last.channel==='call'?'📞 ':t.last.channel==='web'?'🌐 ':''}${esc(t.last.body||'')}</div></div>`).join('')||'<div class="muted" style="padding:16px">No conversations yet. Website form leads land here now. Texts and calls land here once your Quo numbers are connected.</div>'}</div>
+   <div class="convo" id="convo"><div class="muted" style="padding:20px">Pick a conversation. Opening one marks it read.</div></div></div>`;
+}
+let _tl=null;
+async function openThread(leadId,box){
+  document.querySelectorAll('.thread').forEach(t=>t.classList.toggle('on',+t.dataset.l===leadId));
+  const [{data:l},{data:msgs},{data:tpl}]=await Promise.all([sb.from('leads').select('*').eq('id',leadId).single(),sb.from('messages').select('*').eq('lead_id',leadId).order('created_at'),sb.from('templates').select('id,name,body').eq('kind','text').order('name')]);
+  _tl=l;window._tpl=tpl||[];
+  $('convo').innerHTML=`<div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:160px"><b>${esc(leadName(l))}</b><div class="small muted">${esc(l.phone||'')} ${l.prop_address?'· '+esc(l.prop_address):''} ${l.offer_code?'· Code '+esc(l.offer_code):''}</div></div>
+   <button class="btn ghost sm" onclick="openLead(${l.id})">Contact</button><button class="btn sm" onclick="dealFromLead(${l.id},'${box}')">+ Deal</button></div>
+   <div class="msgs" id="msgs">${(msgs||[]).map(m=>`<div class="msg ${m.direction}">${m.channel==='call'?'📞 '+(m.direction==='in'?(m.duration_s?'Call '+Math.round(m.duration_s/60)+' min':'Missed call'):'Outgoing call')+(m.body?'\n'+esc(m.body):''):esc(m.body||'')}<div class="when">${new Date(m.created_at).toLocaleString()}</div></div>`).join('')}</div>
+   <div class="composer"><select id="tplpick" style="flex:0 0 150px" onchange="useTpl(this)"><option value="">Template…</option>${(tpl||[]).map((t,i)=>`<option value="${i}">${esc(t.name)}</option>`).join('')}</select>
+   <textarea id="reply" style="min-height:42px" placeholder="Type a text…"></textarea><button class="btn" onclick="sendText(${l.id},'${box}')">Send</button></div>`;
+  $('msgs').scrollTop=1e9;
+  await sb.from('messages').update({is_read:true}).eq('lead_id',leadId).eq('direction','in').eq('is_read',false);refreshBadges();
+}
+function fillTpl(b,l){return String(b||'').replace(/{{\s*(\w+)\s*}}/g,(m,k)=>({first_name:l.first_name||(l.full_name||'').split(' ')[0],contact_name:leadName(l),property_address:l.prop_address,contact_address:l.mail_address,county:l.county,county_name:l.county,your_name:'Damien',your_company:'Dominion Land Group',your_phone_number:'(980) 990-2356',your_website:'dominionlandgroup.land'}[k]??''))}
+function useTpl(sel){if(sel.value==='')return;$('reply').value=fillTpl(_tpl[+sel.value].body,_tl);sel.value=''}
+async function sendText(leadId,box){const b=$('reply').value.trim();if(!b)return;
+  await sb.from('messages').insert({lead_id:leadId,inbox:box,channel:'sms',direction:'out',body:b,is_read:true});
+  await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'manual reply'}).eq('lead_id',leadId).eq('status','active');
+  toast('Saved to the conversation. Texts go out once Quo is connected.');openThread(leadId,box)}
+async function dealFromLead(leadId,board){const st=STAGES.find(s=>s.board===board);const {data:l}=await sb.from('leads').select('*').eq('id',leadId).single();
+  const {data,error}=await sb.from('deals').insert({board,stage_id:st?.id,lead_id:leadId,property_label:l.prop_address||null,source:l.lead_source||null}).select().single();if(error)return toast(error.message);openDeal(data.id)}
+
+// ---------- campaigns ----------
+const MAILHOUSE_PAGE=()=>store.get('mailhousePage')||'https://dominionlandgroup-hub.github.io/dlg-hq/mailhouse.html';
+const mailLink=c=>`${MAILHOUSE_PAGE()}?t=${c.mail_token}`;
+const MSTEPS=[['not_sent','Not sent'],['to_house','At mail house'],['received','Received'],['processing','Processing'],['sent','Mailed']];
+function mailProgress(c){if(c.channel&&c.channel!=='mail')return '<span class="small muted">Text campaign</span>';
+  const i=Math.max(0,MSTEPS.findIndex(s=>s[0]===(c.mail_status||'not_sent')));const pct=i/(MSTEPS.length-1)*100;
+  return `<div class="mprog" title="${MSTEPS[i][1]}"><div class="trk"><span style="width:${pct}%"></span></div><span class="small ${i===4?'ok':''}">${MSTEPS[i][1]}</span></div>`}
+let CSTATE={q:'',sort:'drop_date',dir:'desc',page:0};
+function campStats(c,dc){const a=dc[c.id]||{n:0,offer:0,purchase:0,sale:0};const n=(c.pebble_deals||0)+a.n;
+  return {deals:n,resp:c.records?n/c.records*100:0,offers:(c.pebble_offers||0)+a.offer,purchases:(c.pebble_purchases||0)+a.purchase,sales:(c.pebble_sales||0)+a.sale}}
+async function campDealCounts(){const [{data:stats},{data:tx}]=await Promise.all([sb.from('deals').select('id,campaign_id,source').limit(10000),sb.from('transactions').select('deal_id,kind').limit(10000)]);
+  // Pebble's own counts came over as the starting point; deals and offers made in DLG HQ add on top.
+  const dmap={},dc={};(stats||[]).forEach(d=>{dmap[d.id]=d;if(d.campaign_id&&d.source!=='pebble'){(dc[d.campaign_id]=dc[d.campaign_id]||{n:0,offer:0,purchase:0,sale:0}).n++}});
+  (tx||[]).forEach(t=>{const d=dmap[t.deal_id];if(d&&d.campaign_id&&d.source!=='pebble'){(dc[d.campaign_id]=dc[d.campaign_id]||{n:0,offer:0,purchase:0,sale:0})[t.kind]++}});return dc}
+async function vCampaigns(){
+  $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;
+  const [{data:c},dc]=await Promise.all([sb.from('campaigns').select('*').limit(2000),campDealCounts()]);
+  window._camps=(c||[]).map(x=>({...x,...campStats(x,dc)}));
+  $('view').innerHTML=`<div class="card" style="padding:12px 14px"><div class="row" style="align-items:center;gap:10px"><span class="small muted" style="flex:0">Campaign</span><input id="cq" placeholder="Search by name" value="${esc(CSTATE.q)}" style="max-width:320px"></div></div><div id="ctab"></div>`;
+  $('cq').oninput=e=>{CSTATE.q=e.target.value;CSTATE.page=0;drawCamps()};drawCamps()}
+function drawCamps(){const P=10,q=CSTATE.q.toLowerCase();
+  let L=_camps.filter(c=>!q||c.name.toLowerCase().includes(q));
+  const k=CSTATE.sort,dir=CSTATE.dir==='asc'?1:-1;L.sort((x,y)=>{const a=x[k]??'',b=y[k]??'';return (typeof a==='number'||typeof b==='number'?(+a||0)-(+b||0):String(a).localeCompare(String(b)))*dir||String(y.drop_date).localeCompare(String(x.drop_date))});
+  const pages=Math.max(1,Math.ceil(L.length/P));CSTATE.page=Math.min(CSTATE.page,pages-1);const S=L.slice(CSTATE.page*P,CSTATE.page*P+P);
+  const th=(key,label,cls='right')=>`<th class="${cls} sortable" onclick="sortCamps('${key}')">${label} <span class="arr">${CSTATE.sort===key?(CSTATE.dir==='asc'?'↑':'↓'):'↑↓'}</span></th>`;
+  const pager=`<div class="pager"><span class="small">${L.length?CSTATE.page*P+1:0} - ${Math.min(L.length,CSTATE.page*P+P)} of ${L.length} results</span><button class="btn ghost sm" ${CSTATE.page?'':'disabled'} onclick="CSTATE.page--;drawCamps()">‹</button><button class="btn ghost sm" ${CSTATE.page<pages-1?'':'disabled'} onclick="CSTATE.page++;drawCamps()">›</button></div>`;
+  $('ctab').innerHTML=pager+`<div class="card" style="overflow-x:auto;padding:0"><table class="ctable"><tr>${th('name','Name','')}${th('drop_date','Created','')}<th>Mailing Progress</th>${th('records','Records')}${th('cost','Amount Spent')}${th('deals','Deals')}${th('resp','Response Rate')}${th('offers','Offers')}${th('purchases','Purchases')}${th('sales','Sales')}<th></th></tr>
+   ${S.map(x=>`<tr><td><a href="#" class="cname" onclick="go('campaign:${x.id}');return false">${esc(x.name)}</a></td><td>${fmtDate(x.drop_date||x.created_at)}</td><td>${mailProgress(x)}</td>
+     <td class="right num">${(x.records||0).toLocaleString()}</td><td class="right num" style="color:#e07a1f">${money(x.cost)}</td><td class="right num">${x.deals}</td><td class="right num">${x.resp.toFixed(2)}%</td><td class="right num">${x.offers}</td><td class="right num">${x.purchases}</td><td class="right num">${x.sales}</td>
+     <td><div class="menu"><button class="btn ghost sm" onclick="toggleMenu(this)">···</button><div class="mlist"><a href="#" onclick="startMailing(${x.id});return false">Start Mailing</a><a href="#" onclick="copyMailLink(${x.id});return false">Copy mail house link</a><a href="#" onclick="remarket(${x.id});return false">Remarket</a><a href="#" onclick="splitCampaign(${x.id});return false">Split</a><a href="#" onclick="editCampaign(${x.id});return false">Edit</a></div></div></td></tr>`).join('')||'<tr><td colspan="11" class="muted">No campaigns match.</td></tr>'}</table></div>`+pager}
+function sortCamps(k){if(CSTATE.sort===k)CSTATE.dir=CSTATE.dir==='asc'?'desc':'asc';else{CSTATE.sort=k;CSTATE.dir=k==='name'?'asc':'desc'}CSTATE.page=0;drawCamps()}
+function toggleMenu(btn){const m=btn.nextElementSibling;const open=m.style.display==='block';document.querySelectorAll('.mlist').forEach(x=>x.style.display='none');m.style.display=open?'none':'block'}
+document.addEventListener('click',e=>{if(!e.target.closest('.menu'))document.querySelectorAll('.mlist').forEach(x=>x.style.display='none')});
+async function copyMailLink(id){const {data:c}=await sb.from('campaigns').select('mail_token').eq('id',id).single();const u=mailLink(c);try{await navigator.clipboard.writeText(u);toast('Mail house link copied')}catch(e){prompt('Mail house link',u)}}
+
+// ---------- one campaign (modeled on Pebble's campaign page) ----------
+let RSTATE={id:null,page:0,q:'',tag:'',board:'',sel:new Set()};
+async function vCampaign(id){
+  if(RSTATE.id!==id)RSTATE={id,page:0,q:'',tag:'',board:'',sel:new Set()};
+  const [{data:c},dc]=await Promise.all([sb.from('campaigns').select('*').eq('id',id).single(),campDealCounts()]);
+  if(!c){$('view').innerHTML='<div class="card">Campaign not found.</div>';return}
+  const s=campStats(c,dc);$('title').textContent=c.name;
+  $('actions').innerHTML=`<button class="btn ghost" onclick="go('campaigns')">← Back to Campaigns</button><button class="btn ghost" onclick="remarket(${id})">Remarket</button><button class="btn ghost" onclick="go('import')">Import List</button><button class="btn" onclick="startMailing(${id})">Start Mailing</button>
+   <div class="menu"><button class="btn ghost" onclick="toggleMenu(this)">···</button><div class="mlist"><a href="#" onclick="splitCampaign(${id});return false">Split</a><a href="#" onclick="editCampaign(${id});return false">Edit Campaign</a></div></div>`;
+  const st=(l,v,col)=>`<div class="pst"><div class="l">${l}</div><div class="v" ${col?`style="color:${col}"`:''}>${v}</div></div>`;
+  $('view').innerHTML=`<div class="card"><div class="pstats" style="grid-template-columns:repeat(7,1fr)">${st('Created',fmtDate(c.drop_date||c.created_at))}${st('Amount spent',money(c.cost),'#e07a1f')}${st('Deals',s.deals)}${st('Response Rate',s.resp.toFixed(2)+'%')}${st('Offers',s.offers)}${st('Purchases',s.purchases)}${st('Sales',s.sales)}</div></div>
+   ${c.channel==='mail'?`<div class="card"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><b>Mailing Progress</b><div style="flex:1;min-width:220px">${mailProgress(c)}</div>
+     <span class="small muted">${[['To mail house',c.mail_to_house_at],['Received',c.mail_received_at],['Processing',c.mail_processing_at],['Mailed',c.mail_sent_at]].filter(x=>x[1]).map(x=>x[0]+' '+new Date(x[1]).toLocaleDateString()).join(' · ')}</span>
+     <button class="btn ghost sm" onclick="copyMailLink(${id})">Copy mail house link</button></div></div>`:''}
+   <div class="card" style="padding:12px 14px"><div class="row" style="align-items:center;gap:8px;flex-wrap:wrap">
+     <input id="rq" placeholder="Search owner, code, APN or address" value="${esc(RSTATE.q)}" style="max-width:300px">
+     <select id="rtag" style="width:auto"><option value="">Tag: Any</option>${['Due Diligence','Not Selling','Overpriced Offer'].map(t=>`<option ${RSTATE.tag===t?'selected':''}>${t}</option>`).join('')}</select>
+     <select id="rboard" style="width:auto"><option value="">Board: Any</option><option value="seller" ${RSTATE.board==='seller'?'selected':''}>Seller Deals</option><option value="buyer" ${RSTATE.board==='buyer'?'selected':''}>Buyer Deals</option></select>
+     <span style="flex:1"></span><div class="menu"><button class="btn ghost" onclick="toggleMenu(this)">Actions ▾</button><div class="mlist"><a href="#" onclick="adjustPrice(${id});return false">Adjust Price</a><a href="#" onclick="exportCampaign(${id});return false">Export</a></div></div></div></div>
+   <div id="rlist"><div class="muted">Loading…</div></div>`;
+  let t;$('rq').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{RSTATE.q=e.target.value.trim();RSTATE.page=0;loadRecs(id)},300)};
+  $('rtag').onchange=e=>{RSTATE.tag=e.target.value;RSTATE.page=0;loadRecs(id)};$('rboard').onchange=e=>{RSTATE.board=e.target.value;RSTATE.page=0;loadRecs(id)};
+  loadRecs(id)}
+async function loadRecs(id){const P=20;
+  const {data,error}=await sb.rpc('campaign_records_page',{cid:id,q:RSTATE.q||null,tag:RSTATE.tag||null,board:RSTATE.board||null,lim:P,off:RSTATE.page*P});
+  if(error){$('rlist').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
+  const total=data?.[0]?.total||0,rows=data||[];const pages=Math.max(1,Math.ceil(total/P));
+  const pager=`<div class="pager"><label class="small" style="margin-right:auto"><input type="checkbox" style="width:auto" onchange="selAllRecs(${id},this.checked)" ${RSTATE.all?'checked':''}> Select all ${total.toLocaleString()}</label><span class="small">${total?RSTATE.page*P+1:0} - ${Math.min(total,RSTATE.page*P+P)} of ${total.toLocaleString()} results</span><button class="btn ghost sm" ${RSTATE.page?'':'disabled'} onclick="RSTATE.page--;loadRecs(${id})">‹</button><button class="btn ghost sm" ${RSTATE.page<pages-1?'':'disabled'} onclick="RSTATE.page++;loadRecs(${id})">›</button></div>`;
+  $('rlist').innerHTML=pager+rows.map(r=>`<div class="card rec"><input type="checkbox" style="width:auto" ${RSTATE.all||RSTATE.sel.has(r.rec_id)?'checked':''} onchange="selRec(${r.rec_id},this.checked)">
+     <div class="rl"><a href="#" onclick="openLead(${r.lead_id});return false"><b>${esc(r.owner||'Unknown owner')}</b></a><address class="small">${esc(r.mail_address||'')}<br>${esc([r.mail_city,[r.mail_state,r.mail_zip].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</address>
+       <span class="code"><b>Code:</b> ${esc(r.offer_code||'—')}</span>${r.offer_price?` <span class="small muted">Offer ${money(r.offer_price)}</span>`:''}</div>
+     <div class="rr card">${r.property_id?`<a href="#" onclick="openProperty(${r.property_id});return false"><b>⛰ ${esc(r.apn||'APN not entered')}</b></a>`:''}<div class="small">${r.address?'⌂ '+esc([r.address,r.city].filter(Boolean).join(', ')):''}</div><div class="small muted">${esc([r.county,r.county_state].filter(Boolean).join(', '))}${r.acres?' | '+(+r.acres).toFixed(2)+' acres':''}</div>
+       ${(r.tags||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join(' ')} ${r.deal_board?`<span class="pill hot">${r.deal_board==='seller'?'Seller Deals':'Buyer Deals'}</span>`:''}</div></div>`).join('')+(rows.length?pager:'<div class="card muted">No records match.</div>')}
+function selRec(id,on){RSTATE.all=false;on?RSTATE.sel.add(id):RSTATE.sel.delete(id)}
+function selAllRecs(cid,on){RSTATE.all=on;RSTATE.sel.clear();loadRecs(cid)}
+async function exportCampaign(id){toast('Building export…');const all=[];for(let off=0;;off+=1000){const {data,error}=await sb.rpc('campaign_records_page',{cid:id,q:RSTATE.q||null,tag:RSTATE.tag||null,board:RSTATE.board||null,lim:1000,off});if(error)return toast(error.message);all.push(...data);if(data.length<1000)break}
+  const rows=all.filter(r=>RSTATE.all||!RSTATE.sel.size||RSTATE.sel.has(r.rec_id)).map(r=>({Owner:r.owner,'Mail Address':r.mail_address,'Mail City':r.mail_city,'Mail State':r.mail_state,'Mail Zip':r.mail_zip,'Offer Code':r.offer_code,'Offer Price':r.offer_price,APN:r.apn,'Property Address':r.address,'Property City':r.city,County:r.county,State:r.county_state,Acres:r.acres,Tags:(r.tags||[]).join('; ')}));
+  const {data:c}=await sb.from('campaigns').select('name').eq('id',id).single();dlCSV(`Campaign Export - ${c.name.replace(/[^\w ]+/g,'')} - ${rows.length} Records.csv`,rows)}
+async function adjustPrice(id){const ids=RSTATE.all?null:[...RSTATE.sel];if(!RSTATE.all&&!ids.length)return toast('Select records first (or Select all)');
+  openDrawer(head('Adjust Price')+`<div class="card"><p class="small muted" style="margin-top:0">${RSTATE.all?'All records in this campaign':ids.length+' selected records'}</p>
+   <label class="f">How</label><select id="ap_m"><option value="set">Set offer price to</option><option value="pct">Change by percent</option><option value="amt">Change by dollars</option></select>
+   <label class="f">Amount</label><input id="ap_v" type="number" placeholder="e.g. 15000 or -10"><br><br><button class="btn" onclick="doAdjust(${id})">Apply</button></div>`)}
+async function doAdjust(id){const v=+$('ap_v').value;if(!$('ap_v').value)return;const {error}=await sb.rpc('campaign_adjust_price',{cid:id,ids:RSTATE.all?null:[...RSTATE.sel],mode:$('ap_m').value,val:v});
+  if(error)return toast(error.message);toast('Prices updated');closeDrawer();loadRecs(id)}
+async function remarket(id){const n=prompt('Name for the new campaign (same records, new offer codes)');if(!n)return;const {data,error}=await sb.rpc('campaign_remarket',{cid:id,new_name:n});if(error)return toast(error.message);toast('Remarket campaign created');go('campaign:'+data)}
+async function splitCampaign(id){const k=+prompt('Split into how many campaigns?','2');if(!(k>1))return;const {error}=await sb.rpc('campaign_split',{cid:id,parts:k});if(error)return toast(error.message);toast('Split into '+k);go('campaigns')}
+
+// ---------- Mailing Insights (By Month / By County / By Template) ----------
+let IST={by:'month'};
+async function vInsights(){const [a,b,k]=dashRange();
+  $('actions').innerHTML=`<button class="btn ghost" onclick="go('campaigns')">← Back</button>`;
+  const [{data:c},dc]=await Promise.all([sb.from('campaigns').select('*').gte('drop_date',a).lte('drop_date',b).limit(2000),campDealCounts()]);
+  const key=x=>IST.by==='month'?(x.drop_date||'').slice(0,7):IST.by==='county'?(x.county?`${x.county}, ${x.state||''}`:x.name.replace(/\b(lots?|county|nc|sc|ga|fl|tn|20\d\d|\(.*\)|[*_]+)\b/gi,'').trim()||'Unknown'):(x.template||'No template recorded');
+  const G={};(c||[]).forEach(x=>{const s=campStats(x,dc);const g=G[key(x)]||(G[key(x)]={mail:0,cost:0,deals:0,offers:0,purch:0,sales:0});g.mail+=x.records||0;g.cost+=+x.cost||0;g.deals+=s.deals;g.offers+=s.offers;g.purch+=s.purchases;g.sales+=s.sales});
+  const rows=Object.entries(G).sort((x,y)=>IST.by==='month'?y[0].localeCompare(x[0]):y[1].deals-x[1].deals);
+  const tabs=[['month','By Month'],['template','By Template'],['county','By County']];
+  $('view').innerHTML=`<div class="card"><h3 class="sec" style="margin-top:0">Mailing Insights</h3><div class="tabs">${tabs.map(([v,l])=>`<button class="${IST.by===v?'on':''}" onclick="IST.by='${v}';vInsights()">${l}</button>`).join('')}</div>
+   <div class="small muted" style="margin-top:6px">Date: ${fmtDate(a)} – ${fmtDate(b)} (change it on the Dashboard)</div></div>
+   <div class="card" style="overflow-x:auto;padding:0"><table><tr><th>${IST.by==='month'?'Month':IST.by==='county'?'County':'Template'}</th><th class="right">Mailings Sent</th><th class="right">Mailing Cost</th><th class="right">Responses</th><th class="right">Response Rate</th><th class="right">Deals</th><th class="right">Offers</th><th class="right">Purchases</th><th class="right">Sales</th><th class="right">Cost per Deal</th></tr>
+   ${rows.map(([g,v])=>`<tr><td><b>${esc(IST.by==='month'?new Date(g+'-15').toLocaleDateString('en-US',{month:'long',year:'numeric'}):g)}</b></td><td class="right num">${v.mail.toLocaleString()}</td><td class="right num">${money(v.cost)}</td><td class="right num">${v.deals}</td><td class="right num">${v.mail?(v.deals/v.mail*100).toFixed(2):'0.00'}%</td><td class="right num">${v.deals}</td><td class="right num">${v.offers}</td><td class="right num">${v.purch}</td><td class="right num">${v.sales}</td><td class="right num">${v.deals?money(v.cost/v.deals):'—'}</td></tr>`).join('')||'<tr><td colspan="10" class="muted">No insights to show</td></tr>'}</table></div>`}
+
+async function startMailing(id){
+  const [{data:c},{data:tpls}]=await Promise.all([sb.from('campaigns').select('*').eq('id',id).single(),sb.from('templates').select('*').eq('kind','mail').order('name')]);
+  openDrawer(head('Start Mailing')+`
+   <div class="card"><p style="margin-top:0"><b>${esc(c.name)}</b></p>
+   <label class="f">Letter template</label><select id="m_tpl">${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}" ${c.template===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
+   <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Remove opt-outs, "not selling" and do-not-mail</label>
+   <p class="small muted">Downloads the mail-house list with your letter's merge fields (Owner, Greeting, Mail1–3, PropertyAddress, PropertyCity, APN, OfferCode), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. Attach the list and the letter from your DM LETTERS folder, then send.</p>
+   <button class="btn" onclick="buildMailList(${id})">Download list + draft email</button><div id="m_msg" class="small" style="margin-top:8px"></div></div>`)}
+async function buildMailList(id){
+  $('m_msg').textContent='Building list…';const all=[];
+  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('offer_code, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status), properties(apn,address,city)').eq('campaign_id',id).range(from,from+999);
+    if(error){$('m_msg').textContent=error.message;return}all.push(...data);if(data.length<1000)break}
+  const sup=new Set(),on=$('m_sup').checked;if(on){const {data:s}=await sb.from('suppression').select('phone,apn');(s||[]).forEach(x=>{if(x.phone)sup.add(x.phone);if(x.apn)sup.add('A'+x.apn)})}
+  const rows=all.filter(r=>!on||(!r.leads?.do_not_mail&&r.leads?.status!=='not_selling'&&!sup.has(r.leads?.phone)&&!sup.has('A'+r.properties?.apn)))
+   .map(r=>{const l=r.leads||{},p=r.properties||{};return {Owner:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),Greeting:l.first_name||l.full_name||'Property Owner',
+     Mail1:l.mail_address||'',Mail2:'',Mail3:[l.mail_city,[l.mail_state,l.mail_zip].filter(Boolean).join(' ')].filter(Boolean).join(', '),PropertyAddress:p.address||'',PropertyCity:p.city||'',APN:p.apn||'',OfferCode:r.offer_code||''}});
+  const missing=rows.filter(r=>!r.OfferCode).length;
+  const {data:c}=await sb.from('campaigns').select('name,mail_token').eq('id',id).single();
+  dlCSV(`${c.name.replace(/[^\w ]+/g,'')} - mail house.csv`,rows);
+  await sb.from('campaigns').update({template:$('m_tpl').value,mail_status:'to_house',mail_to_house_at:new Date().toISOString(),records:rows.length}).eq('id',id);
+  $('m_msg').innerHTML=`${rows.length.toLocaleString()} records (${all.length-rows.length} removed).${missing?` <b style="color:var(--red)">${missing} have no offer code.</b> Add codes before sending; Brandon flags lists without them.`:''}`;
+  const body=`Hello,\n\nAttached is a new list for "${c.name}" (${rows.length} records) and the letter template (${$('m_tpl').value}).\n\nPlease use this link to mark the job Received, Processing and Sent as it moves along:\n${mailLink(c)}\n\nPlease send a sample and postage when ready.\n\nThanks!\nDamien Dupee\nDominion Land Group`;
+  window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${MAIL_HOUSE.to}&cc=${MAIL_HOUSE.cc}&su=${encodeURIComponent('NEW DATA - '+c.name)}&body=${encodeURIComponent(body)}`,'_blank');
+}
+async function editCampaign(id){const {data:c}=id?await sb.from('campaigns').select('*').eq('id',id).single():{data:{channel:'mail'}};
+  const f=(k,l,t='text')=>`<label class="f">${l}</label><input id="c_${k}" type="${t}" value="${esc(c[k]??'')}">`;
+  openDrawer(head((id?'Edit':'New')+' campaign')+`<div class="card">${f('name','Name')}
+   <label class="f">Type</label><select id="c_channel">${[['mail','Direct mail'],['text','Text'],['call','Cold call'],['other','Other']].map(([v,l])=>`<option value="${v}" ${v===c.channel?'selected':''}>${l}</option>`).join('')}</select>
+   <div class="row"><div>${f('county','County')}</div><div>${f('state','State')}</div></div><div class="row"><div>${f('drop_date','Created','date')}</div><div>${f('records','Records','number')}</div><div>${f('cost','Amount spent','number')}</div></div>
+   ${f('phone_number','Tracking phone')}<br><br><button class="btn" onclick="saveCampaign(${id||0})">Save</button></div>`)}
+async function saveCampaign(id){const v=k=>$('c_'+k).value||null;const r={name:v('name')||'Untitled',channel:$('c_channel').value,county:v('county'),state:v('state'),drop_date:v('drop_date')||new Date().toISOString().slice(0,10),records:+v('records')||0,cost:+v('cost')||0,phone_number:v('phone_number')};
+  const {error}=id?await sb.from('campaigns').update(r).eq('id',id):await sb.from('campaigns').insert({...r,source:'hq'});if(error)return toast(error.message);closeDrawer();if(id&&CUR==='campaign:'+id)vCampaign(id);else vCampaigns()}
+function openCampaign(id){closeDrawer();go('campaign:'+id)}
+
+// ---------- properties + map ----------
+async function vProperties(){
+  $('actions').innerHTML=`<button class="btn" onclick="editProperty()">+ Add Property</button>`;
+  $('view').innerHTML=`<div class="filters"><input id="pf_county" placeholder="County"><input id="pf_apn" placeholder="APN"><input id="pf_addr" placeholder="Address"><input id="pf_tag" placeholder="Tag"><button class="btn ghost" style="flex:0" onclick="loadProps()">Search</button><button class="btn ghost" style="flex:0" onclick="['pf_county','pf_apn','pf_addr','pf_tag'].forEach(i=>$(i).value='');loadProps(true)">Clear</button></div>
+   <div class="split"><div class="plist" id="plist"></div><div id="map"></div></div>`;
+  ['pf_county','pf_apn','pf_addr','pf_tag'].forEach(i=>$(i).onkeydown=e=>{if(e.key==='Enter')loadProps()});
+  if(map){map.remove();map=null}
+  map=L.map('map').setView([35.2,-80.8],9);
+  const street=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'});
+  L.control.layers({'Map':street,'Satellite':sat}).addTo(map);mapLayer=L.layerGroup().addTo(map);
+  map.on('moveend',()=>{if(!['pf_county','pf_apn','pf_addr','pf_tag'].some(i=>$(i).value))loadProps(true)});
+  loadProps(true);
+}
+async function loadProps(byMap){
+  let q=sb.from('properties').select('id,apn,address,city,county,county_state,acres,lat,lng').limit(1000);
+  const c=$('pf_county').value.trim(),a=$('pf_apn').value.trim(),ad=$('pf_addr').value.trim(),t=$('pf_tag').value.trim();
+  if(c)q=q.ilike('county',c+'%');if(a)q=q.ilike('apn','%'+a+'%');if(ad)q=q.ilike('address','%'+ad+'%');if(t)q=q.contains('tags',[t]);
+  if(byMap&&!c&&!a&&!ad&&!t){const b=map.getBounds();q=q.gte('lat',b.getSouth()).lte('lat',b.getNorth()).gte('lng',b.getWest()).lte('lng',b.getEast())}
+  const {data,error}=await q;if(error){$('plist').innerHTML=`<div style="padding:12px">${esc(error.message)}</div>`;return}
+  const P=data||[];mapLayer.clearLayers();const pts=[];
+  P.forEach(p=>{if(p.lat&&p.lng){const m=L.circleMarker([p.lat,p.lng],{radius:6,color:'#1f4d36',weight:1,fillColor:'#2f6b4c',fillOpacity:.85}).bindTooltip(`${esc(p.apn||'')} ${esc(p.address||'')}`);m.on('click',()=>openProperty(p.id));m.addTo(mapLayer);pts.push([p.lat,p.lng])}});
+  if(!byMap&&pts.length)map.fitBounds(pts,{maxZoom:15,padding:[20,20]});
+  $('plist').innerHTML=`<div class="small muted" style="padding:8px 12px">${P.length===1000?'1,000+':P.length.toLocaleString()} properties${byMap?' in this map area':''}</div>`+P.map(p=>`<div class="pitem" onclick="openProperty(${p.id})"><b>${esc(p.apn||'No APN')}</b><div class="small">${esc([p.address,p.city].filter(Boolean).join(', '))}</div><div class="small muted">${esc(p.county||'')}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' ac':''}</div></div>`).join('');
+}
+const DD={access:['Public Road - Paved','Public Road - Gravel','Private Road','Undeveloped Easement','Landlocked','Dirt Path','No Access'],topography:['Flat','Sloped','Rolling','Unbuildable'],flood_zone:['Yes','No','Needs review'],sewer:['City Provided','Septic Installed','None'],water:['City Provided','Well Installed','Well Available','Alternative System Available','None'],power:['Utility Box Installed','At Property Line','At Neighboring Property','None']};
+const FTEXT=[['zoning','Zoning'],['back_taxes','Back taxes due'],['last_sale_date','Last purchase date'],['last_sale_price','Last purchase price'],['comp1_link','Comp 1 link'],['comp1_price','Comp 1 price'],['comp1_acres','Comp 1 acres'],['comp2_link','Comp 2 link'],['comp2_price','Comp 2 price'],['comp2_acres','Comp 2 acres'],['comp3_link','Comp 3 link'],['comp3_price','Comp 3 price'],['comp3_acres','Comp 3 acres'],['lp_estimate','LP estimate'],['offer_low','Offer range (low)'],['offer_high','Offer range (high)'],['offer_price','Offer price'],['ghl_code','GHL offer code'],['pebble_code','Pebble code'],['claude_comp','Claude AI comp'],['summary','Property summary']];
+async function openProperty(id){
+  const [{data:p},{data:own},{data:cr},{data:tx},{data:dl}]=await Promise.all([sb.from('properties').select('*').eq('id',id).single(),
+    sb.from('property_owners').select('leads(*)').eq('property_id',id),
+    sb.from('campaign_records').select('*, campaigns(name,drop_date)').eq('property_id',id).order('sent_at',{ascending:false}),
+    sb.from('transactions').select('*').eq('property_id',id).order('tx_date'),sb.from('deals').select('id,board,stage_id,value').eq('property_id',id)]);
+  const F=p.fields||{};const buy=(tx||[]).find(t=>t.kind==='purchase'),sell=(tx||[]).find(t=>t.kind==='sale');const cost=buy?+buy.price+ +(buy.costs||0):null;
+  openDrawer(head('APN '+esc(p.apn||'—'))+`
+   <p class="muted" style="margin-top:-8px">${esc([p.address,p.city,p.state,p.zip].filter(Boolean).join(', '))}<br>${esc(p.county||'')}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' acres':''}${p.lat?` · <a target="_blank" href="https://www.google.com/maps?q=${p.lat},${p.lng}">${(+p.lat).toFixed(5)}, ${(+p.lng).toFixed(5)}</a>`:''}</p>
+   <div class="card"><b>Owners</b>${(own||[]).map(o=>`<div style="margin-top:8px"><a href="#" onclick="openLead(${o.leads.id});return false">${esc(leadName(o.leads))}</a> ${o.leads.phone?'· <a href="tel:'+esc(o.leads.phone)+'">'+esc(o.leads.phone)+'</a>':''}<div class="small muted">${esc([o.leads.mail_address,o.leads.mail_city,o.leads.mail_state,o.leads.mail_zip].filter(Boolean).join(', '))}</div></div>`).join('')||'<div class="muted small">No owner linked.</div>'}</div>
+   <div class="card" style="overflow-x:auto"><b>History</b><table style="margin-top:6px">${(cr||[]).map(r=>`<tr><td>${r.sent_at||r.campaigns?.drop_date||''}</td><td>Campaign</td><td>${esc(r.campaigns?.name||'')}</td><td><b>${esc(r.offer_code||'')}</b></td><td class="right">${money(r.offer_price)}</td></tr>`).join('')}
+    ${(tx||[]).map(t=>`<tr><td>${t.tx_date||''}</td><td style="text-transform:capitalize">${t.kind}</td><td colspan="2">${esc(t.notes||'')}</td><td class="right"><b>${money(t.price)}</b></td></tr>`).join('')}</table>
+    ${buy&&sell?`<p><b>Profit ${money(sell.price-cost)}</b> · ROI ${((sell.price-cost)/cost*100).toFixed(2)}%</p>`:''}
+    <div class="row" style="margin-top:10px"><select id="tx_k" style="flex:0 0 120px"><option>offer</option><option>purchase</option><option>sale</option></select><input id="tx_d" type="date"><input id="tx_p" type="number" placeholder="Price"><input id="tx_c" type="number" placeholder="Costs"><button class="btn ghost" style="flex:0" onclick="addTx(${id})">Add</button></div></div>
+   <div class="card"><b>Deals</b> ${(dl||[]).map(d=>`<a href="#" onclick="openDeal(${d.id});return false">${d.board} deal · ${esc(STAGES.find(s=>s.id===d.stage_id)?.name||'')}</a>`).join(' · ')||'<span class="muted small">none</span>'}
+     <div class="row" style="margin-top:8px"><button class="btn ghost sm" style="flex:0" onclick="dealFromProperty(${id},'seller')">+ Seller deal</button><button class="btn ghost sm" style="flex:0" onclick="dealFromProperty(${id},'buyer')">+ Buyer deal</button></div></div>
+   <div class="card"><b>Due diligence, comps & pricing</b><div class="row">${Object.entries(DD).map(([k,o])=>`<div><label class="f" style="text-transform:capitalize">${k.replace('_',' ')}</label><select data-fk="${k}"><option value="">Select…</option>${o.map(x=>`<option ${F[k]===x?'selected':''}>${x}</option>`).join('')}</select></div>`).join('')}</div>
+    <div class="row">${FTEXT.map(([k,l])=>`<div style="min-width:170px"><label class="f">${l}</label><input data-fk="${k}" value="${esc(F[k]??'')}"></div>`).join('')}</div>
+    <label class="f">Tags (comma separated)</label><input id="p_tags" value="${esc((p.tags||[]).join(', '))}"><br><br><button class="btn" onclick="saveFields(${id})">Save</button></div>`);
+}
+async function saveFields(id){const f={};document.querySelectorAll('[data-fk]').forEach(e=>{if(e.value)f[e.dataset.fk]=e.value});
+  const {error}=await sb.from('properties').update({fields:f,tags:$('p_tags').value.split(',').map(s=>s.trim()).filter(Boolean),updated_at:new Date().toISOString()}).eq('id',id);toast(error?error.message:'Saved')}
+async function addTx(id){const p=$('tx_p').value;if(!p)return;await sb.from('transactions').insert({property_id:id,kind:$('tx_k').value,tx_date:$('tx_d').value||new Date().toISOString().slice(0,10),price:+p,costs:+$('tx_c').value||0});openProperty(id)}
+async function dealFromProperty(pid,board){const {data:o}=await sb.from('property_owners').select('lead_id').eq('property_id',pid).limit(1);const {data:p}=await sb.from('properties').select('address,city').eq('id',pid).single();
+  const {data,error}=await sb.from('deals').insert({board,stage_id:STAGES.find(s=>s.board===board)?.id,property_id:pid,lead_id:o?.[0]?.lead_id||null,property_label:[p.address,p.city].filter(Boolean).join(', ')||null}).select().single();if(error)return toast(error.message);openDeal(data.id)}
+function editProperty(){openDrawer(head('New property')+`<div class="card">
+  <div class="row"><input id="np_apn" placeholder="APN"><input id="np_county" placeholder="County"><input id="np_st" placeholder="State" style="flex:0 0 80px"></div><br>
+  <div class="row"><input id="np_addr" placeholder="Address"><input id="np_city" placeholder="City"><input id="np_acres" placeholder="Acres" type="number"></div><br>
+  <div class="row"><input id="np_lat" placeholder="Latitude" type="number"><input id="np_lng" placeholder="Longitude" type="number"></div><br><button class="btn" onclick="saveNewProperty()">Save</button></div>`)}
+async function saveNewProperty(){const v=i=>$(i).value||null;const {data,error}=await sb.from('properties').insert({apn:v('np_apn'),county:v('np_county'),county_state:v('np_st'),state:v('np_st'),address:v('np_addr'),city:v('np_city'),acres:+v('np_acres')||null,lat:+v('np_lat')||null,lng:+v('np_lng')||null,source:'hq'}).select().single();
+  if(error)return toast(error.message);openProperty(data.id)}
+
+// ---------- contacts ----------
+async function vContacts(){
+  $('actions').innerHTML=`<button class="btn" onclick="newLead()">+ Add Contact</button>`;
+  $('view').innerHTML=`<div class="card" style="padding:10px"><input id="q" placeholder="Search name, phone, address, APN or offer code" style="font-size:15px"></div><div class="small muted" id="qi" style="margin:0 4px 8px"></div><div class="card" style="padding:0;overflow-x:auto"><table id="res"></table></div>`;
+  let t;$('q').oninput=e=>{clearTimeout(t);t=setTimeout(()=>searchLeads(e.target.value.trim()),250)};searchLeads('');
+}
+async function searchLeads(q){const {data,error}=await sb.rpc('search_leads',{q,lim:100});if(error){$('qi').textContent=error.message;return}
+  $('qi').textContent=q?`${data.length}${data.length===100?'+':''} matches`:'Most recently updated';
+  $('res').innerHTML=`<tr><th>Name</th><th>Phone</th><th>Property</th><th>Offer code</th><th>Status</th></tr>`+data.map(l=>`<tr class="click" onclick="openLead(${l.id})"><td><b>${esc(leadName(l))}</b><div class="small muted">${esc([l.mail_address,l.mail_city,l.mail_state].filter(Boolean).join(', '))}</div></td><td>${esc(l.phone||'')}</td><td>${esc(l.prop_address||l.apn||'')}<div class="small muted">${esc(l.county||'')}</div></td><td>${esc(l.offer_code||'')}</td><td><span class="pill">${esc(l.status.replace('_',' '))}</span></td></tr>`).join('')}
+const STATUSES=['record','new','contacted','interested','offer','under_contract','assigned','closed','dead','not_selling'];
+async function openLead(id){
+  const [{data:l},{data:cr},{data:act},{data:own}]=await Promise.all([sb.from('leads').select('*').eq('id',id).single(),
+    sb.from('campaign_records').select('*, campaigns(name,drop_date)').eq('lead_id',id).order('sent_at',{ascending:false}),
+    sb.from('activity').select('*').eq('lead_id',id).order('created_at',{ascending:false}).limit(40),sb.from('property_owners').select('properties(*)').eq('lead_id',id)]);
+  openDrawer(head(esc(leadName(l)))+`
+  <div class="card"><div class="kv"><div>Phone</div><div>${[l.phone,l.phone2,l.phone3].filter(Boolean).map(p=>`<a href="tel:${esc(p)}">${esc(p)}</a>`).join('<br>')||'—'}</div><div>Email</div><div>${esc(l.email||'—')}</div>
+   <div>Mailing</div><div>${esc([l.mail_address,l.mail_city,l.mail_state,l.mail_zip].filter(Boolean).join(', ')||'—')}</div><div>Offer code</div><div>${esc(l.offer_code||'—')}</div><div>Source</div><div>${esc([l.source,l.lead_source].filter(Boolean).join(' / ')||'—')}</div><div>Category</div><div>${esc(l.category||'—')}</div></div>
+   <div class="row" style="margin-top:12px"><select onchange="setStatus(${l.id},this.value)">${STATUSES.map(s=>`<option ${s===l.status?'selected':''} value="${s}">${s.replace('_',' ')}</option>`).join('')}</select>
+   <button class="btn ghost" style="flex:0" onclick="dealFromLead(${l.id},'seller')">+ Seller deal</button><button class="btn ghost" style="flex:0" onclick="dealFromLead(${l.id},'buyer')">+ Buyer deal</button></div></div>
+  <div class="card"><b>Properties</b>${(own||[]).map(o=>`<div style="margin-top:6px"><a href="#" onclick="openProperty(${o.properties.id});return false">APN ${esc(o.properties.apn||'—')}</a> · ${esc([o.properties.address,o.properties.city].filter(Boolean).join(', '))} <span class="small muted">${esc(o.properties.county||'')}</span></div>`).join('')||(l.prop_address||l.apn?`<div style="margin-top:6px">${esc(l.prop_address||'')} ${l.apn?'APN '+esc(l.apn):''}</div>`:'<div class="muted small">None linked.</div>')}</div>
+  <div class="card"><b>Mail history</b>${(cr||[]).length?`<table>${cr.map(r=>`<tr><td>${esc(r.campaigns?.name||'')}</td><td><b>${esc(r.offer_code||'')}</b></td><td>${esc(r.sent_at||r.campaigns?.drop_date||'')}</td></tr>`).join('')}</table>`:'<div class="muted small">No campaign records.</div>'}</div>
+  <div class="card"><b>Notes</b><textarea id="noteBox" placeholder="Add a note"></textarea><br><br><button class="btn" onclick="addNote(${l.id})">Add note</button>${l.notes?`<p class="small">${esc(l.notes)}</p>`:''}
+   ${(act||[]).map(a=>`<div class="small" style="border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span class="muted">${new Date(a.created_at).toLocaleString()} · ${esc(a.kind)}</span><br>${esc(a.body)}</div>`).join('')}</div>`)}
+async function setStatus(id,s){await sb.from('leads').update({status:s,updated_at:new Date().toISOString()}).eq('id',id);await sb.from('activity').insert({lead_id:id,kind:'status',body:'Status → '+s.replace('_',' ')});
+  if(s==='not_selling'){const {data:l}=await sb.from('leads').select('phone,apn,full_name').eq('id',id).single();await sb.from('suppression').insert({phone:l.phone,apn:l.apn,name:l.full_name,reason:'not_selling'});
+    await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'not selling'}).eq('lead_id',id).eq('status','active')}toast('Updated')}
+async function addNote(id){const b=$('noteBox').value.trim();if(!b)return;await sb.from('activity').insert({lead_id:id,kind:'note',body:b});await sb.from('leads').update({updated_at:new Date().toISOString()}).eq('id',id);openLead(id)}
+function newLead(){openDrawer(head('New contact')+`<div class="card">
+  <div class="row"><input id="a_first" placeholder="First name"><input id="a_last" placeholder="Last name"></div><br><div class="row"><input id="a_phone" placeholder="Phone"><input id="a_email" placeholder="Email"></div><br>
+  <input id="a_addr" placeholder="Property address"><br><br><div class="row"><input id="a_county" placeholder="County"><input id="a_apn" placeholder="APN"><input id="a_code" placeholder="Offer code"></div><br>
+  <div class="row"><select id="a_src"><option value="call">Called in</option><option value="text">Text reply</option><option value="mail">Mail</option><option value="website">Website</option><option value="referral">Referral</option></select><select id="a_inbox"><option value="seller">Seller</option><option value="buyer">Buyer</option></select></div><br>
+  <textarea id="a_notes" placeholder="Notes"></textarea><br><br><button class="btn" onclick="addLead()">Save</button></div>`)}
+async function addLead(){const v=i=>$(i).value||null;const r={first_name:v('a_first'),last_name:v('a_last'),phone:v('a_phone'),email:v('a_email'),prop_address:v('a_addr'),county:v('a_county'),apn:v('a_apn'),offer_code:v('a_code'),lead_source:$('a_src').value,inbox:$('a_inbox').value,notes:v('a_notes'),status:'new',source:'hq'};
+  r.full_name=[r.first_name,r.last_name].filter(Boolean).join(' ')||null;const {data,error}=await sb.from('leads').insert(r).select('id').single();if(error)return toast(error.message);openLead(data.id)}
+
+// ---------- buyers ----------
+async function vBuyers(){const {data}=await sb.from('buyers').select('*').order('name');
+  $('view').innerHTML=`<div class="card" style="padding:10px"><input id="bq" placeholder="Filter by name, county or buy box"></div><div class="card" style="padding:0;overflow-x:auto"><table id="btab"></table></div>`;
+  const draw=()=>{const f=$('bq').value.toLowerCase();$('btab').innerHTML=`<tr><th>Name</th><th>Counties</th><th>Buy box</th><th>Contact</th><th>Type</th></tr>`+(data||[]).filter(b=>!f||JSON.stringify(b).toLowerCase().includes(f)).map(b=>`<tr><td><b>${esc(b.name)}</b><div class="small muted">${esc(b.company||'')}</div></td><td>${esc((b.counties||[]).join(', '))}</td><td class="small">${esc(b.buy_box||'')}</td><td class="small">${b.phone?`<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>`:''}<br>${esc(b.email||'')}</td><td><span class="pill">${esc(b.kind)}</span></td></tr>`).join('')};
+  $('bq').oninput=draw;draw()}
+
+// ---------- auto followup ----------
+async function vFollowup(){
+  $('actions').innerHTML=`<button class="btn" onclick="editPlan()">+ Add Plan</button>`;
+  const [{data:plans},{data:steps},{data:enr}]=await Promise.all([sb.from('followup_plans').select('*').order('created_at',{ascending:false}),sb.from('followup_steps').select('plan_id,day,kind'),
+    sb.from('followup_enrollments').select('*, followup_plans(name), leads(id,full_name,first_name,last_name,phone)').eq('status','active').order('started_at',{ascending:false}).limit(200)]);
+  $('view').innerHTML=`<div class="card" style="padding:0"><table><tr><th>Plan</th><th>Details</th><th class="right">Enrolled now</th></tr>${(plans||[]).map(p=>{const s=(steps||[]).filter(x=>x.plan_id===p.id);const days=s.length?Math.max(...s.map(x=>x.day)):0;
+     return `<tr class="click" onclick="editPlan(${p.id})"><td><b>${esc(p.name)}</b></td><td>${days} days / ${s.length} steps <span class="small muted">(${[...new Set(s.map(x=>x.kind))].join(', ')})</span></td><td class="right">${(enr||[]).filter(e=>e.plan_id===p.id).length}</td></tr>`}).join('')||'<tr><td colspan="3" class="muted">No plans yet.</td></tr>'}</table></div>
+   <div class="card"><b>Contacts enrolled</b>${(enr||[]).map(e=>`<div style="margin-top:8px;display:flex;gap:8px"><a href="#" style="flex:1" onclick="openLead(${e.leads?.id});return false">${esc(leadName(e.leads))}</a><span class="small muted">${esc(e.followup_plans?.name)} · step ${e.next_step+1}</span></div>`).join('')||'<div class="muted small" style="margin-top:6px">Nobody enrolled yet. Enroll from a deal card.</div>'}
+   <p class="small muted" style="margin-bottom:0">Steps send on schedule once Quo is connected. A plan stops when the person replies, when you text them yourself, or when you mark them "not selling".</p></div>`;
+}
+async function editPlan(id){
+  const [{data:p},{data:steps}]=id?await Promise.all([sb.from('followup_plans').select('*').eq('id',id).single(),sb.from('followup_steps').select('*').eq('plan_id',id).order('day')]):[{data:{name:'',stop_on_reply:true}},{data:[]}];
+  window._steps=(steps||[]).map(s=>({...s}));
+  const draw=()=>{$('stepsBox').innerHTML=_steps.map((s,i)=>`<div class="card" style="background:#fafaf6"><div class="row"><div style="flex:0 0 90px;min-width:0"><label class="f">Day</label><input type="number" value="${s.day}" onchange="_steps[${i}].day=+this.value"></div>
+    <div style="flex:0 0 120px;min-width:0"><label class="f">Time</label><input type="time" value="${(s.send_time||'09:00').slice(0,5)}" onchange="_steps[${i}].send_time=this.value"></div>
+    <div><label class="f">Method</label><select onchange="_steps[${i}].kind=this.value;window._redraw()">${['text','email','mail','call'].map(k=>`<option ${k===s.kind?'selected':''} value="${k}">${k==='call'?'Call reminder':k[0].toUpperCase()+k.slice(1)}</option>`).join('')}</select></div>
+    <div style="flex:0 0 auto;min-width:0;align-self:flex-end"><button class="btn danger sm" onclick="_steps.splice(${i},1);window._redraw()">Remove</button></div></div>
+    ${s.kind==='email'?`<label class="f">Subject</label><input value="${esc(s.subject||'')}" onchange="_steps[${i}].subject=this.value">`:''}
+    ${s.kind!=='call'?`<label class="f">${s.kind==='mail'?'Letter template file':'Message'}</label><textarea onchange="_steps[${i}].body=this.value">${esc(s.body||'')}</textarea>`:'<div class="small muted" style="margin-top:6px">Creates a call task for you that day.</div>'}</div>`).join('')};
+  window._redraw=draw;
+  openDrawer(head((id?'Edit':'New')+' plan')+`
+   <div class="card"><label class="f">Plan name</label><input id="pl_name" value="${esc(p.name)}"><label class="f"><input type="checkbox" id="pl_stop" style="width:auto" ${p.stop_on_reply?'checked':''}> Stop when they reply</label>
+   <p class="small muted" style="margin-bottom:0">Placeholders: {{first_name}} {{contact_name}} {{property_address}} {{county_name}}</p></div>
+   <div id="stepsBox"></div><button class="btn ghost" onclick="_steps.push({day:(_steps.at(-1)?.day||0)+1,send_time:'09:00',kind:'text',body:''});window._redraw()">+ New step</button><br><br>
+   <div class="row" style="flex-wrap:nowrap"><button class="btn" onclick="savePlan(${id||0})">Save plan</button>${id?`<button class="btn danger" onclick="delPlan(${id})">Delete plan</button>`:''}</div>`);draw()}
+async function savePlan(id){const r={name:$('pl_name').value||'Untitled plan',stop_on_reply:$('pl_stop').checked};
+  let pid=id;if(id){await sb.from('followup_plans').update(r).eq('id',id)}else{const {data,error}=await sb.from('followup_plans').insert(r).select().single();if(error)return toast(error.message);pid=data.id}
+  await sb.from('followup_steps').delete().eq('plan_id',pid);
+  if(_steps.length){const {error}=await sb.from('followup_steps').insert([..._steps].sort((a,b)=>a.day-b.day).map(s=>({plan_id:pid,day:s.day,send_time:s.send_time||'09:00',kind:s.kind,subject:s.subject||null,body:s.body||null})));if(error)return toast(error.message)}
+  toast('Plan saved');closeDrawer();vFollowup()}
+async function delPlan(id){if(!confirm('Delete this plan?'))return;await sb.from('followup_plans').delete().eq('id',id);closeDrawer();vFollowup()}
+
+// ---------- templates ----------
+async function vTemplates(){
+  const k=store.get('tplKind')||'text';
+  $('actions').innerHTML=`<button class="btn" onclick="editTpl(0,'${k}')">+ Add Template</button>`;
+  const {data}=await sb.from('templates').select('*').eq('kind',k).order('name');
+  $('view').innerHTML=`<div class="tabs">${['mail','email','text'].map(x=>`<button class="${x===k?'on':''}" onclick="store.set('tplKind','${x}');vTemplates()">${x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div>
+   <div class="card" style="padding:0;overflow-x:auto"><table><tr><th>Name</th><th>${k==='email'?'Subject':k==='mail'?'Word file (DM LETTERS folder)':'Body'}</th><th>Last edited</th></tr>${(data||[]).map(t=>`<tr class="click" onclick="editTpl(${t.id},'${k}')"><td><b>${esc(t.name)}</b></td><td class="small">${esc(k==='email'?t.subject:k==='mail'?t.file_name:(t.body||'').slice(0,160))}</td><td class="small muted">${new Date(t.updated_at).toLocaleDateString()}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">None yet.</td></tr>'}</table></div>
+   ${k==='mail'?'<p class="small muted">Mail templates are your Word merge letters in Desktop / DM LETTERS. Merge fields: «Owner» «Greeting» «Mail1» «Mail2» «Mail3» «PropertyAddress» «PropertyCity» «APN» «OfferCode».</p>':''}`}
+async function editTpl(id,kind){const {data:t}=id?await sb.from('templates').select('*').eq('id',id).single():{data:{kind}};
+  openDrawer(head((id?'Edit ':'New ')+kind+' template')+`<div class="card">
+   <label class="f">Name</label><input id="t_name" value="${esc(t.name||'')}">
+   ${kind==='email'?`<label class="f">Subject</label><input id="t_subj" value="${esc(t.subject||'')}">`:''}
+   ${kind==='mail'?`<label class="f">Word file name (in Desktop / DM LETTERS)</label><input id="t_file" value="${esc(t.file_name||'')}">`:`<label class="f">Body</label><textarea id="t_body" style="min-height:220px">${esc(t.body||'')}</textarea>`}
+   <br><br><div class="row" style="flex-wrap:nowrap"><button class="btn" onclick="saveTpl(${id||0},'${kind}')">Save</button>${id?`<button class="btn danger" onclick="delTpl(${id})">Delete</button>`:''}</div></div>`)}
+async function saveTpl(id,kind){const r={kind,name:$('t_name').value||'Untitled',subject:$('t_subj')?.value||null,body:$('t_body')?.value||null,file_name:$('t_file')?.value||null,updated_at:new Date().toISOString()};
+  const {error}=id?await sb.from('templates').update(r).eq('id',id):await sb.from('templates').insert(r);if(error)return toast(error.message);closeDrawer();vTemplates()}
+async function delTpl(id){if(!confirm('Delete template?'))return;await sb.from('templates').delete().eq('id',id);closeDrawer();vTemplates()}
+
+// ---------- tasks ----------
+async function vTasks(){const {data}=await sb.from('tasks').select('*, deals(id,property_label), leads(full_name)').order('due_at',{nullsFirst:false}).limit(500);
+  const open=(data||[]).filter(t=>t.status==='todo'),done=(data||[]).filter(t=>t.status==='done').slice(0,30);
+  const row=t=>`<tr><td style="width:30px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked).then(vTasks)"></td><td>${esc(t.title)}<div class="small muted">${t.deals?`<a href="#" onclick="openDeal(${t.deals.id});return false">${esc(t.deals.property_label||'deal')}</a>`:''} ${esc(t.leads?.full_name||'')}</div></td><td class="small" style="color:${t.due_at&&new Date(t.due_at)<new Date()&&t.status==='todo'?'var(--red)':'inherit'}">${t.due_at?new Date(t.due_at).toLocaleDateString():''}</td></tr>`;
+  $('view').innerHTML=`<div class="card" style="padding:0"><table><tr><th></th><th>To do (${open.length})</th><th>Due</th></tr>${open.map(row).join('')||'<tr><td colspan="3" class="muted">All clear.</td></tr>'}</table></div><div class="card" style="padding:0"><table><tr><th></th><th>Done recently</th><th></th></tr>${done.map(row).join('')}</table></div>`}
+
+// ---------- import ----------
+function vImport(){$('view').innerHTML=`<div class="card"><h3 style="margin-top:0">Import a CSV</h3><p class="muted small">For small lists. Your full Pebble and GoHighLevel history gets loaded by Claude.</p>
+  <div class="row"><select id="impSource"><option value="hq">Other list</option><option value="pebble">Pebble export</option><option value="ghl">GoHighLevel export</option></select><input id="impTag" placeholder="Tag (e.g. 2026 Gaston mail)"></div><br>
+  <input type="file" id="impFile" accept=".csv"><br><br><button class="btn" onclick="runImport()">Import</button><div id="impMsg" class="small" style="margin-top:10px"></div></div>`}
+async function runImport(){const f=$('impFile').files[0];if(!f)return;Papa.parse(f,{header:true,skipEmptyLines:true,complete:async r=>{
+  const pick=(o,...ks)=>{for(const k of ks){const m=Object.keys(o).find(x=>x.toLowerCase().replace(/[^a-z0-9]/g,'')===k);if(m&&o[m])return String(o[m]).trim()}return null};
+  const recs=r.data.map(o=>{const x={source:$('impSource').value,status:'record',first_name:pick(o,'firstname'),last_name:pick(o,'lastname'),full_name:pick(o,'name','fullname','ownername'),phone:pick(o,'phone','phoneprimary','phone1','mobile'),email:pick(o,'email'),
+    mail_address:pick(o,'mailingaddress','addressline1','address'),mail_city:pick(o,'mailingcity','addresscity','city'),mail_state:pick(o,'mailingstate','addressstate','state'),mail_zip:pick(o,'mailingzip','addresszip','zip'),
+    apn:pick(o,'apn','parcel','parcelid','propertyassessorsparcelnumberapn'),county:pick(o,'county','countyname'),offer_code:pick(o,'offercode','code','referencecode'),tags:$('impTag').value?[$('impTag').value]:[]};
+    if(!x.full_name)x.full_name=[x.first_name,x.last_name].filter(Boolean).join(' ')||null;return x}).filter(x=>x.full_name||x.phone||x.apn);
+  let done=0;for(let i=0;i<recs.length;i+=500){const {error}=await sb.from('leads').insert(recs.slice(i,i+500));if(error){$('impMsg').textContent=error.message;return}done+=Math.min(500,recs.length-i);$('impMsg').textContent=`Imported ${done.toLocaleString()} of ${recs.length.toLocaleString()}`}}})}
+
+boot();
+</script>
+</body>
+</html>

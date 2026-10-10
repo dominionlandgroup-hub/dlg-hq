@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Mailing Status · Dominion Land Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#f5f4ef;--card:#fff;--ink:#1b2a22;--muted:#6b7a71;--line:#e4e2da;--brand:#1f4d36;--accent:#c8a24a;--ok:#1a9e5a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif}
+.wrap{max-width:560px;margin:0 auto;padding:28px 16px}
+.brand{font-weight:700;color:var(--brand);letter-spacing:.02em;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px}
+h1{font-size:20px;margin:0 0 6px}.muted{color:var(--muted);font-size:14px}
+.steps{display:grid;gap:10px;margin-top:16px}
+.step{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
+.step .dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:14px;color:#fff;flex:0 0 26px}
+.step.done .dot{background:var(--ok);border-color:var(--ok)}
+.step .t{flex:1}.step .t b{display:block}.step .t span{font-size:13px;color:var(--muted)}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px 16px;background:var(--brand);color:#fff;cursor:pointer}
+button:disabled{background:#cfd6d1;cursor:default}
+.err{color:#b23b3b}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">DOMINION LAND GROUP</div>
+  <div id="app" class="card"><div class="muted">Loading…</div></div>
+  <p class="muted" style="text-align:center">Tap each step as the job moves along. Damien sees it right away.</p>
+</div>
+<script>
+const sb=supabase.createClient('https://gdejlpdltnstbwtdpggm.supabase.co','sb_publishable_E9jIHC9hz6oleR4Qd-68bA_ZWEVcAQ_');
+const t=new URLSearchParams(location.search).get('t');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const when=v=>v?new Date(v).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+const ORDER=['received','processing','sent'];
+function draw(c){
+  const at=ORDER.indexOf(c.status);
+  const steps=[['received','Received','We have the list and the letter'],['processing','Processing','Printing and preparing the mail'],['sent','Sent','Mail is out to the post office']];
+  document.getElementById('app').innerHTML=`<h1>${esc(c.name)}</h1><div class="muted">${(c.records||0).toLocaleString()} records</div>
+   <div class="steps">${steps.map(([k,l,d],i)=>{const done=i<=at;return `<div class="step ${done?'done':''}"><div class="dot">${done?'✓':''}</div><div class="t"><b>${l}</b><span>${done?when(c[k]):d}</span></div>
+     ${done?'':`<button ${i!==at+1?'disabled':''} onclick="mark('${k}',this)">Mark ${l.toLowerCase()}</button>`}</div>`}).join('')}</div>`;
+}
+async function load(){if(!t){document.getElementById('app').innerHTML='<div class="err">This link is missing its code. Please use the link from the email.</div>';return}
+  const {data,error}=await sb.rpc('mailhouse_campaign',{t});
+  if(error||!data){document.getElementById('app').innerHTML='<div class="err">This link was not found. Please use the link from the email.</div>';return}draw(data)}
+async function mark(s,btn){btn.disabled=true;btn.textContent='Saving…';const {data,error}=await sb.rpc('mailhouse_update',{t,s});
+  if(error){btn.disabled=false;btn.textContent='Try again';alert('Could not save: '+error.message);return}draw(data)}
+load();
+</script>
+</body>
+</html>
