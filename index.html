@@ -1085,10 +1085,10 @@ async function vBuyers(){
   window._buyers=data;
   $('view').innerHTML=`<div class="card"><div class="row" style="align-items:center;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:240px"><h3 class="sec" style="margin:0">Buy-box emails</h3>
      <div class="small muted">From dominionlandgroup@gmail.com, weekdays at 9:30am. Up to 50 first emails a day (past buyers first), follow-ups on day 3, 7 and 14, stops when they reply or fill out the form.</div></div>
-     <span class="chip" style="${sw==='on'?'background:#e6f4ec;color:#1a7a48':''}">${sw==='on'?'Sending is ON':'Sending is OFF'}</span>
-     <button class="btn ghost" onclick="bbPreview()">Preview emails</button>
-     <button class="btn ${sw==='on'?'ghost':''}" onclick="bbSwitch('${sw==='on'?'off':'on'}')">${sw==='on'?'Turn off':'Turn on sending'}</button></div>
-     <div class="pstats" style="grid-template-columns:repeat(6,1fr);margin-top:12px">${[['Not sent yet',cnt('not sent')],['Sent',cnt('sent')],['Got buy box',cnt('got buy box')],['Replied',cnt('replied')],['No response',cnt('no response')],['Removed / bounced',cnt('removed')+cnt('bounced')]].map(([l,v])=>`<div><div class="small muted">${l}</div><div style="font-size:20px;font-weight:700">${v}</div></div>`).join('')}</div>
+     <span class="chip" style="flex:0 0 auto;${sw==='on'?'background:#e6f4ec;color:#1a7a48':''}">${sw==='on'?'Sending is ON':'Sending is OFF'}</span>
+     <button class="btn ghost" style="flex:0 0 auto" onclick="bbPreview()">Preview emails</button>
+     <button class="btn ${sw==='on'?'ghost':''}" style="flex:0 0 auto" onclick="bbSwitch('${sw==='on'?'off':'on'}')">${sw==='on'?'Turn off':'Turn on sending'}</button></div>
+     <div class="pstats" style="grid-template-columns:repeat(6,1fr);margin-top:12px">${[['Not sent yet',cnt('not sent')],['Sent',cnt('sent')],['Got buy box',cnt('got buy box')],['Replied',cnt('replied')],['No response',cnt('no response')],['Removed / bounced',cnt('removed')+cnt('bounced')]].map(([l,v])=>`<div><div class="small muted" data-enc="1">${l}</div><div style="font-size:20px;font-weight:700">${v}</div></div>`).join('')}</div>
      ${warmLeft?`<div class="small muted" style="margin-top:6px">${warmLeft} past buyers get the warm version first.</div>`:''}</div>
    <div class="card" style="padding:10px"><div class="row" style="gap:8px;flex-wrap:wrap"><input id="bq" placeholder="Filter by name, company, county, city or email" style="flex:2;min-width:220px">
      <input id="bm" placeholder="Match a lot: zip, city or county" style="flex:1;min-width:200px">
