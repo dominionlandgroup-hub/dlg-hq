@@ -99,6 +99,20 @@ h3.sec{margin:0 0 10px;font-size:14px}
 .addcard{display:block;width:calc(100% - 16px);margin:0 8px 10px;background:none;border:1px dashed #c9c7bc;border-radius:9px;padding:7px;color:var(--muted)}
 .drawer{position:fixed;inset:0;background:#0007;display:none;z-index:2000}
 .drawer .panel{position:absolute;right:0;top:0;bottom:0;width:min(640px,100%);background:var(--bg);overflow:auto;padding:18px}
+.drawer .panel.wide{width:min(1180px,100%)}
+.dhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.dsum{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.dsum .l,.ccard .l{font-size:12px;color:var(--muted)}.dsum .v{font-weight:700;font-size:15px;color:var(--ink)}
+.dgrid{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;align-items:start}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 12px}
+.moneyin{display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;background:#fff;padding-left:10px}.moneyin span{color:var(--muted);font-weight:600}.moneyin input{border:0!important;box-shadow:none!important;background:transparent}
+.ico{background:none;border:0;padding:2px 5px;color:var(--brand2);font-size:14px;text-decoration:none;cursor:pointer}
+.ccard .av{width:36px;height:36px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px;flex:0 0 36px}
+.ccard details summary{cursor:pointer;padding:6px 0;border-top:1px solid var(--line)}
+.note{border-top:1px solid var(--line);padding:10px 0}.note .nb{white-space:pre-wrap;margin-top:4px;line-height:1.45}
+.docbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}.docbtns .btn{text-align:left}
+.frow{border-top:1px solid var(--line);padding:7px 0;display:flex;gap:10px;align-items:center}.fic{font-size:10px;font-weight:700;color:#fff;background:var(--brand2);border-radius:4px;padding:2px 5px;min-width:26px;text-align:center}
+.docv{background:#e9e6ef;border-radius:10px;padding:10px;overflow:auto}.docv .docx-wrapper{background:transparent;padding:10px 0}
+@media (max-width:900px){.dgrid{grid-template-columns:1fr}.dsum{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}.docbtns{grid-template-columns:1fr}}
 .tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}.tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 14px}
 .tabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
 .inbox3{display:grid;grid-template-columns:300px 1fr 300px;gap:12px;height:calc(100vh - 150px)}.tlist{background:#fff;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
@@ -203,7 +217,7 @@ const leadName=l=>l?(l.full_name||[l.first_name,l.last_name].filter(Boolean).joi
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const head=t=>`<div class="row" style="align-items:center;flex-wrap:nowrap"><h2 style="margin:0;flex:1">${t}</h2><button class="btn ghost sm" style="flex:0" onclick="closeDrawer()">Close</button></div><br>`;
 function closeDrawer(){$('drawer').style.display='none'}
-function openDrawer(html){$('panel').innerHTML=html;$('drawer').style.display='block';$('panel').scrollTop=0}
+function openDrawer(html){$('panel').classList.toggle('wide',!!window._wideNext);window._wideNext=false;$('panel').innerHTML=html;$('drawer').style.display='block';$('panel').scrollTop=0}
 function fmtDate(v){if(!v)return '—';const d=new Date(String(v).slice(0,10)+'T12:00:00');return isNaN(d)?String(v).slice(0,10):d.toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'})}
 function dlCSV(name,rows){const b=new Blob([Papa.unparse(rows)],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click()}
 
@@ -394,37 +408,85 @@ async function openDealForm(d){
     sb.from('followup_plans').select('id,name').order('name'),
     d.lead_id?sb.from('followup_enrollments').select('*, followup_plans(name)').eq('lead_id',d.lead_id).eq('status','active'):none,
     d.lead_id?sb.from('messages').select('*').eq('lead_id',d.lead_id).order('created_at',{ascending:false}).limit(20):none]);
-  const st=STAGES.filter(s=>s.board===(d.board||'seller'));const l=d.leads,p=d.properties;
-  const f=(k,lab,t='text')=>`<label class="f">${lab}</label><input id="d_${k}" type="${t}" value="${esc(d[k]??'')}">`;
-  openDrawer(head(esc(leadName(l)||d.property_label||'New deal'))+`
-   <div class="card"><div class="row">
-     <div><label class="f">Stage</label><select id="d_stage_id">${st.map(s=>`<option value="${s.id}" ${s.id===d.stage_id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
-     <div><label class="f">Priority</label><select id="d_priority"><option value="">None</option>${['hot','warm','cold'].map(x=>`<option ${x===d.priority?'selected':''}>${x}</option>`).join('')}</select></div>
-     <div>${f('value','Estimated value','number')}</div></div>
-     ${f('property_label','Property (address or name)')}
-     <div class="row"><div><label class="f">Campaign</label><select id="d_campaign_id"><option value="">—</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div><div>${f('source','Source')}</div></div>
-     <div class="row"><div>${f('purchase_price','Contract price','number')}</div><div>${f('assignment_price','Assignment / sale price','number')}</div><div>${f('emd','EMD','number')}</div></div>
-     <div class="row"><div>${f('closing_date','Closing date','date')}</div><div>${f('attorney','Closing attorney')}</div></div>
-     <label class="f">Buyer</label><select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>`<option value="${b.id}" ${b.id===d.buyer_id?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
-     <label class="f">Notes</label><textarea id="d_notes">${esc(d.notes||'')}</textarea><br><br>
-     <div class="row" style="flex-wrap:nowrap"><button class="btn" onclick="saveDeal(${d.id||0},'${d.board||'seller'}')">Save deal</button>
-     ${d.id?`<button class="btn ghost" onclick="contractsFor(${d.id})">Generate contracts</button>${(d.board||'seller')==='seller'?`<button class="btn" style="background:var(--accent)" onclick="moveToBuyer(${d.id})">Under contract → Buyer Deals</button>`:`<button class="btn ghost" onclick="moveToSeller(${d.id})">← Back to Seller Deals</button>`}<button class="btn danger" onclick="delDeal(${d.id},'${d.board}')">Delete</button>`:''}</div></div>
-   ${d.id?`<div class="card"><b>Contracts &amp; files</b><div id="d_files" class="small" style="margin-top:6px">Loading…</div>
-     <div class="row" style="margin-top:10px"><input type="file" id="d_up" multiple><button class="btn ghost" style="flex:0" onclick="uploadDealFiles(${d.id},${d.property_id||'null'})">Upload</button></div></div>`:''}
+  window._dl=d;
+  const board=d.board||'seller',st=STAGES.filter(s=>s.board===board);const l=d.leads,p=d.properties;
+  const camp=(camps||[]).find(c=>c.id===d.campaign_id);
+  const $f=(k,lab)=>`<div><label class="f">${lab}</label><div class="moneyin"><span>$</span><input id="d_${k}" type="number" step="any" value="${esc(d[k]??'')}"></div></div>`;
+  const tf=(k,lab,t='text')=>`<div><label class="f">${lab}</label><input id="d_${k}" type="${t}" value="${esc(d[k]??'')}"></div>`;
+  const fn=l?(l.first_name||(l.full_name||'').split(/\s+/)[0]||''):'',ln=l?(l.last_name||(l.full_name||'').split(/\s+/).slice(1).join(' ')||''):'';
+  const ph=l?.phone,cp=t=>`<button class="ico" title="Copy" onclick="navigator.clipboard.writeText('${esc(t)}');toast('Copied')">⧉</button>`;
+  const notes=parseNotes(d.notes);
+  window._wideNext=true;
+  openDrawer(`<div class="dhead"><div><div class="small muted">${board==='buyer'?'Buyer Deals':'Seller Deals'}</div><h2 style="margin:2px 0 0">${esc(leadName(l)||d.property_label||'New deal')}</h2></div>
+     <div class="row" style="flex:0 0 auto;gap:8px;align-items:center">
+       <select id="d_priority" style="width:auto"><option value="">No priority</option>${['hot','warm','cold'].map(x=>`<option value="${x}" ${x===d.priority?'selected':''}>${x[0].toUpperCase()+x.slice(1)}</option>`).join('')}</select>
+       <select id="d_stage_id" style="width:auto">${st.map(s=>`<option value="${s.id}" ${s.id===d.stage_id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+       <button class="btn ghost" onclick="closeDrawer()">Close</button></div></div>
+   <div class="card dsum"><div><div class="l">Estimated value</div><div class="v">${d.value!=null&&d.value!==''?money(d.value):'—'}</div></div>
+     <div><div class="l">Campaign</div><div class="v">${esc(camp?.name||'—')}</div></div><div><div class="l">Source</div><div class="v">${esc(d.source||'—')}</div></div>
+     <div><div class="l">Created</div><div class="v">${d.created_at?fmtDate(d.created_at):'—'}</div></div></div>
+   <div class="dgrid"><div>
+   <div class="card"><h3 class="sec" style="margin-top:0">Deal terms</h3>
+     <div class="g3">${$f('value','Estimated value')}${$f('purchase_price','Contract price')}${$f('assignment_price','Assignment / sale price')}</div>
+     <div class="g3">${$f('emd','EMD')}${tf('closing_date','Closing date','date')}${tf('attorney','Closing attorney')}</div>
+     <div class="g2"><div><label class="f">Buyer</label><select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>`<option value="${b.id}" ${b.id===d.buyer_id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div>
+       <div><label class="f">Campaign</label><select id="d_campaign_id"><option value="">—</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div></div>
+     <div class="g2">${tf('source','Source')}${!d.id||!p?tf('property_label','Property address'):`<input id="d_property_label" type="hidden" value="${esc(d.property_label||'')}">`}</div>
+     <div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="saveDeal(${d.id||0},'${board}')">Save deal</button>
+     ${d.id?(board==='seller'?`<button class="btn" style="background:var(--accent)" onclick="moveToBuyer(${d.id})">Under contract → Buyer Deals</button>`:`<button class="btn ghost" onclick="moveToSeller(${d.id})">← Back to Seller Deals</button>`)+`<button class="btn danger" style="margin-left:auto" onclick="delDeal(${d.id},'${board}')">Delete deal</button>`:''}</div></div>
    ${d.id?`
-   <div class="card"><b>Contact</b>${l?`<div style="margin-top:8px"><a href="#" onclick="openLead(${l.id});return false">${esc(leadName(l))}</a> · ${l.phone?`<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>`:'no phone'}<div class="small muted">${esc([l.mail_address,l.mail_city,l.mail_state].filter(Boolean).join(', '))}</div></div>`:`<div class="row" style="margin-top:8px"><input id="d_lq" placeholder="Search contact by name, phone or APN"><button class="btn ghost" style="flex:0" onclick="pickLead(${d.id})">Find</button></div><div id="d_lres"></div>`}</div>
-   ${p?`<div class="card"><b>Property</b><div style="margin-top:6px"><a href="#" onclick="openProperty(${p.id});return false">APN ${esc(p.apn||'—')}</a> · ${esc([p.address,p.city].filter(Boolean).join(', '))}<div class="small muted">${esc(p.county||'')}, ${esc(p.county_state||'')} ${p.acres?'· '+(+p.acres).toFixed(2)+' ac':''}</div></div></div>`:''}
-   <div class="card"><b>Tasks</b>${(tasks||[]).map(t=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked)"><span style="${t.status==='done'?'text-decoration:line-through;color:var(--muted)':''}">${esc(t.title)}</span><span class="small muted" style="margin-left:auto">${t.due_at?new Date(t.due_at).toLocaleDateString():''}</span></div>`).join('')||'<div class="muted small" style="margin-top:6px">No tasks.</div>'}
+   <div class="card"><h3 class="sec" style="margin-top:0">Contact</h3>${l?`<div class="ccard"><div class="row" style="align-items:center;gap:10px"><span class="av">${esc(((fn[0]||'')+(ln[0]||'')).toUpperCase())}</span><div style="flex:1"><a href="#" onclick="openLead(${l.id});return false"><b>${esc(leadName(l))}</b></a> <span class="chip">Seller</span></div></div>
+       <div class="g2" style="margin-top:10px"><div><div class="l">First name</div>${esc(fn||'—')}</div><div><div class="l">Last name</div>${esc(ln||'—')}</div>
+       <div><div class="l">Phone</div>${ph?`<a href="tel:${esc(ph)}">${esc(ph)}</a> <a class="ico" href="sms:${esc(ph)}" title="Text">✉</a>${cp(ph)}`:'<span class="muted">none on file</span>'}${[l.phone2,l.phone3].filter(Boolean).map(x=>`<br><a href="tel:${esc(x)}">${esc(x)}</a>`).join('')}</div>
+       <div><div class="l">Email</div>${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>${cp(l.email)}`:'<span class="muted">none on file</span>'}</div>
+       <div style="grid-column:1/-1"><div class="l">Mailing address</div>${esc([l.mail_address,[l.mail_city,l.mail_state].filter(Boolean).join(', '),l.mail_zip].filter(Boolean).join(' · ')||'—')}</div></div>
+       <details style="margin-top:10px"><summary><b>Auto followup</b> <span class="small muted">${(enr||[]).length?'enrolled':'not enrolled'}</span></summary>${(enr||[]).map(e=>`<div style="margin-top:8px">${esc(e.followup_plans?.name)} <span class="small muted">· started ${new Date(e.started_at).toLocaleDateString()} · step ${e.next_step+1}</span> <button class="btn ghost sm" onclick="stopEnroll(${e.id},${d.id})">Stop</button></div>`).join('')}
+         <div class="row" style="margin-top:8px"><select id="d_plan"><option value="">Pick a plan…</option>${(plans||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn ghost" style="flex:0" onclick="enroll(${d.lead_id},${d.id})">Enroll</button></div></details>
+       <details style="margin-top:8px"><summary><b>Conversations</b> <span class="small muted">${(msgs||[]).length} recent</span></summary>${(msgs||[]).map(m=>`<div class="small" style="border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span class="muted">${new Date(m.created_at).toLocaleString()} · ${m.channel} · ${m.direction==='in'?'from them':'from you'}</span><br>${esc(m.body||'')}</div>`).join('')||'<div class="muted small">No messages yet.</div>'}</details></div>`
+     :`<div class="row" style="margin-top:8px"><input id="d_lq" placeholder="Search contact by name, phone or APN"><button class="btn ghost" style="flex:0" onclick="pickLead(${d.id})">Find</button></div><div id="d_lres"></div>`}</div>
+   <div class="card"><h3 class="sec" style="margin-top:0">Property</h3>${p?`<div><a href="#" onclick="openProperty(${p.id});return false"><b>APN ${esc(p.apn||'—')}</b></a></div><div>${esc([p.address,p.city,p.state,p.zip].filter(Boolean).join(', ')||d.property_label||'')}</div><div class="small muted">${esc([p.county,p.county_state].filter(Boolean).join(', '))}${p.acres?' · '+(+p.acres).toFixed(2)+' acres':''}</div>`:`<div>${esc(d.property_label||'')}</div><div class="muted small">No parcel linked.</div>`}</div>
+   <div class="card"><h3 class="sec" style="margin-top:0">Contracts &amp; documents</h3>
+     <div class="docbtns">${[['psa','Purchase & Sale Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,t])=>`<button class="btn ghost" onclick="contractsFor(${d.id},'${k}')">+ ${t}</button>`).join('')}</div>
+     <div id="d_files" class="small" style="margin-top:10px">Loading…</div>
+     <div class="row" style="margin-top:10px"><input type="file" id="d_up" multiple><button class="btn ghost" style="flex:0" onclick="uploadDealFiles(${d.id},${d.property_id||'null'})">Upload</button></div></div>`:''}
+   </div><div>
+   ${d.id?`<div class="card"><h3 class="sec" style="margin-top:0">Tasks</h3>${(tasks||[]).map(t=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked)"><span style="flex:1;${t.status==='done'?'text-decoration:line-through;color:var(--muted)':''}">${esc(t.title)}</span><span class="small muted">${t.due_at?new Date(t.due_at).toLocaleDateString():''}</span>${t.due_at?`<a class="ico" title="Add to Google Calendar" target="_blank" href="${gcalLink(t.title,t.due_at,leadName(l))}">📅</a>`:''}</div>`).join('')||'<div class="muted small" style="margin-top:6px">No tasks.</div>'}
      <div class="row" style="margin-top:10px"><input id="d_task" placeholder="New task"><input id="d_taskdue" type="date" style="flex:0 0 150px"><button class="btn ghost" style="flex:0" onclick="addTask(${d.id},${d.lead_id||'null'})">Add</button></div></div>
-   ${d.lead_id?`<div class="card"><b>Auto followup</b>${(enr||[]).map(e=>`<div style="margin-top:8px">${esc(e.followup_plans?.name)} <span class="small muted">· started ${new Date(e.started_at).toLocaleDateString()} · step ${e.next_step+1}</span> <button class="btn ghost sm" onclick="stopEnroll(${e.id},${d.id})">Stop</button></div>`).join('')||'<div class="muted small" style="margin-top:6px">Not enrolled.</div>'}
-     <div class="row" style="margin-top:10px"><select id="d_plan"><option value="">Pick a plan…</option>${(plans||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn ghost" style="flex:0" onclick="enroll(${d.lead_id},${d.id})">Enroll</button></div></div>
-   <div class="card"><b>Conversation</b>${(msgs||[]).map(m=>`<div class="small" style="border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span class="muted">${new Date(m.created_at).toLocaleString()} · ${m.channel} · ${m.direction==='in'?'from them':'from you'}</span><br>${esc(m.body||'')}</div>`).join('')||'<div class="muted small" style="margin-top:6px">No messages yet.</div>'}</div>`:''}`:''}`);
+   <div class="card"><h3 class="sec" style="margin-top:0">Notes</h3><textarea id="d_newnote" placeholder="Add a note" style="min-height:70px"></textarea>
+     <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn" style="flex:0" onclick="addDealNote(${d.id})">Save note</button></div>
+     <div id="d_notes_list">${notes.map((n,i)=>`<div class="note"><div class="row" style="align-items:baseline"><b>${esc(n.who||'Note')}</b><span class="small muted" style="margin-left:8px">${esc(n.when||'')}</span><button class="ico" style="margin-left:auto" title="Delete note" onclick="delDealNote(${d.id},${i})">🗑</button></div><div class="nb">${linkify(esc(n.body))}</div></div>`).join('')||'<div class="muted small" style="margin-top:8px">No notes yet.</div>'}</div></div>`
+   :`<div class="card muted small">Save the deal first, then add tasks, notes and contracts.</div>`}
+   </div></div>`);
   if(d.id)loadDealFiles(d.id);
 }
+// notes are stored as blocks: "Name\nMonth D, YYYY at h:mmam\nbody" (Pebble's format), newest first
+const NOTE_HEAD=/(?:^|\n)[ \t]*([A-Z][A-Za-z.'\- ]{1,40})[ \t]*\n[ \t]*([A-Z][a-z]+ \d{1,2}, \d{4} at \d{1,2}:\d{2} ?[ap]m)[ \t]*(?=\n|$)/g;
+function parseNotes(t){t=String(t||'').replace(/\r/g,'');if(!t.trim())return [];const out=[];let m,last=null,idx=[];NOTE_HEAD.lastIndex=0;
+  while((m=NOTE_HEAD.exec(t)))idx.push({i:m.index,end:NOTE_HEAD.lastIndex,who:m[1].trim(),when:m[2]});
+  const clean=b=>b.split('\n').map(x=>x.trim()).filter(x=>x&&!/^(Reply|[☀-⟿\ud83c-􏰀-\udfff️\s]+)$/.test(x)).join('\n');
+  if(!idx.length)return [{who:'',when:'',body:clean(t)}];
+  if(idx[0].i>0){const pre=clean(t.slice(0,idx[0].i));if(pre)out.push({who:'',when:'',body:pre})}
+  idx.forEach((h,k)=>{const body=clean(t.slice(h.end,k+1<idx.length?idx[k+1].i:t.length));out.push({who:h.who,when:h.when,body})});return out}
+function joinNotes(a){return a.map(n=>n.who&&n.when?`${n.who}\n${n.when}\n${n.body}`:n.body).join('\n\n')}
+function nowStamp(){const d=new Date();return d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+' at '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(/\s?(AM|PM)/,(x,y)=>y.toLowerCase())}
+function linkify(h){return h.replace(/(\(?\d{3}\)?[ .-]?\d{3}-\d{4})/g,'<a href="tel:$1">$1</a>').replace(/([\w.+-]+@[\w-]+\.[\w.]+)/g,'<a href="mailto:$1">$1</a>')}
+async function addDealNote(id){const b=$('d_newnote').value.trim();if(!b)return;const {data:x}=await sb.from('deals').select('notes').eq('id',id).single();
+  const a=parseNotes(x?.notes);a.unshift({who:'Damien Dupee',when:nowStamp(),body:b});const {error}=await sb.from('deals').update({notes:joinNotes(a)}).eq('id',id);if(error)return toast(error.message);toast('Note saved');openDeal(id)}
+async function delDealNote(id,i){if(!confirm('Delete this note?'))return;const {data:x}=await sb.from('deals').select('notes').eq('id',id).single();const a=parseNotes(x?.notes);a.splice(i,1);
+  await sb.from('deals').update({notes:joinNotes(a)||null}).eq('id',id);openDeal(id)}
+function gcalLink(title,due,who){const d=String(due).slice(0,10).replace(/-/g,'');const n=new Date(String(due).slice(0,10)+'T12:00:00');n.setDate(n.getDate()+1);const e=n.toISOString().slice(0,10).replace(/-/g,'');
+  return 'https://calendar.google.com/calendar/u/0/r/eventedit?text='+encodeURIComponent(title)+'&dates='+d+'/'+e+'&details='+encodeURIComponent((who?who+' · ':'')+'From DLG HQ')}
 async function loadDealFiles(id){const {data}=await sb.from('deal_files').select('*').eq('deal_id',id).order('created_at',{ascending:false});
   const el=$('d_files');if(!el)return;if(!data||!data.length){el.innerHTML='<span class="muted">No files yet.</span>';return}
-  el.innerHTML=data.map(f=>`<div style="border-top:1px solid var(--line);padding:6px 0;display:flex;gap:8px"><a href="#" onclick="openDealFile('${esc(f.storage_path||'')}');return false">${esc(f.name)}</a><span class="muted" style="margin-left:auto">${new Date(f.created_at).toLocaleDateString()}</span></div>`).join('')}
+  el.innerHTML=data.map(f=>`<div class="frow"><span class="fic">${/\.docx?$/i.test(f.storage_path||'')?'W':/\.pdf$/i.test(f.storage_path||'')?'PDF':'▤'}</span><a href="#" onclick="viewDealFile('${esc(f.storage_path||'')}','${esc(f.name)}');return false">${esc(f.name)}</a><span class="muted" style="margin-left:auto">${new Date(f.created_at).toLocaleDateString()}</span></div>`).join('')}
 async function openDealFile(path){if(!path)return toast('File is on your Desktop in DLG Contracts');const {data,error}=await sb.storage.from('deal-files').createSignedUrl(path,3600);if(error)return toast(error.message);window.open(data.signedUrl,'_blank')}
+async function docxPreviewLib(){if(window.docx&&window.docx.renderAsync)return;const ld=u=>new Promise((r,j)=>{const x=document.createElement('script');x.src=u;x.onload=r;x.onerror=()=>j(new Error('Could not load the viewer'));document.head.appendChild(x)});
+  if(!window.JSZip)await ld('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');await ld('https://cdn.jsdelivr.net/npm/docx-preview@0.3.2/dist/docx-preview.min.js')}
+async function showDocx(blob,title,dl){const back=window._dl?.id;
+  $('panel').innerHTML=`<div class="dhead"><h2 style="margin:0">${esc(title)}</h2><div class="row" style="flex:0 0 auto;gap:8px">${dl?`<a class="btn ghost" href="${dl}" download="${esc(title)}.docx">Download</a>`:''}${back?`<button class="btn ghost" onclick="openDeal(${back})">← Back to deal</button>`:''}<button class="btn ghost" onclick="closeDrawer()">Close</button></div></div><div id="docv" class="docv">Opening…</div>`;
+  try{await docxPreviewLib();$('docv').innerHTML='';await window.docx.renderAsync(blob,$('docv'),null,{inWrapper:true,ignoreWidth:false})}catch(e){$('docv').textContent='Could not show it here: '+e.message}}
+async function viewDealFile(path,name){if(!path)return toast('File is on your Desktop in DLG Contracts');const {data,error}=await sb.storage.from('deal-files').createSignedUrl(path,3600);if(error)return toast(error.message);
+  if(!/\.docx$/i.test(path))return window.open(data.signedUrl,'_blank');const blob=await (await fetch(data.signedUrl)).blob();showDocx(blob,name,data.signedUrl)}
 async function uploadDealFiles(dealId,propId){const fs=$('d_up').files;if(!fs.length)return toast('Pick a file first');
   for(const f of fs){const path=`${dealId}/${Date.now()}-${f.name.replace(/[^\w.\- ]+/g,'_')}`;const {error}=await sb.storage.from('deal-files').upload(path,f);if(error){toast(error.message);return}
     await sb.from('deal_files').insert({deal_id:dealId,property_id:propId,name:f.name.replace(/\.[^.]+$/,''),storage_path:path,source:'hq'})}
@@ -564,12 +626,13 @@ function buildDocs(deal,which){const {Document,Packer,Paragraph,TextRun,Alignmen
       p('Copy sent to closing agent on _______________ by ☐ Email  ☐ Mail  ☐ Hand delivery',{after:0})];
     out.push(['Notice of Termination',doc('Notice of Termination of Purchase and Sale Contract',nc)])}
   return out}
-async function contractsFor(id){const {data:d}=await sb.from('deals').select('*, leads(full_name), properties(apn,address,city,state,zip,county), buyers(name)').eq('id',id).single();
+async function contractsFor(id,only){const {data:d}=await sb.from('deals').select('*, leads(full_name), properties(apn,address,city,state,zip,county), buyers(name)').eq('id',id).single();
   const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   const addr=[d.properties?.address,d.properties?.city,d.properties?.state,d.properties?.zip].filter(Boolean).join(', ')||d.property_label||'';
   const f=(id2,label,val,type='text',ph='')=>`<div><label class="f">${label}</label><input id="k_${id2}" type="${type}" value="${esc(val??'')}" placeholder="${esc(ph)}"></div>`;
-  openDrawer(head('Contracts')+`<div class="card"><p class="small muted" style="margin-top:0">The contract wording never changes. Fill or fix the blanks, add anything special under Additional Terms, then create. Blank fields print as fill-in lines.</p>
-   <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">${[['psa','Purchase and Sale',true],['asg','Assignment',!!d.buyers?.name],['cancel','Cancellation',false],['notice','Notice of Termination',false]].map(([k,l,on])=>`<label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="w_${k}" ${on?'checked':''} style="width:auto" onchange="$('kx_${k}')&&($('kx_${k}').style.display=this.checked?'':'none')"> ${l}</label>`).join('')}</div>
+  const DOCN={psa:'Purchase & Sale Agreement',asg:'Assignment of Contract',cancel:'Cancellation',notice:'Notice of Termination'};const on=k=>only?k===only:(k==='psa'||(k==='asg'&&!!d.buyers?.name));
+  window._wideNext=true;openDrawer(`<div class="dhead"><h2 style="margin:0">${only?DOCN[only]:'Contracts'}</h2><div class="row" style="flex:0 0 auto;gap:8px"><button class="btn ghost" onclick="openDeal(${id})">← Back to deal</button><button class="btn ghost" onclick="closeDrawer()">Close</button></div></div><div class="card"><p class="small muted" style="margin-top:0">The contract wording never changes. Fill or fix the blanks, add anything special under Additional Terms, then create. Blank fields print as fill-in lines.</p>
+   <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">${[['psa','Purchase & Sale Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,l])=>`<label class="small" style="display:${only?'none':'flex'};gap:6px;align-items:center"><input type="checkbox" id="w_${k}" ${on(k)?'checked':''} style="width:auto" onchange="$('kx_${k}')&&($('kx_${k}').style.display=this.checked?'':'none')"> ${l}</label>`).join('')}</div>
    <h4 style="margin:10px 0 4px">Deal</h4>
    ${f('contract_date','Contract date',today)}${f('sellers','Seller name(s) — separate two sellers with " and "',d.leads?.full_name||'')}${f('address','Property address',addr)}${f('apn','Parcel ID / APN',d.properties?.apn||'')}
    ${f('legal','Legal description (optional)','')}
@@ -577,16 +640,16 @@ async function contractsFor(id){const {data:d}=await sb.from('deals').select('*,
    <div class="row" style="flex-wrap:nowrap;gap:8px">${f('feas','Feasibility days','30','number')}${f('closedays','Closing within (days)','45','number')}</div>
    ${f('agent','Closing agent',d.attorney||'','text','e.g. Merritt Law, PLLC, Kannapolis, NC')}
    <label class="f">Additional Terms (one per line)</label><div class="row" style="flex-wrap:nowrap;gap:6px;align-items:flex-start"><textarea id="k_terms" style="min-height:70px;flex:1" placeholder="e.g. Buyer may assign this contract."></textarea>${micBtn('k_terms')}</div>
-   <div id="kx_asg" style="display:${d.buyers?.name?'':'none'}"><h4 style="margin:14px 0 4px">Assignment</h4>
+   <div id="kx_asg" style="display:${on('asg')?'':'none'}"><h4 style="margin:14px 0 4px">Assignment</h4>
     ${f('assignee','Assignee (buyer)',d.buyers?.name||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('fee','Assignment fee $',d.assignment_price&&d.purchase_price?d.assignment_price-d.purchase_price:'','number')}${f('adep','Assignee deposit $','','number')}</div>
     ${f('depto','Deposit delivered to',d.attorney||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('depdue','Deposit due by','')}${f('closeby','Close on or before',d.closing_date?fmtDate(d.closing_date):'')}</div>${f('exam','Examination period ends','')}</div>
-   <div id="kx_cancel" style="display:none"><h4 style="margin:14px 0 4px">Cancellation</h4>${f('cdate','Cancellation date',today)}
+   <div id="kx_cancel" style="display:${on('cancel')?'':'none'}"><h4 style="margin:14px 0 4px">Cancellation</h4>${f('cdate','Cancellation date',today)}
     <label class="f">Reason</label><select id="k_creason"><option value="feasibility">Did not pass feasibility (2b)</option><option value="title">No clear title (2c)</option><option value="mutual">Mutual agreement</option><option value="other">Other</option></select>${f('cother','If other, reason','')}
     <label class="f">Earnest money</label><select id="k_cemd"><option value="buyer">Returned to Buyer</option><option value="seller">Released to Seller</option><option value="none">No Earnest Money was deposited</option></select>
     ${f('crel','Record release within (days)','')}<label class="f">Additional Terms (cancellation)</label><textarea id="k_cterms" style="min-height:50px"></textarea></div>
-   <div id="kx_notice" style="display:none"><h4 style="margin:14px 0 4px">Notice of Termination</h4>${f('ndate','Date of notice',today)}
+   <div id="kx_notice" style="display:${on('notice')?'':'none'}"><h4 style="margin:14px 0 4px">Notice of Termination</h4>${f('ndate','Date of notice',today)}
     <label class="f">Section</label><select id="k_nreason"><option value="feasibility">Did not pass feasibility (2b)</option><option value="title">No clear title (2c)</option><option value="nostudy">Seller did not allow feasibility study (2c)</option></select></div>
-   <br><button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">Create documents</button><div id="k_msg" class="small" style="margin-top:8px"></div></div>`)}
+   <br><button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">${only?'Create '+DOCN[only]:'Create documents'}</button><div id="k_msg" class="small" style="margin-top:8px"></div></div>`)}
 async function makeContracts(id){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?undefined:Number(g(k));
   const which={psa:$('w_psa').checked,asg:$('w_asg').checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};if(!Object.values(which).some(Boolean))return toast('Pick at least one document');
   const deal={contract_date:g('contract_date'),sellers:g('sellers').split(/\s+and\s+/i).filter(Boolean),property_address:g('address'),apn:g('apn'),legal_description:g('legal'),purchase_price:num('price'),emd:num('emd'),
@@ -597,10 +660,10 @@ async function makeContracts(id){const g=k=>$('k_'+k)?.value?.trim()||'';const n
   const btn=$('k_go');btn.disabled=true;btn.textContent='Creating…';
   try{await docxLib();const docs=buildDocs(deal,which);const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
     for(const [name,d] of docs){const blob=await _docxLib.Packer.toBlob(d);const fname=`${name} - ${slug}.docx`;
-      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;document.body.appendChild(a);a.click();a.remove();
+      window._lastDocs=(window._lastDocs||[]);window._lastDocs.push([name,blob]);
       const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {error}=await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
       if(!error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`${name} (${new Date().toLocaleDateString()})`,storage_path:path,source:'hq'})}
-    $('k_msg').innerHTML=`<b>Done.</b> ${docs.length} document${docs.length>1?'s':''} downloaded and saved to this deal's files. Open them in Word to review before sending for signature.`}
+    const made=window._lastDocs.slice(-docs.length);window._lastDocs=[];toast('Saved to this deal');const [n0,b0]=made[0];showDocx(b0,n0,URL.createObjectURL(b0))}
   catch(e){$('k_msg').textContent='Could not create: '+e.message}finally{btn.disabled=false;btn.textContent='Create documents'}}
 
 // ---------- inboxes ----------
@@ -1109,8 +1172,8 @@ async function vTestimonials(){
   const st=(l,v)=>`<div><div class="small muted">${l}</div><div style="font-size:22px;font-weight:700">${v}</div></div>`;
   const row=d=>{const l=d.leads||{};const t=(by[d.id]||[]);const rec=t.find(x=>x.received_at),req=t.find(x=>x.requested_at);
     const stat=rec?`<span class="chip" style="background:#e6f4ec;color:#1a7a48">Received${rec.ok_to_publish?' · OK to publish':''}</span>`:req?`<span class="chip">Asked ${fmtDate(req.requested_at)}</span>`:'<span class="chip" style="background:#fbf4e2;color:var(--gold-d)">Not asked yet</span>';
-    return `<tr><td><b>${esc(l.full_name||'—')}</b><div class="small muted">${esc(d.property_label||'')}</div></td><td class="small">${esc(l.phone||'')}<br>${esc(l.email||'')}</td><td>${stat}</td>
-      <td style="white-space:nowrap"><button class="btn sm" onclick="askTestimonial(${d.id})">Ask</button> <button class="btn ghost sm" onclick="addTestimonial(${d.id})">Add received</button></td></tr>`};
+    return `<tr><td><b>${esc(l.full_name||'—')}</b><div class="small muted">${esc(d.property_label||'')}</div></td><td class="small">${l.phone?esc(l.phone):`<a href="#" onclick="addContactInfo(${l.id||0});return false">+ Add phone</a>`}<br>${l.email?esc(l.email):`<a href="#" onclick="addContactInfo(${l.id||0},1);return false" class="muted">+ Add email</a>`}</td><td>${stat}</td>
+      <td style="white-space:nowrap"><button class="btn sm" onclick="askTestimonial(${d.id})">Ask by text or email</button> <button class="btn ghost sm" onclick="addTestimonial(${d.id})">Add received</button></td></tr>`};
   $('view').innerHTML=`<div class="card"><div class="pstats" style="grid-template-columns:repeat(4,1fr)">${st('Closed deals',(deals||[]).length)}${st('Asked',asked)}${st('Received',got)}${st('OK to publish',pub)}</div>
     <p class="small muted" style="margin-bottom:0">When a deal is marked Closed, “Ask for a testimonial” lands on your Tasks. Nothing is sent until you press Send.</p></div>
    ${(ts||[]).filter(t=>t.received_at).length?`<div class="card"><h3 class="sec">Received</h3>${(ts||[]).filter(t=>t.received_at).map(t=>`<div style="border-top:1px solid var(--line);padding:10px 0"><b>${esc(t.name||'')}</b> <span class="small muted">${esc(t.location||'')} · ${t.kind}</span>
@@ -1125,8 +1188,8 @@ async function askTestimonial(dealId){const {data:d}=await sb.from('deals').sele
    <div class="row" style="margin-top:8px"><button class="btn" ${l.phone?'':'disabled'} onclick="sendTestimonialText(${d.id},${l.id||0})">Send text</button></div>
    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
    <label class="f">Email${l.email?' to '+esc(l.email):' (no email on file)'}</label><input id="ts_subj" value="${esc(em?.subject||'')}"><textarea id="ts_em" style="min-height:200px;margin-top:6px">${esc(fillTpl(em?.body,l))}</textarea>
-   <div class="row" style="margin-top:8px"><button class="btn ghost" ${l.email?'':'disabled'} onclick="emailTestimonial(${d.id},${l.id||0},'${esc(l.email||'')}')">Open in Gmail</button></div>
-   <p class="small muted">Gmail opens with the message filled in. You review it and press Send.</p></div>`)}
+   <div class="row" style="margin-top:8px"><button class="btn" ${l.email?'':'disabled'} onclick="emailTestimonial(${d.id},${l.id||0},'${esc(l.email||'')}')">Send email</button></div>
+   <p class="small muted">Sends from your seller Gmail (damien@dominionlandgroup.land) and shows in the Seller Inbox.</p></div>`)}
 async function markAsked(dealId,leadId){const {data:ex}=await sb.from('testimonials').select('id').eq('deal_id',dealId).is('received_at',null).limit(1);
   if(ex&&ex[0])await sb.from('testimonials').update({requested_at:new Date().toISOString()}).eq('id',ex[0].id);
   else await sb.from('testimonials').insert({deal_id:dealId,lead_id:leadId||null,requested_at:new Date().toISOString()});
@@ -1134,8 +1197,11 @@ async function markAsked(dealId,leadId){const {data:ex}=await sb.from('testimoni
 async function sendTestimonialText(dealId,leadId){const text=$('ts_txt').value.trim();if(!text)return;const {data:tid,error:e1}=await sb.rpc('thread_for_lead',{lid:leadId,box:'seller'});if(e1)return toast(e1.message);
   const {data,error}=await sb.functions.invoke('quo/send',{body:{thread_id:tid,text}});const err=error?(await error.context?.json?.().catch(()=>null))?.error||error.message:data?.error;
   if(err)return toast('Not sent: '+err);await markAsked(dealId,leadId);toast('Sent');closeDrawer();if(CUR==='testimonials')vTestimonials()}
-async function emailTestimonial(dealId,leadId,to){window.open('https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(to)+'&su='+encodeURIComponent($('ts_subj').value)+'&body='+encodeURIComponent($('ts_em').value),'_blank');
-  await markAsked(dealId,leadId);toast('Marked as asked');if(CUR==='testimonials')vTestimonials()}
+async function emailTestimonial(dealId,leadId,to){const body=$('ts_em').value.trim();if(!body)return;const {data:tid,error:e1}=await sb.rpc('thread_for_lead',{lid:leadId,box:'seller'});if(e1)return toast(e1.message);
+  await sb.from('threads').update({email:to}).eq('id',tid).is('email',null);
+  const {data,error}=await sb.functions.invoke('gmail/send',{body:{thread_id:tid,subject:$('ts_subj').value.trim(),body}});const err=error?(await error.context?.json?.().catch(()=>null))?.error||error.message:data?.error;
+  if(err)return toast('Not sent: '+err);await markAsked(dealId,leadId);toast('Email queued, it goes out within 5 minutes');closeDrawer();if(CUR==='testimonials')vTestimonials()}
+async function addContactInfo(id,em){if(!id)return;const v=prompt(em?'Email address':'Phone number');if(!v)return;const {error}=await sb.from('leads').update(em?{email:v.trim()}:{phone:v.trim()}).eq('id',id);if(error)return toast(error.message);toast('Saved');vTestimonials()}
 async function addTestimonial(dealId){const {data:d}=await sb.from('deals').select('id,lead_id,property_label,leads(full_name,mail_city,mail_state)').eq('id',dealId).single();const l=d.leads||{};
   openDrawer(head('Add testimonial')+`<div class="card"><label class="f">Name (as it should appear)</label><input id="tm_name" value="${esc(l.full_name||'')}">
    <label class="f">Location</label><input id="tm_loc" value="${esc([l.mail_city,l.mail_state].filter(Boolean).join(', '))}">
