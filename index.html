@@ -430,7 +430,7 @@ let IST2={status:'inbox',term:'',tid:null,box:'seller'};
 async function vInbox(box){if(IST2.box!==box)IST2={status:'inbox',term:'',tid:null,box};
   $('actions').innerHTML=`<button class="btn" onclick="startConversation('${box}')">+ Start Conversation</button>`;
   $('view').innerHTML=`<div class="inbox3"><div class="tlist"><div class="tl-top"><input id="tq" placeholder="Search conversations" value="${esc(IST2.term)}">
-     <div class="seg">${['inbox','sent','unread','all'].map(x=>`<button class="${IST2.status===x?'on':''}" onclick="IST2.status='${x}';loadThreads()">${x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div></div><div id="tl"></div></div>
+     <div class="seg" id="seg2">${SEGS.map(([x,l])=>`<button class="${IST2.status===x?'on':''}" onclick="IST2.status='${x}';drawSeg();loadThreads()">${l}</button>`).join('')}</div></div><div id="tl"></div></div>
    <div class="convo" id="convo"><div class="muted" style="padding:20px">Pick a conversation.</div></div><div class="cpanel" id="cpanel"></div></div>`;
   let t;$('tq').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{IST2.term=e.target.value.trim();loadThreads()},300)};loadThreads(true)}
 async function loadThreads(first){const {data,error}=await sb.rpc('inbox_threads',{box:IST2.box,status:IST2.status,term:IST2.term||null,lim:200,off:0});
@@ -452,7 +452,7 @@ async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem')
     else inner=`<div style="white-space:pre-wrap">${esc(m.body||'')}</div>`;
     return `<div class="bub ${out?'out':'in'}"><div class="meta"><b>${esc(who)}</b> · ${when}</div><div class="bb">${inner}</div></div>`};
   $('convo').innerHTML=`<div class="chead"><div style="flex:1"><b style="font-size:16px">${esc(t.phone||t.title||'')}</b> ${t.phone?`<a href="tel:${esc(t.phone)}" title="Call">📞</a>`:''}<div class="small muted">${l.full_name?esc(l.full_name)+' · ':''}via ${esc(t.our_number||'(980) 217-8806')}</div></div>
-     <button class="btn ghost sm" title="${t.pinned?'Unpin':'Pin'}" onclick="threadFlag(${tid},'pinned',${!t.pinned})">📌</button><button class="btn ghost sm" title="Mark unread" onclick="threadUnread(${tid})">●</button><button class="btn ghost sm" title="Archive" onclick="threadFlag(${tid},'archived',true)">🗄</button></div>
+     <div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn ghost sm" onclick="threadFlag(${tid},'pinned',${!t.pinned})">📌 ${t.pinned?'Unpin':'Pin'}</button><button class="btn ghost sm" onclick="threadUnread(${tid})">● Mark unread</button>${t.archived?`<button class="btn ghost sm" onclick="threadFlag(${tid},'archived',false)">↩ Unarchive</button>`:`<button class="btn ghost sm" onclick="threadFlag(${tid},'archived',true)">🗄 Archive</button>`}</div></div>
    <div class="msgs2" id="msgs">${(msgs||[]).map(bubble).join('')||'<div class="muted small">No messages yet.</div>'}</div>
    <div class="composer"><select id="tplpick" style="flex:0 0 140px" onchange="useTpl(this)"><option value="">Template…</option>${(tpl||[]).map((x,i)=>`<option value="${i}">${esc(x.name)}</option>`).join('')}</select>
      <textarea id="reply" style="min-height:44px" placeholder="Write a text"></textarea><button class="btn" onclick="sendTextT(${tid})">Send Now</button></div>`;hydrateRec();
@@ -473,13 +473,21 @@ async function saveCPanel(tid,lid){const parts=$('cp_addr').value.split(',').map
   if(!r.full_name)return toast('Full name is required');
   if(lid){const {error}=await sb.from('leads').update(r).eq('id',lid);if(error)return toast(error.message)}else{const {data,error}=await sb.from('leads').insert({...r,source:'hq',status:'new',inbox:IST2.box}).select().single();if(error)return toast(error.message);await sb.from('threads').update({lead_id:data.id}).eq('id',tid)}
   toast('Contact saved');openThreadT(tid);loadThreads()}
-async function threadFlag(tid,k,v){await sb.from('threads').update({[k]:v}).eq('id',tid);if(k==='archived'){IST2.tid=null;$('convo').innerHTML='<div class="muted" style="padding:20px">Archived.</div>';$('cpanel').innerHTML=''}loadThreads();if(k==='pinned')openThreadT(tid)}
+async function threadFlag(tid,k,v){await sb.from('threads').update({[k]:v}).eq('id',tid);
+  if(k==='archived'&&v){IST2.tid=null;$('convo').innerHTML=`<div style="padding:24px"><b>Conversation archived.</b> It's hidden from the inbox but nothing was deleted.<br><br><button class="btn" onclick="threadFlag(${tid},'archived',false)">↩ Undo</button> <button class="btn ghost" onclick="IST2.status='archived';drawSeg();loadThreads()">See archived</button></div>`;$('cpanel').innerHTML='';loadThreads();return}
+  if(k==='archived'&&!v){toast('Back in the inbox');if(IST2.status==='archived'){IST2.status='inbox';drawSeg()}loadThreads();openThreadT(tid);return}
+  loadThreads();openThreadT(tid)}
+function drawSeg(){const el=$('seg2');if(el)el.innerHTML=SEGS.map(([x,l])=>`<button class="${IST2.status===x?'on':''}" onclick="IST2.status='${x}';drawSeg();loadThreads()">${l}</button>`).join('')}
+const SEGS=[['inbox','Inbox'],['sent','Sent'],['unread','Unread'],['all','All'],['archived','Archived']];
 async function threadUnread(tid){const {data}=await sb.from('messages').select('id').eq('thread_id',tid).eq('direction','in').order('created_at',{ascending:false}).limit(1);if(data&&data[0])await sb.from('messages').update({is_read:false}).eq('id',data[0].id);IST2.tid=null;refreshBadges();loadThreads()}
-async function sendTextT(tid){const b=$('reply').value.trim();if(!b)return;const {data:t}=await sb.from('threads').select('lead_id,inbox,phone').eq('id',tid).single();
-  await sb.from('messages').insert({thread_id:tid,lead_id:t.lead_id,inbox:t.inbox,channel:'sms',direction:'out',body:b,is_read:true,their_number:t.phone,sender:'Damien Dupee'});
-  await sb.from('threads').update({last_at:new Date().toISOString()}).eq('id',tid);
-  if(t.lead_id)await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'manual reply'}).eq('lead_id',t.lead_id).eq('status','active');
-  toast('Saved to the conversation. Texts go out once Quo is connected.');openThreadT(tid);loadThreads()}
+async function sendTextT(tid){const b=$('reply').value.trim();if(!b)return;const btn=event?.target;if(btn){btn.disabled=true;btn.textContent='Sending…'}
+  const {data,error}=await sb.functions.invoke('quo/send',{body:{thread_id:tid,text:b}});
+  if(btn){btn.disabled=false;btn.textContent='Send Now'}
+  const err=error?(await error.context?.json?.().catch(()=>null))?.error||error.message:data?.error;
+  if(err){toast('Not sent: '+err);return}
+  const {data:t}=await sb.from('threads').select('lead_id').eq('id',tid).single();
+  if(t?.lead_id)await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'manual reply'}).eq('lead_id',t.lead_id).eq('status','active');
+  $('reply').value='';toast('Sent');openThreadT(tid);loadThreads()}
 async function dealFromThread(tid){const {data:t}=await sb.from('threads').select('*, leads(id,full_name,prop_address)').eq('id',tid).single();const b=t.inbox==='buyer'?'buyer':'seller';const st=STAGES.find(s=>s.board===b);
   const {data,error}=await sb.from('deals').insert({board:b,stage_id:st?.id,lead_id:t.lead_id,property_label:t.leads?.full_name||t.title,source:'inbox',status:'open'}).select().single();if(error)return toast(error.message);openDeal(data.id)}
 async function startConversation(box){const q=prompt('Phone number or contact name');if(!q)return;const {data}=await sb.rpc('global_search',{q,lim:5});const c=data?.contacts?.[0];
