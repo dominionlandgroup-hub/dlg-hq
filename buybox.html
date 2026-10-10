@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Builder Buy Box | Dominion Land Group</title>
+<meta name="description" content="Tell Dominion Land Group exactly which off-market lots to send you. Takes about 60 seconds.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--o:#FF914D;--od:#e2702a;--g:#5B8657;--gd:#47703f;--ink:#1C281E;--mut:#5d6a5f;--line:#e9dfd6;--bg:#fbf6f1;--card:#fff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Poppins,system-ui,sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px 48px}
+.ban{display:block;width:100%;height:auto;border-radius:0 0 14px 14px}
+.intro{margin:18px 2px 14px;color:var(--mut);font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 18px;margin-bottom:14px}
+h2{font-size:19px;margin:0 0 2px}h2+p{margin:0 0 14px;color:var(--mut);font-size:14px}
+label.q{display:block;font-weight:600;font-size:14.5px;margin:14px 0 6px}label.q:first-of-type{margin-top:4px}
+label.q small{font-weight:400;color:var(--mut)}.req{color:var(--od)}
+input[type=text],input[type=email],input[type=tel],textarea{width:100%;font:inherit;border:1.5px solid var(--line);border-radius:10px;padding:11px 12px;background:#fff;color:var(--ink)}
+textarea{min-height:76px;resize:vertical}input:focus,textarea:focus{outline:none;border-color:var(--g);box-shadow:0 0 0 3px #5b865722}
+.opts{display:flex;flex-wrap:wrap;gap:8px}.opts label{position:relative}
+.opts input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.opts span{display:inline-block;border:1.5px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;background:#fff;cursor:pointer;user-select:none}
+.opts input:checked+span{background:var(--g);border-color:var(--g);color:#fff}
+.opts input:focus-visible+span{outline:3px solid #5b865755;outline-offset:2px}
+.hint{font-size:13px;color:var(--mut);margin-top:4px}
+.trap{position:absolute;left:-5000px}
+button{font:inherit;font-weight:600;font-size:17px;background:var(--o);color:#fff;border:0;border-radius:12px;padding:14px 18px;width:100%;cursor:pointer}
+button:hover{background:var(--od)}button:disabled{opacity:.6;cursor:wait}
+.err{color:#b23b3b;font-size:14px;margin-top:10px;min-height:1em}
+.done{text-align:center;padding:36px 18px}.done h2{font-size:24px;margin-bottom:8px}
+.foot{text-align:center;color:var(--mut);font-size:13px;margin-top:18px}
+@media (max-width:480px){.card{padding:16px 14px}}
+</style></head><body>
+<img class="ban" src="buybox-header.png" alt="Dominion Land Group: Builder Buy Box. Tell me exactly what to send you.">
+<main class="wrap">
+<p class="intro" id="intro">I specialize in sourcing off-market lots for builders. This tells me exactly what to send you, and what not to. Agents and brokers who represent builders are welcome to fill it out for their clients.</p>
+<form id="f" novalidate>
+ <div class="card"><h2>Your contact info</h2><p>About 20 seconds.</p>
+  <label class="q" for="name">First and last name <span class="req">*</span></label><input id="name" type="text" autocomplete="name" required>
+  <label class="q" for="company">Company <span class="req">*</span></label><input id="company" type="text" autocomplete="organization" required>
+  <label class="q" for="phone">Mobile phone <span class="req">*</span></label><input id="phone" type="tel" autocomplete="tel" required>
+  <label class="q" for="email">Email <span class="req">*</span></label><input id="email" type="email" autocomplete="email" required>
+  <label class="q">Best way to send you deals <span class="req">*</span></label><div class="opts" data-name="send_by" data-multi="1"></div>
+  <label class="q">Which best describes you? <span class="req">*</span></label><div class="opts" data-name="role"></div>
+  <div id="repwrap" hidden><label class="q" for="represents">Which builders do you represent? <small>(optional)</small></label><textarea id="represents"></textarea></div>
+  <input class="trap" id="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+ </div>
+ <div class="card"><h2>Your buy box</h2><p>Be as specific as you can. I match lots to you by city and zip code.</p>
+  <label class="q" for="cities">Cities or towns you buy in <span class="req">*</span></label><textarea id="cities" placeholder="e.g. Raleigh, Cary, Garner"></textarea>
+  <label class="q" for="zips">Zip codes you buy in <span class="req">*</span></label><textarea id="zips" placeholder="e.g. 27603, 27604, 27610"></textarea>
+  <label class="q" for="counties">Counties <small>(optional)</small></label><input id="counties" type="text" placeholder="e.g. Wake, Johnston">
+  <label class="q">Price per lot <span class="req">*</span></label><div class="opts" data-name="price" data-multi="1"></div>
+  <label class="q">Lot size <span class="req">*</span></label><div class="opts" data-name="lot_size" data-multi="1"></div>
+  <label class="q">Vacant lots, teardowns, or both? <span class="req">*</span></label><div class="opts" data-name="lot_type"></div>
+  <label class="q">Utilities you will accept <span class="req">*</span></label><div class="opts" data-name="utilities" data-multi="1"></div>
+  <label class="q" for="recent_lot">A lot you bought recently <small>(optional)</small></label><input id="recent_lot" type="text" placeholder="Street address. Helps me see exactly what fits.">
+  <label class="q" for="deal_breakers">Deal-breakers <small>(optional)</small></label><textarea id="deal_breakers" placeholder="e.g. floodplain, HOA, steep lots"></textarea>
+  <label class="q">Lots you want per year <small>(optional)</small></label><div class="opts" data-name="per_year"></div>
+ </div>
+ <button id="go" type="submit">Send my buy box</button>
+ <div class="err" id="err" role="alert"></div>
+</form>
+<div class="card done" id="done" hidden><h2>Got it, thank you.</h2><p>I'll only send you lots that fit this.<br>Damien Dupee · Dominion Land Group · (980) 217-8806</p></div>
+<p class="foot">Dominion Land Group · 1235 East Blvd, Suite C1424, Charlotte, NC 28203 · <a href="tel:9802178806">(980) 217-8806</a></p>
+</main>
+<script>
+const SB='https://gdejlpdltnstbwtdpggm.supabase.co',KEY='sb_publishable_E9jIHC9hz6oleR4Qd-68bA_ZWEVcAQ_';
+const OPTS={send_by:['Text','Email','Call'],role:['Builder','Agent or broker representing builders','Investor','Developer'],price:['Under $50k','$50k to $100k','$100k to $200k','$200k to $400k','$400k+'],
+ lot_size:['Under 1/4 acre','1/4 to 1/2 acre','1/2 to 1 acre','1 to 5 acres','5+ acres'],lot_type:['Vacant lots','Teardowns','Both'],utilities:['Public water and sewer only','Septic is OK','Well is OK'],per_year:['1 to 5','6 to 15','16 to 50','50+']};
+document.querySelectorAll('.opts').forEach(el=>{const n=el.dataset.name,m=el.dataset.multi;el.setAttribute('role',m?'group':'radiogroup');
+ el.innerHTML=OPTS[n].map((o,i)=>`<label><input type="${m?'checkbox':'radio'}" name="${n}" value="${o}" id="${n}${i}"><span>${o}</span></label>`).join('')});
+const $=id=>document.getElementById(id);
+document.querySelectorAll('input[name=role]').forEach(r=>r.onchange=()=>{$('repwrap').hidden=!/agent/i.test(r.value)});
+const t=new URLSearchParams(location.search).get('t')||'';
+const rpc=(fn,body)=>fetch(SB+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
+if(/^[0-9a-f-]{36}$/i.test(t))rpc('buybox_prefill',{t}).then(r=>r.ok?r.json():null).then(p=>{if(!p)return;
+ if(p.name&&!/@/.test(p.name)&&p.name!==p.company)$('name').value=p.name;['company','email','phone'].forEach(k=>{if(p[k])$(k).value=p[k]});
+ if(p.first_name)$('intro').textContent='Thanks, '+p.first_name+'. '+$('intro').textContent}).catch(()=>{});
+const vals=n=>[...document.querySelectorAll(`input[name=${n}]:checked`)].map(x=>x.value);
+$('f').onsubmit=async e=>{e.preventDefault();const err=$('err');err.textContent='';
+ const d={t,name:$('name').value.trim(),company:$('company').value.trim(),phone:$('phone').value.trim(),email:$('email').value.trim(),send_by:vals('send_by'),role:vals('role')[0]||'',
+  represents:$('represents').value.trim(),cities:$('cities').value.trim(),zips:$('zips').value.trim(),counties:$('counties').value.trim(),price:vals('price'),lot_size:vals('lot_size'),
+  lot_type:vals('lot_type')[0]||'',utilities:vals('utilities'),recent_lot:$('recent_lot').value.trim(),deal_breakers:$('deal_breakers').value.trim(),per_year:vals('per_year')[0]||'',website:$('website').value};
+ const miss=[[!d.name,'your name'],[!d.company,'company'],[!d.phone,'mobile phone'],[!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email),'a valid email'],[!d.send_by.length,'how to send you deals'],[!d.role,'which best describes you'],
+  [!d.cities,'cities'],[!d.zips,'zip codes'],[!d.price.length,'price per lot'],[!d.lot_size.length,'lot size'],[!d.lot_type,'vacant lots, teardowns, or both'],[!d.utilities.length,'utilities']].filter(x=>x[0]).map(x=>x[1]);
+ if(miss.length){err.textContent='Please add: '+miss.join(', ')+'.';return}
+ const b=$('go');b.disabled=true;b.textContent='Sending…';
+ try{const r=await rpc('submit_buybox',{p:d});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.message||'Something went wrong')}
+  $('f').hidden=true;$('done').hidden=false;window.scrollTo({top:0,behavior:'smooth'})}
+ catch(x){err.textContent='Not sent: '+x.message+' Please try again, or call (980) 217-8806.';b.disabled=false;b.textContent='Send my buy box'}};
+</script></body></html>
