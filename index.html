@@ -102,7 +102,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
 .tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}.tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 14px}
 .tabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
 .inbox3{display:grid;grid-template-columns:300px 1fr 300px;gap:12px;height:calc(100vh - 150px)}.tlist{background:#fff;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
-.tl-top{padding:10px;border-bottom:1px solid var(--line)}.seg{display:flex;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{flex:1;border:0;background:#fff;padding:5px 0;font-size:12.5px}.seg button.on{background:var(--brand);color:#fff}.rdtog{background:#fff;color:var(--gold-d);border:1.5px solid var(--gold)}.rdtog:hover{background:#fbf4e2}.rdtog.isunread{background:var(--gold);color:#231b30;border-color:var(--gold)}
+.tl-top{padding:10px;border-bottom:1px solid var(--line)}.seg{display:flex;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{flex:1;border:0;background:#fff;padding:5px 0;font-size:12.5px}.seg button.on{background:var(--brand);color:#fff}.tacts{display:flex;gap:4px;flex-wrap:nowrap}.tact{font:inherit;font-size:11.5px;font-weight:600;line-height:1;padding:5px 8px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;white-space:nowrap}.tact:hover{background:var(--chip)}.rdtog{background:#fff;color:var(--gold-d);border:1px solid var(--gold)}.rdtog:hover{background:#fbf4e2}.rdtog.isunread{background:var(--gold);color:#231b30;border-color:var(--gold)}
 #tl{overflow:auto;flex:1}.tsec{padding:8px 12px 4px;font-size:12px;font-weight:700;color:var(--gold-d)}.titem{display:flex;gap:9px;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f2f0f5;position:relative}.titem:hover{background:#faf8fc}.titem.on{background:var(--chip);box-shadow:inset 3px 0 0 var(--brand)}
 .titem .av{width:34px;height:34px;flex:0 0 34px;border-radius:50%;border:1.5px solid var(--brand);color:var(--brand);display:grid;place-items:center;font-size:12px;font-weight:700}.titem .tb{flex:1;min-width:0}.titem .tr1{display:flex;justify-content:space-between;gap:6px}.titem .tr1 b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .titem .tr2{display:flex;gap:6px;font-size:12px;color:var(--muted)}.titem .tr2 span:first-child{flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.titem .d{white-space:nowrap}.titem.unread b{color:var(--brand)}.titem .ub{position:absolute;right:10px;bottom:8px;background:var(--gold);color:#fff;border-radius:999px;font-size:11px;padding:0 6px}
@@ -135,6 +135,13 @@ h3.sec{margin:0 0 10px;font-size:14px}
 .enc .encr{font-style:normal;font-size:11px;font-weight:600;color:var(--gold-d);letter-spacing:.03em;text-transform:uppercase}.enc.inl{margin:10px 0 0;max-width:460px}
 .encfoot{margin:22px auto 6px;max-width:640px;text-align:center}.encfoot .enc{align-items:center;border-left:0;border-top:2px solid var(--gold);background:transparent}
 .chip{display:inline-block;padding:2px 9px;border-radius:999px;background:var(--chip);color:var(--brand);font-size:12px;font-weight:600}
+.askfab{position:fixed;right:18px;bottom:18px;z-index:40;font:inherit;font-weight:700;font-size:13.5px;border:0;border-radius:999px;padding:11px 16px;background:var(--brand);color:#fff;box-shadow:0 8px 24px rgba(60,20,90,.3);cursor:pointer}.askfab:hover{background:var(--brand2)}
+.mic{flex:0 0 auto;font-size:16px;line-height:1;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer}.mic.on{background:#fdecec;border-color:#e5a3a3;animation:micp 1.2s infinite}
+@keyframes micp{50%{box-shadow:0 0 0 5px rgba(178,59,59,.15)}}
+.askq{margin:10px 0 4px auto;max-width:85%;background:var(--chip);color:var(--ink);padding:8px 12px;border-radius:12px 12px 2px 12px;width:fit-content;margin-left:auto}
+.aska{margin:6px 0 12px;font-size:14px;line-height:1.5}.aska p{margin:0 0 8px}.aska ul{margin:0 0 8px;padding-left:18px}
+.askt{border-collapse:collapse;font-size:12.5px;margin:6px 0 10px;width:100%}.askt th,.askt td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left}
+.askbox textarea{min-height:70px}
 </style>
 </head>
 <body>
@@ -464,10 +471,10 @@ async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem')
     else inner=`<div style="white-space:pre-wrap">${esc(m.body||'')}</div>`;
     return `<div class="bub ${out?'out':'in'}"><div class="meta"><b>${esc(who)}</b> · ${when}</div><div class="bb">${inner}</div></div>`};
   $('convo').innerHTML=`<div class="chead"><div style="flex:1"><b style="font-size:16px">${esc(t.phone||t.title||'')}</b> ${t.phone?`<a href="tel:${esc(t.phone)}" title="Call">📞</a>`:''}<div class="small muted">${l.full_name?esc(l.full_name)+' · ':''}via ${esc(t.our_number||'(980) 217-8806')}</div></div>
-     <div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn ghost sm" onclick="threadFlag(${tid},'pinned',${!t.pinned})">📌 ${t.pinned?'Unpin':'Pin'}</button><button class="btn sm rdtog" id="rdtog" onclick="threadUnread(${tid})">✉ Mark unread</button>${t.archived?`<button class="btn ghost sm" onclick="threadFlag(${tid},'archived',false)">↩ Unarchive</button>`:`<button class="btn ghost sm" onclick="threadFlag(${tid},'archived',true)">🗄 Archive</button>`}</div></div>
+     <div class="tacts"><button class="tact" title="${t.pinned?'Unpin this conversation':'Pin to the top'}" onclick="threadFlag(${tid},'pinned',${!t.pinned})">📌 ${t.pinned?'Unpin':'Pin'}</button><button class="tact rdtog" id="rdtog" title="Mark as unread" onclick="threadUnread(${tid})">✉ Unread</button>${t.archived?`<button class="tact" title="Move back to the inbox" onclick="threadFlag(${tid},'archived',false)">↩ Unarchive</button>`:`<button class="tact" title="Hide from the inbox (nothing is deleted)" onclick="threadFlag(${tid},'archived',true)">🗄 Archive</button>`}</div></div>
    <div class="msgs2" id="msgs">${(msgs||[]).map(bubble).join('')||'<div class="muted small">No messages yet.</div>'}</div>
    <div class="composer"><select id="tplpick" style="flex:0 0 140px" onchange="useTpl(this)"><option value="">Template…</option>${(tpl||[]).map((x,i)=>`<option value="${i}">${esc(x.name)}</option>`).join('')}</select>
-     <textarea id="reply" style="min-height:44px" placeholder="Write a text"></textarea><button class="btn" onclick="sendTextT(${tid})">Send Now</button></div>`;hydrateRec();
+     <textarea id="reply" style="min-height:44px" placeholder="Write a text"></textarea>${micBtn('reply')}<button class="btn" onclick="sendTextT(${tid})">Send Now</button></div>`;hydrateRec();
   $('msgs').scrollTop=1e9;drawCPanel(t,l);
   if((msgs||[]).some(m=>m.direction==='in'&&!m.is_read)){await sb.from('messages').update({is_read:true}).eq('thread_id',tid).eq('direction','in').eq('is_read',false);refreshBadges();loadThreads()}}
 async function drawCPanel(t,l){const {data:deals}=l.id?await sb.from('deals').select('id,board,stage_id,property_label,value,status').eq('lead_id',l.id).order('id',{ascending:false}):{data:[]};
@@ -496,9 +503,9 @@ async function threadUnread(tid){if(_rdBusy)return;_rdBusy=true;const btn=$('rdt
   try{if(toUnread){const {data}=await sb.from('messages').select('id').eq('thread_id',tid).eq('direction','in').order('created_at',{ascending:false}).limit(1);
       if(!data||!data[0]){toast('No incoming messages to mark unread');return}
       const {error}=await sb.from('messages').update({is_read:false}).eq('id',data[0].id);if(error)return toast(error.message);
-      btn.classList.add('isunread');btn.textContent='✓ Mark read';toast('Marked unread')}
+      btn.classList.add('isunread');btn.textContent='✓ Read';btn.title='Mark as read';toast('Marked unread')}
     else{const {error}=await sb.from('messages').update({is_read:true}).eq('thread_id',tid).eq('direction','in').eq('is_read',false);if(error)return toast(error.message);
-      btn.classList.remove('isunread');btn.textContent='✉ Mark unread';toast('Marked read')}
+      btn.classList.remove('isunread');btn.textContent='✉ Unread';btn.title='Mark as unread';toast('Marked read')}
     refreshBadges();loadThreads()}finally{btn.disabled=false;_rdBusy=false}}
 async function sendTextT(tid){const b=$('reply').value.trim();if(!b)return;const btn=event?.target;if(btn){btn.disabled=true;btn.textContent='Sending…'}
   const {data,error}=await sb.functions.invoke('quo/send',{body:{thread_id:tid,text:b}});
@@ -870,6 +877,33 @@ async function vTasks(){const {data}=await sb.from('tasks').select('*, deals(id,
   const row=t=>`<tr><td style="width:30px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked).then(vTasks)"></td><td>${esc(t.title)}<div class="small muted">${t.deals?`<a href="#" onclick="openDeal(${t.deals.id});return false">${esc(t.deals.property_label||'deal')}</a>`:''} ${esc(t.leads?.full_name||'')}</div></td><td class="small" style="color:${t.due_at&&new Date(t.due_at)<new Date()&&t.status==='todo'?'var(--red)':'inherit'}">${t.due_at?new Date(t.due_at).toLocaleDateString():''}</td></tr>`;
   $('view').innerHTML=`<div class="card" style="padding:0"><table><tr><th></th><th>To do (${open.length})</th><th>Due</th></tr>${open.map(row).join('')||'<tr><td colspan="3" class="muted">All clear.</td></tr>'}</table></div><div class="card" style="padding:0"><table><tr><th></th><th>Done recently</th><th></th></tr>${done.map(row).join('')}</table></div>`}
 
+// ---------- Ask Claude (read-only assistant) + voice dictation ----------
+let _rec=null,_recBtn=null;
+function micToggle(targetId,btn){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return toast('Voice typing works in Chrome or Edge');
+  if(_rec){_rec.stop();return}const el=$(targetId);const base=el.value?el.value.replace(/\s*$/,' '):'';let finalTxt='';
+  _rec=new SR();_rec.lang='en-US';_rec.continuous=true;_rec.interimResults=true;_recBtn=btn;btn.classList.add('on');btn.title='Stop dictation';
+  _rec.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)finalTxt+=r[0].transcript;else interim+=r[0].transcript}el.value=base+finalTxt+interim};
+  _rec.onerror=e=>{if(e.error==='not-allowed')toast('Allow the microphone for this site to use voice typing')};
+  _rec.onend=()=>{btn.classList.remove('on');btn.title='Voice typing';_rec=null;el.focus()};_rec.start()}
+const micBtn=t=>`<button type="button" class="mic" title="Voice typing" onclick="micToggle('${t}',this)" aria-label="Voice typing">🎤</button>`;
+function mdLite(t){const e=esc(t||'');const lines=e.split('\n');let out='',i=0;
+  while(i<lines.length){const l=lines[i];
+    if(/^\s*\|.*\|\s*$/.test(l)&&i+1<lines.length&&/^\s*\|?\s*:?-{2,}/.test(lines[i+1])){const row=x=>x.trim().replace(/^\||\|$/g,'').split('|').map(c=>c.trim());const h=row(l);i+=2;let b='';while(i<lines.length&&/^\s*\|.*\|\s*$/.test(lines[i])){b+='<tr>'+row(lines[i]).map(c=>`<td>${c}</td>`).join('')+'</tr>';i++}
+      out+=`<table class="askt"><tr>${h.map(c=>`<th>${c}</th>`).join('')}</tr>${b}</table>`;continue}
+    if(/^\s*[-*] /.test(l)){let b='';while(i<lines.length&&/^\s*[-*] /.test(lines[i])){b+='<li>'+lines[i].replace(/^\s*[-*] /,'')+'</li>';i++}out+='<ul>'+b+'</ul>';continue}
+    out+=l.trim()?'<p>'+l+'</p>':'';i++}
+  return out.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}
+let ASKH=[];
+function openAsk(){openDrawer(head('Ask Claude')+`<div class="card" style="margin-bottom:10px"><div class="small muted">Ask anything about your campaigns, deals, contacts, calls or numbers. Claude can only look, never change anything.</div>
+  <div id="askLog" style="margin-top:10px">${ASKH.length?ASKH.map(m=>m.role==='user'?`<div class="askq">${esc(m.content)}</div>`:`<div class="aska">${mdLite(m.content)}</div>`).join(''):`<div class="small muted" style="margin-top:6px">Try: “Which campaigns had the best response rate this year?” · “Sellers who replied in the last 2 weeks with no deal” · “Profit by month in 2026”</div>`}</div></div>
+  <div class="askbox"><textarea id="askIn" placeholder="Ask about your business…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAsk()}"></textarea><div class="row" style="flex-wrap:nowrap;gap:6px;margin-top:6px">${micBtn('askIn')}<button class="btn" id="askGo" onclick="sendAsk()" style="flex:1">Ask</button></div></div>`);setTimeout(()=>$('askIn')?.focus(),50)}
+async function sendAsk(){const q=$('askIn').value.trim();if(!q)return;if(_rec)_rec.stop();const log=$('askLog');if(!ASKH.length)log.innerHTML='';
+  log.insertAdjacentHTML('beforeend',`<div class="askq">${esc(q)}</div><div class="aska muted" id="askWait">Looking through your data…</div>`);$('askIn').value='';$('askGo').disabled=true;$('panel').scrollTop=1e9;
+  const {data,error}=await sb.functions.invoke('ask',{body:{question:q,history:ASKH}});$('askGo').disabled=false;
+  const err=error?(await error.context?.json?.().catch(()=>null))?.error||error.message:data?.error;const w=$('askWait');if(w)w.remove();
+  if(err){log.insertAdjacentHTML('beforeend',`<div class="aska" style="color:var(--red)">${esc(err)}</div>`);return}
+  ASKH.push({role:'user',content:q},{role:'assistant',content:data.answer});log.insertAdjacentHTML('beforeend',`<div class="aska">${mdLite(data.answer)}</div>`);$('panel').scrollTop=1e9}
+
 // ---------- testimonials: ask past sellers, collect text/video for the website ----------
 async function vTestimonials(){
   const [{data:deals},{data:ts}]=await Promise.all([
@@ -979,5 +1013,6 @@ async function runImport(){const f=$('impFile').files[0];if(!f)return toast('Cho
 
 boot();
 </script>
+<button class="askfab" onclick="openAsk()" title="Ask Claude about your data">✦ Ask Claude</button>
 </body>
 </html>
