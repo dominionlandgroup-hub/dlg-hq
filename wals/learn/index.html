@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Course Login | We Are Land Specialists</title><meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Anton&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../common.css">
+<style>
+body{background:var(--sand)}
+.bar{background:var(--ink);color:#f3eee4;padding:12px 0}.bar .wrap{display:flex;align-items:center;gap:12px}.bar b{font-family:Anton,sans-serif;font-weight:400;font-size:22px;letter-spacing:.4px;flex:1}
+.bar button{background:none;border:1px solid #5a5244;color:#e8e0d0;border-radius:8px;padding:6px 12px;font:inherit;font-size:14px;cursor:pointer}
+.auth{max-width:420px;margin:64px auto;background:#fff;border:1px solid var(--line);border-radius:16px;padding:30px}
+.auth h1{font-size:40px;margin-bottom:6px}label{display:block;font-weight:700;font-size:14px;margin:14px 0 6px}
+input{width:100%;font:inherit;border:1.5px solid var(--line);border-radius:10px;padding:11px 12px}input:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px #5b2a8622}
+.auth .btn{width:100%;margin-top:18px;cursor:pointer}.link{background:none;border:0;color:var(--purple);font:inherit;font-weight:700;cursor:pointer;padding:0;margin-top:14px}
+.err{color:#b23b3b;font-size:14px;margin-top:10px;min-height:1em}.ok{color:#1a7a48}
+.course{display:grid;grid-template-columns:330px 1fr;gap:0;min-height:calc(100vh - 56px)}
+.side{background:#fff;border-right:1px solid var(--line);overflow:auto;max-height:calc(100vh - 56px);position:sticky;top:0}
+.prog{padding:16px 18px;border-bottom:1px solid var(--line)}.prog .t{height:8px;background:#efe9de;border-radius:6px;overflow:hidden;margin-top:6px}.prog .f{height:100%;background:var(--gold)}
+.mod{border-bottom:1px solid var(--line)}.mod>button{width:100%;text-align:left;background:none;border:0;padding:14px 18px;font:inherit;font-weight:800;cursor:pointer;display:flex;gap:10px}
+.mod>button span{color:var(--gold);font-family:Anton,sans-serif;font-weight:400}.mod>button small{margin-left:auto;color:var(--mut);font-weight:600}
+.les{display:none}.mod.open .les{display:block}
+.les button{width:100%;text-align:left;background:none;border:0;border-top:1px solid #f3eee6;padding:9px 18px 9px 40px;font:inherit;font-size:14.5px;cursor:pointer;position:relative}
+.les button:before{content:"";position:absolute;left:18px;top:13px;width:12px;height:12px;border:2px solid #c8bfae;border-radius:50%}
+.les button.done:before{background:var(--gold);border-color:var(--gold)}.les button.on{background:#f7f2e8;font-weight:700}
+.main{padding:28px 32px;max-width:980px}.player{position:relative;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden}.player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.main h2{font-size:34px;margin:18px 0 4px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+.btn.ghost{background:#fff;color:var(--purple)}.files a{display:block;padding:10px 0;border-top:1px solid var(--line);font-weight:700;cursor:pointer}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-top:22px}
+@media (max-width:860px){.course{grid-template-columns:1fr}.side{position:static;max-height:none}.main{padding:18px 16px}}
+</style></head><body>
+<div class="bar"><div class="wrap"><b>Vacant Land Specialist</b><span id="who" class="small"></span><button id="out" hidden>Log out</button></div></div>
+<div id="app"></div>
+<script>
+const API='https://gdejlpdltnstbwtdpggm.supabase.co/functions/v1/wals/';
+const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let TOK=null;try{TOK=localStorage.getItem('wals_t')}catch(e){}
+const save=t=>{TOK=t;try{t?localStorage.setItem('wals_t',t):localStorage.removeItem('wals_t')}catch(e){}};
+async function call(r,b){const x=await fetch(API+r,{method:'POST',headers:{'Content-Type':'application/json',...(TOK?{'x-wals-token':TOK}:{})},body:JSON.stringify(b||{})});const j=await x.json().catch(()=>({}));if(!x.ok){const e=new Error(j.error||'Something went wrong');e.status=x.status;throw e}return j}
+const q=new URLSearchParams(location.search);
+function authView(mode){const set=mode==='set';$('out').hidden=true;$('who').textContent='';
+  $('app').innerHTML=`<form class="auth" id="af"><h1>${set?'Set your password':mode==='forgot'?'Reset password':'Log in'}</h1>
+   <p class="small" style="color:var(--mut);margin:0">${set?'Choose a password for your course login.':mode==='forgot'?'Enter your email and we\'ll send you a link to set a new password.':'Welcome back. Log in to watch the course.'}</p>
+   ${set?'<label for="nm">Your name</label><input id="nm" autocomplete="name">':''}
+   ${!set?'<label for="em">Email</label><input id="em" type="email" autocomplete="email" required>':''}
+   ${mode!=='forgot'?`<label for="pw">${set?'New password (8+ characters)':'Password'}</label><input id="pw" type="password" autocomplete="${set?'new-password':'current-password'}" required>`:''}
+   <button class="btn" type="submit">${set?'Save and start the course':mode==='forgot'?'Send me the link':'Log in'}</button>
+   <div class="err" id="err" role="alert"></div>
+   ${mode==='login'?'<button type="button" class="link" id="fg">Forgot password?</button>':'<button type="button" class="link" id="bk">Back to log in</button>'}</form>`;
+  if($('fg'))$('fg').onclick=()=>authView('forgot');if($('bk'))$('bk').onclick=()=>{history.replaceState(null,'',location.pathname);authView('login')};
+  $('af').onsubmit=async e=>{e.preventDefault();const err=$('err');err.textContent='';err.className='err';
+    try{if(set){const j=await call('setpw',{token:q.get('set'),password:$('pw').value,name:$('nm').value.trim()});save(j.token);history.replaceState(null,'',location.pathname);load()}
+      else if(mode==='forgot'){await call('forgot',{email:$('em').value.trim()});err.className='err ok';err.textContent='If that email has course access, a link is on its way. It can take up to 5 minutes. Check spam too.'}
+      else{const j=await call('login',{email:$('em').value.trim(),password:$('pw').value});save(j.token);load()}}catch(x){err.textContent=x.message}}}
+let D=null,CUR=null;
+async function load(){try{D=await call('me')}catch(e){if(e.status===401||e.status===403){save(null);return authView('login')}$('app').innerHTML='<div class="auth"><p>'+esc(e.message)+'</p></div>';return}
+  $('out').hidden=false;$('out').onclick=()=>{save(null);authView('login')};$('who').textContent=D.name||D.email;
+  const all=D.modules.flatMap(m=>m.lessons);const done=new Set(D.done);
+  let last=null;try{last=localStorage.getItem('wals_last')}catch(e){}
+  CUR=all.find(l=>l.id===last)||all.find(l=>!done.has(l.id))||all[0];draw()}
+function draw(){const all=D.modules.flatMap(m=>m.lessons);const done=new Set(D.done);const pct=all.length?Math.round(done.size/all.length*100):0;
+  const curMod=D.modules.find(m=>m.lessons.some(l=>l.id===CUR?.id));const idx=all.findIndex(l=>l.id===CUR?.id);
+  $('app').innerHTML=`<div class="course"><aside class="side"><div class="prog"><b>${pct}% complete</b> <span class="small" style="color:var(--mut)">${done.size} of ${all.length} lessons</span><div class="t"><div class="f" style="width:${pct}%"></div></div></div>
+   ${D.modules.map((m,i)=>`<div class="mod ${m===curMod?'open':''}"><button aria-expanded="${m===curMod}" data-m="${i}"><span>${esc(m.num)}</span>${esc(m.name)}<small>${m.lessons.filter(l=>done.has(l.id)).length}/${m.lessons.length}</small></button>
+     <div class="les">${m.lessons.map(l=>`<button class="${done.has(l.id)?'done':''} ${l.id===CUR?.id?'on':''}" data-l="${l.id}">${esc(l.title)}</button>`).join('')}</div></div>`).join('')}</aside>
+   <main class="main">${CUR?`<div class="player"><iframe src="https://iframe.mediadelivery.net/embed/775589/${CUR.id}?autoplay=false&preload=true" allow="encrypted-media;picture-in-picture;fullscreen" allowfullscreen title="${esc(CUR.title)}"></iframe></div>
+     <div class="small" style="color:var(--mut);margin-top:16px">Module ${esc(curMod?.num)} · ${esc(curMod?.name)}</div><h2>${esc(CUR.title)}</h2>
+     <div class="row"><button class="btn ${done.has(CUR.id)?'ghost':''}" id="mk">${done.has(CUR.id)?'✓ Completed':'Mark complete'}</button>
+       ${idx>0?'<button class="btn ghost" id="pv">← Previous</button>':''}${idx<all.length-1?'<button class="btn ghost" id="nx">Next lesson →</button>':''}</div>`:'<p>Lessons are coming soon.</p>'}
+     ${D.booking?`<div class="card"><b>Your 1-on-1 coaching calls</b><p style="margin:6px 0 10px">Book your weekly 45-minute calls with Damien (Tuesdays and Thursdays).</p><a class="btn gold" href="${esc(D.booking)}" target="_blank" rel="noopener">Book a call</a></div>`:''}
+     ${D.files.length?`<div class="card files"><b>Downloads</b>${D.files.map(f=>`<a data-f="${f.id}">⬇ ${esc(f.name)}</a>`).join('')}</div>`:''}
+     <p class="small" style="color:var(--mut);margin-top:22px">Questions? Email <a href="mailto:wearelandspecialists@gmail.com">wearelandspecialists@gmail.com</a></p></main></div>`;
+  document.querySelectorAll('.mod>button').forEach(b=>b.onclick=()=>{const m=b.parentElement;m.classList.toggle('open');b.setAttribute('aria-expanded',m.classList.contains('open'))});
+  document.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>go(b.dataset.l));
+  if($('mk'))$('mk').onclick=async()=>{const d=!done.has(CUR.id);try{await call('progress',{video_id:CUR.id,done:d});if(d){D.done.push(CUR.id);const n=all[idx+1];if(n){CUR=n;try{localStorage.setItem('wals_last',n.id)}catch(e){}}}else D.done=D.done.filter(x=>x!==CUR.id);draw()}catch(e){alert(e.message)}};
+  if($('pv'))$('pv').onclick=()=>go(all[idx-1].id);if($('nx'))$('nx').onclick=()=>go(all[idx+1].id);
+  document.querySelectorAll('[data-f]').forEach(a=>a.onclick=async()=>{try{const j=await call('file',{id:+a.dataset.f});location.href=j.url}catch(e){alert(e.message)}})}
+function go(id){CUR=D.modules.flatMap(m=>m.lessons).find(l=>l.id===id);try{localStorage.setItem('wals_last',id)}catch(e){}draw();window.scrollTo(0,0)}
+if(q.get('set'))authView('set');else if(TOK)load();else authView('login');
+</script></body></html>
