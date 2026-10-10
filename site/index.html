@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dominion Land Group | We Buy Land for Cash in NC, SC, GA, TN & FL</title>
+<meta name="description" content="Sell your vacant land directly to Dominion Land Group. Cash offer in 24–48 hours, no fees or commissions, and we pay closing costs. Buying land since 2016.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --purple:#5C2977; --purple-d:#3f1a54; --gold:#D5A940; --gold-d:#9c7a24; --ink:#241A2E; --muted:#5d556a; --line:#e6e0ec; --mist:#f5f2f8; --white:#fff;
+  --sans:Montserrat,system-ui,sans-serif; --serif:"Source Serif 4",Georgia,serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--white);color:var(--ink);font-family:var(--serif);font-size:19px;line-height:1.6}
+img{max-width:100%;display:block}
+a{color:var(--purple)}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+h1,h2,h3{font-family:var(--sans);line-height:1.15;margin:0;color:var(--ink);letter-spacing:-.01em}
+h2{font-size:clamp(28px,3.4vw,40px);font-weight:800}
+h3{font-size:20px;font-weight:700}
+p{margin:0 0 1em}
+.wrap{max-width:1160px;margin:0 auto;padding:0 24px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--sans);font-weight:700;font-size:16px;border-radius:10px;padding:14px 22px;text-decoration:none;border:2px solid transparent;cursor:pointer}
+.btn-gold{background:var(--gold);color:var(--ink)}
+.btn-gold:hover{background:#e0b950}
+.btn-line{border-color:rgba(255,255,255,.55);color:#fff}
+.btn-line:hover{background:rgba(255,255,255,.1)}
+.btn-purple{background:var(--purple);color:#fff}
+.btn-purple:hover{background:var(--purple-d)}
+
+/* header */
+.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:24px;height:72px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
+.brand svg{width:34px;height:34px;flex:0 0 34px}
+.brand b{font-family:var(--sans);font-weight:800;font-size:17px;letter-spacing:.01em;line-height:1.05}
+.brand span{display:block;font-family:var(--sans);font-weight:600;font-size:11.5px;color:var(--gold-d)}
+.nav{display:flex;gap:22px;margin-left:auto;font-family:var(--sans);font-weight:600;font-size:15px}
+.nav a{color:var(--ink);text-decoration:none}.nav a:hover{color:var(--purple)}
+.call{font-family:var(--sans);font-weight:800;color:var(--purple);text-decoration:none;font-size:17px;white-space:nowrap}
+@media(max-width:900px){.nav{display:none}.call{margin-left:auto}}
+
+/* hero */
+.hero{position:relative;background:var(--purple-d);color:#fff;overflow:hidden}
+.hero .photo{position:absolute;inset:0;background:url("https://images.pexels.com/photos/18691540/pexels-photo-18691540.jpeg?auto=compress&cs=tinysrgb&w=1800") center 40%/cover}
+.hero .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(40,14,56,.95) 0%,rgba(52,20,70,.86) 46%,rgba(52,20,70,.35) 100%)}
+.hero .plat{position:absolute;inset:0;opacity:.5;pointer-events:none}
+.hero .wrap{position:relative;display:grid;grid-template-columns:1.15fr .85fr;gap:56px;align-items:center;padding-top:84px;padding-bottom:96px}
+.hero h1{color:#fff;font-size:clamp(38px,5.2vw,62px);font-weight:800;max-width:13ch}
+.hero .lede{font-size:21px;color:#eee6f3;max-width:34ch;margin:22px 0 30px}
+.hero .ctas{display:flex;flex-wrap:wrap;gap:12px}
+.promise{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:34px;font-family:var(--sans);font-size:14.5px;font-weight:600;color:#f0e6f6;padding:0;list-style:none}
+.promise li{display:flex;align-items:center;gap:8px}
+.promise li::before{content:"";width:16px;height:16px;flex:0 0 16px;border-radius:50%;background:var(--gold) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.2l2.6 2.5L12 5.3' fill='none' stroke='%23241A2E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px}
+
+/* the letter card: the signature element */
+.letter{background:#fffdf7;color:var(--ink);border-radius:6px;padding:30px 28px 26px;position:relative;box-shadow:0 30px 60px -20px rgba(0,0,0,.55)}
+.letter::before{content:"";position:absolute;left:0;right:0;top:0;height:10px;border-radius:6px 6px 0 0;background:repeating-linear-gradient(135deg,var(--purple) 0 14px,#fffdf7 14px 22px,var(--gold) 22px 36px,#fffdf7 36px 44px)}
+.letter h2{font-size:24px;margin-top:6px}
+.letter p{font-size:16.5px;color:var(--muted);margin:8px 0 18px}
+.code{display:flex;gap:8px}
+.code input{flex:1;min-width:0;font-family:var(--sans);font-weight:700;font-size:22px;letter-spacing:.08em;padding:12px 14px;border:2px dashed var(--gold-d);border-radius:8px;background:#fff;color:var(--ink)}
+.code input::placeholder{color:#c9bfd4;letter-spacing:.04em;font-weight:600}
+.code-msg{font-family:var(--sans);font-size:14px;min-height:22px;margin-top:10px;color:var(--purple)}
+.letter .no{font-size:15px;margin:12px 0 0;border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:900px){.hero .wrap{grid-template-columns:1fr;padding-top:56px;padding-bottom:64px;gap:36px}.hero .shade{background:rgba(40,14,56,.88)}}
+
+/* sections */
+section{padding:92px 0}
+.intro{max-width:62ch;color:var(--muted);font-size:19px;margin-top:14px}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:36px;margin-top:48px;counter-reset:s}
+.step{position:relative;padding-top:58px}
+.step::before{counter-increment:s;content:counter(s);position:absolute;top:0;left:0;width:42px;height:42px;border-radius:50%;background:var(--purple);color:#fff;font-family:var(--sans);font-weight:800;font-size:19px;display:grid;place-items:center}
+.step:not(:last-child)::after{content:"";position:absolute;top:21px;left:54px;right:-24px;border-top:2px dashed var(--gold)}
+.step p{color:var(--muted);margin-top:8px}
+@media(max-width:800px){.steps{grid-template-columns:1fr}.step:not(:last-child)::after{display:none}}
+
+/* terms band */
+.terms{background:var(--mist)}
+.terms .wrap{display:grid;grid-template-columns:.9fr 1.1fr;gap:56px;align-items:center}
+.terms .pic{border-radius:6px;overflow:hidden;aspect-ratio:4/3.4}
+.terms .pic img{width:100%;height:100%;object-fit:cover}
+.tlist{list-style:none;padding:0;margin:28px 0 0}
+.tlist li{padding:16px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:200px 1fr;gap:18px}
+.tlist li:last-child{border-bottom:1px solid var(--line)}
+.tlist b{font-family:var(--sans);font-size:16px}
+.tlist span{color:var(--muted);font-size:17px}
+@media(max-width:900px){.terms .wrap{grid-template-columns:1fr}.tlist li{grid-template-columns:1fr;gap:2px}}
+
+/* land types */
+.types{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:44px}
+.type{position:relative;border-radius:6px;overflow:hidden;aspect-ratio:3/4;color:#fff;display:flex;align-items:flex-end}
+.type img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.type::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(36,26,46,.88))}
+.type div{position:relative;z-index:1;padding:18px}
+.type h3{color:#fff}.type p{font-size:15px;color:#e9e2ef;margin:6px 0 0;line-height:1.45}
+.also{margin-top:22px;color:var(--muted);font-size:17px}
+@media(max-width:900px){.types{grid-template-columns:repeat(2,1fr)}}
+
+/* testimonials */
+.words{display:grid;grid-template-columns:repeat(2,1fr);gap:28px;margin-top:40px}
+.quote{border-left:4px solid var(--gold);padding:6px 0 6px 24px}
+.quote p{font-size:21px;font-style:italic;line-height:1.5;margin:0 0 12px}
+.quote cite{font-style:normal;font-family:var(--sans);font-weight:700;font-size:15px;color:var(--purple)}
+@media(max-width:800px){.words{grid-template-columns:1fr}}
+
+/* about */
+.about{background:var(--purple);color:#fff}
+.about .wrap{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+.about h2{color:#fff}.about p{color:#eadff0}
+.about .verse{margin-top:28px;font-style:italic;font-size:20px;color:#fff;border-top:1px solid rgba(255,255,255,.25);padding-top:20px}
+.about .verse small{display:block;font-style:normal;font-family:var(--sans);font-weight:700;font-size:13px;color:var(--gold);margin-top:6px}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(255,255,255,.18);border-radius:6px;overflow:hidden}
+.facts div{background:var(--purple);padding:26px 20px}
+.facts b{display:block;font-family:var(--sans);font-weight:800;font-size:34px;color:var(--gold)}
+.facts span{font-family:var(--sans);font-size:14px;color:#eadff0}
+.about .pic{grid-column:2;border-radius:6px;overflow:hidden;margin-top:1px}
+@media(max-width:900px){.about .wrap{grid-template-columns:1fr;gap:36px}.facts{grid-template-columns:1fr 1fr 1fr}}
+
+/* faq */
+.faq{max-width:820px}
+details{border-top:1px solid var(--line);padding:4px 0}
+details:last-of-type{border-bottom:1px solid var(--line)}
+summary{cursor:pointer;list-style:none;font-family:var(--sans);font-weight:700;font-size:18px;padding:18px 36px 18px 0;position:relative}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";position:absolute;right:4px;top:12px;font-size:26px;color:var(--gold-d);font-weight:500}
+details[open] summary::after{content:"–"}
+details p{color:var(--muted);margin:0 0 20px;max-width:68ch}
+
+/* form */
+.get{background:var(--mist)}
+.get .wrap{display:grid;grid-template-columns:.8fr 1.2fr;gap:56px}
+.form{background:#fff;border:1px solid var(--line);border-radius:8px;padding:30px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+label{display:block;font-family:var(--sans);font-weight:600;font-size:14px;margin:0 0 6px}
+input,textarea,select{width:100%;font:inherit;font-size:17px;padding:12px 14px;border:1.5px solid #d7cfe0;border-radius:8px;background:#fff;color:var(--ink)}
+input:focus,textarea:focus{border-color:var(--purple);outline:none;box-shadow:0 0 0 3px rgba(92,41,119,.15)}
+textarea{min-height:110px;resize:vertical}
+.field{margin-bottom:14px}
+.hint{font-size:14px;color:var(--muted);margin:6px 0 0}
+#fmsg{font-family:var(--sans);font-weight:600;margin-top:14px;min-height:24px}
+.direct{margin-top:26px;font-family:var(--sans);font-size:16px}
+.direct a{display:block;font-weight:800;font-size:24px;text-decoration:none;margin:4px 0 14px}
+@media(max-width:900px){.get .wrap{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
+
+footer{background:var(--ink);color:#cfc6d8;padding:48px 0 36px;font-family:var(--sans);font-size:14.5px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:24px 48px;justify-content:space-between}
+footer a{color:#fff;text-decoration:none}
+footer .legal{width:100%;border-top:1px solid rgba(255,255,255,.12);padding-top:18px;color:#9d93a8;font-size:13px}
+
+@media(prefers-reduced-motion:no-preference){
+  .letter{animation:arrive .7s .15s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes arrive{from{opacity:0;transform:translateY(18px) rotate(-1.5deg)}to{opacity:1;transform:none}}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Dominion Land Group home">
+      <svg viewBox="0 0 34 34" aria-hidden="true"><rect x="1" y="1" width="32" height="32" rx="4" fill="#5C2977"/><path d="M6 25 L14 9 L28 13 L24 27 Z" fill="none" stroke="#D5A940" stroke-width="2" stroke-linejoin="round"/><path d="M14 9 L18 26" stroke="#D5A940" stroke-width="1.4" stroke-dasharray="2 2"/></svg>
+      <div><b>Dominion Land Group</b><span>Land buyers since 2016</span></div>
+    </a>
+    <nav class="nav" aria-label="Main"><a href="#how">How it works</a><a href="#land">Land we buy</a><a href="#about">About</a><a href="#faq">Questions</a></nav>
+    <a class="call" href="tel:+19809902356">(980) 990-2356</a>
+  </div>
+</header>
+
+<main id="top">
+<section class="hero" style="padding:0">
+  <div class="photo" role="img" aria-label="Pine woods at sunrise"></div>
+  <div class="shade"></div>
+  <svg class="plat" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#D5A940" stroke-width="1">
+      <path d="M-20 520 L220 380 L470 430 L520 700"/><path d="M220 380 L300 120 L560 60 L640 300 L470 430"/>
+      <path d="M640 300 L900 260 L980 520 L760 640 L520 700"/><path d="M560 60 L860 -20 L900 260"/>
+      <path d="M300 120 L120 -30" stroke-dasharray="4 6"/><path d="M640 300 L760 640" stroke-dasharray="4 6"/>
+    </g>
+  </svg>
+  <div class="wrap">
+    <div>
+      <h1>We buy land directly from the owner.</h1>
+      <p class="lede">A fair cash offer in 24 to 48 hours. No agents, no fees, and we pay the closing costs. You pick the closing date.</p>
+      <div class="ctas"><a class="btn btn-gold" href="#get">Get my cash offer</a><a class="btn btn-line" href="tel:+19809902356">Call (980) 990-2356</a></div>
+      <ul class="promise"><li>Any condition</li><li>Inherited or heirs' land</li><li>Back taxes are OK</li><li>Closed by a licensed attorney</li></ul>
+    </div>
+    <div class="letter" id="letter">
+      <h2>Got a letter from us?</h2>
+      <p>Enter the offer code printed on your letter and we'll pull up your property.</p>
+      <form class="code" id="codeForm" autocomplete="off">
+        <label for="codeIn" class="sr" style="position:absolute;left:-9999px">Offer code</label>
+        <input id="codeIn" placeholder="e.g. 310-021" inputmode="text" maxlength="20">
+        <button class="btn btn-purple" type="submit">Continue</button>
+      </form>
+      <div class="code-msg" id="codeMsg" aria-live="polite"></div>
+      <p class="no">No letter? <a href="#get">Tell us about your land</a> and we'll take it from there.</p>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>Three steps, and you stay in control the whole way.</h2>
+    <p class="intro">There's no obligation at any point. If our offer doesn't work for you, that's the end of it.</p>
+    <div class="steps">
+      <div class="step"><h3>Tell us about the land</h3><p>Use the form, enter your offer code, or just call. We look at county records, recent sales nearby and what can be built.</p></div>
+      <div class="step"><h3>Get your cash offer</h3><p>We call or email within 24 to 48 hours with a firm number and explain how we got there. If it works, we send a simple purchase agreement.</p></div>
+      <div class="step"><h3>Close and get paid</h3><p>A licensed closing attorney handles title and paperwork. You sign, and you're paid by wire or check on the date you choose.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="terms">
+  <div class="wrap">
+    <div class="pic"><img src="https://images.pexels.com/photos/1094544/pexels-photo-1094544.jpeg?auto=compress&cs=tinysrgb&w=1200" alt="Gravel road and farm gate through open country" loading="lazy"></div>
+    <div>
+      <h2>What you can count on.</h2>
+      <ul class="tlist">
+        <li><b>The offer is what you get</b><span>No commissions, no fees, and we cover the normal closing costs.</span></li>
+        <li><b>Plain answers</b><span>We tell you how we priced it, and you can ask anything before you sign.</span></li>
+        <li><b>We handle the hard parts</b><span>Title issues, back taxes, multiple heirs and out-of-state owners are things we work through all the time.</span></li>
+        <li><b>Your timeline</b><span>Close in as little as two weeks, or later if that suits you better.</span></li>
+        <li><b>A real person</b><span>You'll talk with Damien, the owner, from the first call to closing.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="land">
+  <div class="wrap">
+    <h2>Any land, in any condition.</h2>
+    <p class="intro">We buy across North Carolina, South Carolina, Georgia, Tennessee and Florida.</p>
+    <div class="types">
+      <div class="type"><img src="https://images.pexels.com/photos/16656278/pexels-photo-16656278.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Hardwood forest in fall" loading="lazy"><div><h3>Wooded land</h3><p>Timber, overgrown or never cleared.</p></div></div>
+      <div class="type"><img src="https://images.pexels.com/photos/1481264/pexels-photo-1481264.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Plowed farm field" loading="lazy"><div><h3>Farm and pasture</h3><p>Small tracts to larger acreage.</p></div></div>
+      <div class="type"><img src="https://images.pexels.com/photos/1574547/pexels-photo-1574547.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Rolling green field with a single tree" loading="lazy"><div><h3>Residential lots</h3><p>In town or in a subdivision, with or without utilities.</p></div></div>
+      <div class="type"><img src="https://images.pexels.com/photos/13847365/pexels-photo-13847365.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Trail through tall trees" loading="lazy"><div><h3>Rural and landlocked</h3><p>Road frontage or not. We'll look at it.</p></div></div>
+    </div>
+    <p class="also">Also commercial parcels, flood areas, and land you inherited and have never seen. If you're not sure, ask.</p>
+  </div>
+</section>
+
+<section id="words" style="padding-top:20px">
+  <div class="wrap">
+    <h2>From landowners we've worked with.</h2>
+    <div class="words" id="wordsList">
+      <div class="quote"><p>From start to finish, the team was professional, transparent, and fast. I never thought selling my land could be this simple. Highly recommend to anyone looking to sell property in North Carolina.</p><cite>James R., Charlotte, NC</cite></div>
+      <div class="quote"><p>We closed our land in two weeks. Very smooth process and the attorneys at Southern Law Group were great. Would absolutely work with Dominion Land Group again.</p><cite>Charles &amp; Rebecca, North Carolina</cite></div>
+    </div>
+  </div>
+</section>
+
+<section class="about" id="about">
+  <div class="wrap">
+    <div>
+      <h2>A local land buyer that keeps its word.</h2>
+      <p style="margin-top:18px">I'm Damien Dupee. I started Dominion Land Group in 2016 to give landowners a simple, honest way to sell, especially families dealing with inherited land, back taxes or property they no longer use.</p>
+      <p>Every offer comes from me, and I'll be on the phone with you until the money is in your hands. If selling to us isn't the right move for you, I'll tell you that too.</p>
+      <p class="verse">“A good name is to be chosen rather than great riches.”<small>Proverbs 22:1</small></p>
+    </div>
+    <div>
+      <div class="facts"><div><b>2016</b><span>Buying land since</span></div><div><b>5</b><span>States we buy in</span></div><div><b>24–48h</b><span>To your offer</span></div></div>
+      <div class="pic"><img src="https://images.pexels.com/photos/130116/pexels-photo-130116.jpeg?auto=compress&cs=tinysrgb&w=1000" alt="Evergreen trees" loading="lazy" style="aspect-ratio:16/10;object-fit:cover;width:100%"></div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap faq">
+    <h2 style="margin-bottom:28px">Questions sellers ask us</h2>
+    <details><summary>Is there any cost to me?</summary><p>No. There are no commissions or fees, and we pay the normal closing costs. The offer we agree on is what you receive.</p></details>
+    <details><summary>How fast will I get an offer?</summary><p>Usually within 24 to 48 hours. If we need a detail like the parcel number, we'll call you.</p></details>
+    <details><summary>Can I just call instead?</summary><p>Of course. Call or text (980) 990-2356 and you'll reach Damien.</p></details>
+    <details><summary>The land has back taxes, liens or several heirs. Can you still buy it?</summary><p>Very often, yes. We work through these with the closing attorney all the time and will tell you honestly what it takes.</p></details>
+    <details><summary>How do I get paid?</summary><p>The closing attorney pays you by wire or check once everything is signed and recorded.</p></details>
+    <details><summary>What do you do with the land after?</summary><p>We may hold it, resell it to a builder or a family, or help get something built on it.</p></details>
+  </div>
+</section>
+
+<section class="get" id="get">
+  <div class="wrap">
+    <div>
+      <h2>Get your cash offer.</h2>
+      <p class="intro">Send what you know. A parcel number or address is perfect, but a county and your name is enough to start.</p>
+      <div class="direct">Prefer to talk?<a href="tel:+19809902356">(980) 990-2356</a>Email<a href="mailto:damien@dominionlandgroup.land" style="font-size:18px">damien@dominionlandgroup.land</a></div>
+    </div>
+    <form class="form" id="leadForm" novalidate>
+      <div class="grid2">
+        <div class="field"><label for="f_name">Your name</label><input id="f_name" name="name" autocomplete="name" required></div>
+        <div class="field"><label for="f_phone">Phone</label><input id="f_phone" name="phone" type="tel" autocomplete="tel"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label for="f_email">Email</label><input id="f_email" name="email" type="email" autocomplete="email"></div>
+        <div class="field"><label for="f_code">Offer code (from your letter)</label><input id="f_code" name="offer_code" placeholder="Optional"></div>
+      </div>
+      <div class="field"><label for="f_addr">Property address or parcel number</label><input id="f_addr" name="address"></div>
+      <div class="field"><label for="f_county">County and state</label><input id="f_county" name="county" placeholder="e.g. Gaston, NC"></div>
+      <div class="field"><label for="f_msg">Anything else we should know?</label><textarea id="f_msg" name="message" placeholder="Acreage, road access, inherited, back taxes, your timeline…"></textarea></div>
+      <button class="btn btn-purple" type="submit" style="width:100%">Send my information</button>
+      <p class="hint">We need a phone number or email to reach you.</p>
+      <div id="fmsg" aria-live="polite"></div>
+    </form>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><b style="color:#fff;font-size:16px">Dominion Land Group</b><br>Buying land in NC, SC, GA, TN and FL since 2016.</div>
+    <div><a href="tel:+19809902356">(980) 990-2356</a><br><a href="mailto:damien@dominionlandgroup.land">damien@dominionlandgroup.land</a></div>
+    <div><a href="#how">How it works</a><br><a href="#faq">Questions</a><br><a href="#get">Get my offer</a></div>
+    <div class="legal">© <span id="yr"></span> Dominion Land Group. All rights reserved. · <a href="https://dominionlandgroup.land/terms-and-conditions">Terms</a> · <a href="https://dominionlandgroup.land/privacy-policy">Privacy</a></div>
+  </div>
+</footer>
+
+<script>
+document.getElementById('yr').textContent=new Date().getFullYear();
+const sb=supabase.createClient('https://gdejlpdltnstbwtdpggm.supabase.co','sb_publishable_E9jIHC9hz6oleR4Qd-68bA_ZWEVcAQ_');
+// offer code: check it, then carry it into the form
+document.getElementById('codeForm').addEventListener('submit',async e=>{e.preventDefault();const v=document.getElementById('codeIn').value.trim().toUpperCase();const m=document.getElementById('codeMsg');
+  if(!v){m.textContent='Type the code from your letter, like 310-021.';return}
+  m.textContent='Looking it up…';const {data,error}=await sb.rpc('web_offer_lookup',{p_code:v});
+  document.getElementById('f_code').value=v;
+  m.textContent=error?'We\'ll match it on our side. Add your details below.':data?'Found it. Add your name and phone below and we\'ll call you.':'We couldn\'t find that code. Double-check it, or just send your details below.';
+  setTimeout(()=>document.getElementById('get').scrollIntoView({behavior:'smooth'}),600);setTimeout(()=>document.getElementById('f_name').focus({preventScroll:true}),1300)});
+// lead form -> DLG HQ seller inbox
+document.getElementById('leadForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.target,d=Object.fromEntries(new FormData(f)),m=document.getElementById('fmsg');
+  if(!d.phone.trim()&&!d.email.trim()){m.style.color='#b23b3b';m.textContent='Add a phone number or email so we can reach you.';return}
+  const b=f.querySelector('button');b.disabled=true;b.textContent='Sending…';m.textContent='';
+  const {error}=await sb.rpc('submit_web_lead',{p_name:d.name,p_phone:d.phone,p_email:d.email,p_address:d.address,p_county:d.county,p_apn:null,p_offer_code:d.offer_code,p_message:d.message});
+  b.disabled=false;b.textContent='Send my information';
+  if(error){m.style.color='#b23b3b';m.textContent='That didn\'t go through. Please call (980) 990-2356 and we\'ll take it by phone.';return}
+  f.reset();m.style.color='#1a7a48';m.textContent='Got it. Damien will reach out within one business day.'});
+// approved testimonials from DLG HQ appear here automatically
+sb.rpc('public_testimonials').then(({data})=>{if(!data||!data.length)return;const el=document.getElementById('wordsList');const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  el.innerHTML=data.slice(0,4).map(t=>`<div class="quote"><p>${esc(t.body)}</p><cite>${esc(t.name)}${t.location?', '+esc(t.location):''}</cite></div>`).join('')+el.innerHTML});
+</script>
+</body>
+</html>
