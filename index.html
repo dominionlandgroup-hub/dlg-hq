@@ -1075,9 +1075,19 @@ async function addLead(){const v=i=>$(i).value||null;const r={first_name:v('a_fi
 
 // ---------- buyers ----------
 async function vBuyers(){const {data}=await sb.from('buyers').select('*').order('name');
+  $('actions').innerHTML=`<button class="btn" onclick="editBuyer(0)">+ Add Buyer</button>`;
   $('view').innerHTML=`<div class="card" style="padding:10px"><input id="bq" placeholder="Filter by name, county or buy box"></div><div class="card" style="padding:0;overflow-x:auto"><table id="btab"></table></div>`;
-  const draw=()=>{const f=$('bq').value.toLowerCase();$('btab').innerHTML=`<tr><th>Name</th><th>Counties</th><th>Buy box</th><th>Contact</th><th>Type</th></tr>`+(data||[]).filter(b=>!f||JSON.stringify(b).toLowerCase().includes(f)).map(b=>`<tr><td><b>${esc(b.name)}</b><div class="small muted">${esc(b.company||'')}</div></td><td>${esc((b.counties||[]).join(', '))}</td><td class="small">${esc(b.buy_box||'')}</td><td class="small">${b.phone?`<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>`:''}<br>${esc(b.email||'')}</td><td><span class="pill">${esc(b.kind)}</span></td></tr>`).join('')};
+  const draw=()=>{const f=$('bq').value.toLowerCase();$('btab').innerHTML=`<tr><th>Name</th><th>Counties</th><th>Buy box</th><th>Contact</th><th>Type</th></tr>`+(data||[]).filter(b=>!f||JSON.stringify(b).toLowerCase().includes(f)).map(b=>`<tr class="click" onclick="editBuyer(${b.id})"><td><b>${esc(b.name)}</b><div class="small muted">${esc(b.company||'')}</div></td><td>${esc((b.counties||[]).join(', '))}</td><td class="small">${esc(b.buy_box||'')}</td><td class="small">${b.phone?`<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>`:''}<br>${esc(b.email||'')}</td><td><span class="pill">${esc(b.kind)}</span></td></tr>`).join('')};
   $('bq').oninput=draw;draw()}
+async function editBuyer(id){const [{data:b},{data:dl}]=await Promise.all([id?sb.from('buyers').select('*').eq('id',id).single():{data:{kind:'buyer'}},id?sb.from('deals').select('id,status,property_label,leads(full_name),properties(county,county_state,city)').eq('buyer_id',id):{data:[]}]);
+  const f=(k,l,v)=>`<label class="f">${l}</label><input id="b_${k}" value="${esc(v??'')}">`;
+  openDrawer(head(id?esc(b.name):'New buyer')+`<div class="card">${f('name','Name',b.name)}${f('company','Company',b.company)}<div class="g2">${f('phone','Phone',b.phone)}${f('email','Email',b.email)}</div>
+   ${f('counties','Counties they buy in (comma separated)',(b.counties||[]).join(', '))}<label class="f">Buy box</label><textarea id="b_buy_box">${esc(b.buy_box||'')}</textarea>
+   <label class="f">Type</label><select id="b_kind">${['buyer','agent','builder','lender'].map(k=>`<option ${k===b.kind?'selected':''}>${k}</option>`).join('')}</select>
+   <div class="row" style="margin-top:12px"><button class="btn" onclick="saveBuyer(${id||0})">Save buyer</button></div></div>
+   <div class="card"><b>Deals with this buyer</b>${(dl||[]).map(x=>`<div style="margin-top:6px"><a href="#" onclick="openDeal(${x.id});return false">${esc(x.leads?.full_name||x.property_label||'Deal')}</a> <span class="small muted">${esc([x.properties?.city,x.properties?.county].filter(Boolean).join(', '))} · ${x.status==='won'?'closed':x.status}</span></div>`).join('')||'<div class="muted small" style="margin-top:6px">None linked yet. Pick this buyer on a deal (Deal terms → Buyer) and it shows here.</div>'}</div>`)}
+async function saveBuyer(id){const v=k=>$('b_'+k).value.trim()||null;const r={name:v('name'),company:v('company'),phone:v('phone'),email:v('email'),buy_box:v('buy_box'),kind:v('kind')||'buyer',counties:(v('counties')||'').split(',').map(x=>x.trim()).filter(Boolean)};
+  if(!r.name)return toast('Name is required');const {error}=id?await sb.from('buyers').update(r).eq('id',id):await sb.from('buyers').insert(r);if(error)return toast(error.message);BUYERS=null;toast('Saved');closeDrawer();vBuyers()}
 
 // ---------- auto followup ----------
 async function vFollowup(){
