@@ -5,30 +5,33 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DLG HQ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-:root{--bg:#f5f4ef;--card:#fff;--ink:#1b2a22;--muted:#6b7a71;--line:#e4e2da;--brand:#1f4d36;--brand2:#2f6b4c;--accent:#c8a24a;--red:#b23b3b;--chip:#eef3ef;--side:#16382a;--hot:#d9480f}
+:root{color-scheme:light;--bg:#f7f6fa;--card:#fff;--ink:#231b30;--muted:#6e6880;--line:#e7e3ee;--brand:#5C2977;--brand2:#7a3f9c;--accent:#D5A940;--gold:#D5A940;--gold-d:#a7822a;--red:#b23b3b;--chip:#f2ecf7;--side:#ffffff;--hot:#d9480f}
 *{box-sizing:border-box}html,body{height:100%}
 body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
 a{color:var(--brand2)}button{font:inherit;cursor:pointer}
 .hidden{display:none!important}
 .center{max-width:400px;margin:12vh auto;padding:0 16px}
 #app{display:flex;height:100vh}
-aside{width:220px;background:var(--side);color:#dfe9e2;display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
-aside .logo{padding:18px 18px 14px;font-weight:700;font-size:17px;color:#fff;letter-spacing:.2px}
-aside .logo small{display:block;font-weight:500;font-size:11px;color:#9fb8a8;letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
-aside .grp{padding:14px 18px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:#86a294}
-aside a.nav{display:flex;align-items:center;gap:8px;padding:8px 18px;color:#dfe9e2;text-decoration:none;border-left:3px solid transparent;cursor:pointer}
-aside a.nav:hover{background:#ffffff10}
-aside a.nav.on{background:#ffffff18;border-left-color:var(--accent);color:#fff;font-weight:600}
-aside a.nav .badge{margin-left:auto;background:var(--accent);color:#1b2a22;border-radius:999px;font-size:11px;padding:1px 7px;font-weight:700}
-aside .foot{margin-top:auto;padding:14px 18px;font-size:12px;color:#9fb8a8}
-aside .foot button{background:none;border:1px solid #ffffff40;color:#dfe9e2;border-radius:7px;padding:5px 10px;margin-top:6px}
+aside{width:230px;background:var(--side);color:var(--ink);border-right:1px solid var(--line);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+aside .logo{padding:16px 18px 12px;font-family:Montserrat,Inter,sans-serif;font-weight:700;font-size:17px;color:var(--brand);letter-spacing:.2px;display:flex;align-items:center;gap:10px}aside .logo .ico{width:40px;height:40px;flex:0 0 40px}
+aside .logo small{display:block;font-weight:600;font-size:10px;color:var(--gold-d);letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
+aside .grp{padding:14px 18px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted)}
+aside a.nav{display:flex;align-items:center;gap:8px;padding:8px 18px;color:var(--ink);text-decoration:none;border-left:3px solid transparent;cursor:pointer}
+aside a.nav:hover{background:var(--chip)}
+aside a.nav.on{background:var(--chip);border-left-color:var(--gold);color:var(--brand);font-weight:700}
+aside a.nav .badge{margin-left:auto;background:var(--gold);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;font-weight:700}
+aside .foot{margin-top:auto;padding:14px 18px;font-size:12px;color:var(--muted);border-top:1px solid var(--line)}
+.verse{font-family:Montserrat,Inter,sans-serif;font-weight:600;color:var(--brand);font-size:12.5px;line-height:1.35}.verse small{display:block;color:var(--gold-d);font-weight:600;margin-top:3px;font-size:10.5px;letter-spacing:.4px}
+.vbanner{display:flex;align-items:center;gap:12px;background:linear-gradient(90deg,#fff,#fbf7ec);border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:12px;padding:10px 14px;margin-bottom:14px}.vbanner .ico{width:30px;height:30px;flex:0 0 30px}.vbanner .verse{font-size:14px}
+h1,h2,h3,.sec{font-family:Montserrat,Inter,sans-serif}
+aside .foot button{background:none;border:1px solid var(--line);color:var(--brand);border-radius:7px;padding:5px 10px;margin-top:6px}
 main{flex:1;overflow:auto;padding:22px 26px}
 .topbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
 .topbar h1{font-size:21px;margin:0;flex:1;min-width:160px}
@@ -54,9 +57,17 @@ th{color:var(--muted);font-weight:500;font-size:12px}tr.click{cursor:pointer}tr.
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .kpi .v{font-size:22px;font-weight:700;color:var(--brand)}.kpi .l{color:var(--muted);font-size:12px}
 .kpi.gold{border-top:3px solid var(--accent)}
+.gsearch{margin:-8px 0 14px}.gwrap{position:relative;max-width:520px}.gwrap input{padding-right:40px}.gbtn{position:absolute;right:4px;top:4px;border:0;background:none;font-size:18px;color:var(--muted)}
+.gres{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.14);z-index:50;max-height:70vh;overflow:auto}
+.gres .gh{display:flex;justify-content:space-between;background:#f1f0eb;padding:7px 12px;font-size:12px;font-weight:700}.gres a{display:block;padding:9px 12px;border-top:1px solid var(--line);text-decoration:none;color:var(--ink)}.gres a:hover{background:var(--chip)}
+.gres a b{color:#5C2977}.gres .sm{font-size:12px;color:var(--muted)}mark{background:#fff1a8;padding:0}
+.rhead{display:flex;gap:24px;align-items:center;flex-wrap:wrap}.rhead .nm{flex:1;min-width:200px}.rhead .nm small{color:var(--muted);display:block}.rhead .nm b{color:#5C2977;font-size:19px}
+.rgrid{display:grid;grid-template-columns:minmax(260px,1fr) 2fr;gap:14px}.rgrid .card{margin:0 0 14px}
+.codechip{display:inline-block;border:1px solid var(--line);border-left:4px solid #D5A940;border-radius:6px;padding:3px 12px;color:#2d5a8a}
+@media(max-width:900px){.rgrid{grid-template-columns:1fr}}
 .ctable th{white-space:nowrap}.sortable{cursor:pointer;user-select:none}.sortable .arr{color:var(--muted);font-size:11px}
-a.cname{color:#e05a3a;font-weight:600;text-decoration:none}.pager{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:8px 0}
-.mprog{display:flex;align-items:center;gap:8px;min-width:170px}.mprog .trk{flex:1;height:7px;background:var(--chip);border-radius:6px;overflow:hidden}.mprog .trk span{display:block;height:100%;background:#15B79E}.mprog .ok{color:#1a9e5a;font-weight:600}
+a.cname{color:#5C2977;font-weight:600;text-decoration:none}.pager{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:8px 0}
+.mprog{display:flex;align-items:center;gap:8px;min-width:170px}.mprog .trk{flex:1;height:7px;background:var(--chip);border-radius:6px;overflow:hidden}.mprog .trk span{display:block;height:100%;background:var(--gold)}.mprog .ok{color:#1a9e5a;font-weight:600}
 .menu{position:relative;display:inline-block}.mlist{display:none;position:absolute;right:0;top:100%;z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:190px;padding:6px}
 .mlist a{display:block;padding:8px 10px;border-radius:7px;color:var(--ink);text-decoration:none;font-size:14px}.mlist a:hover{background:var(--chip)}
 .card.rec{display:flex;gap:12px;align-items:flex-start}.card.rec .rl{flex:1;min-width:0}.card.rec .rr{flex:1.6;margin:0;padding:10px 12px}.card.rec address{font-style:normal;margin:4px 0 8px;color:var(--muted)}
@@ -64,7 +75,7 @@ a.cname{color:#e05a3a;font-weight:600;text-decoration:none}.pager{display:flex;a
 @media(max-width:900px){.card.rec{flex-direction:column}}
 .pgrid{display:grid;grid-template-columns:1.6fr 1fr;gap:14px}.pgrid>.card{margin:0}
 .pstats{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;text-align:center;align-items:end}
-.pst .l{color:var(--ink);font-size:12px;line-height:1.25}.pst .l.big{color:#e05a3a;font-weight:700;font-size:17px}.pst .v{font-weight:700;font-size:17px;margin-top:8px}
+.pst .l{color:var(--ink);font-size:12px;line-height:1.25}.pst .l.big{color:#5C2977;font-weight:700;font-size:17px}.pst .v{font-weight:700;font-size:17px;margin-top:8px}
 table.roi th{font-size:11.5px;color:var(--muted);font-weight:600;vertical-align:bottom}table.roi tr.grp th{background:#f1f0eb;color:var(--ink);font-size:13px;text-align:left}
 table.roi .bl{border-left:1px solid var(--line)}table.roi tr.tot td{background:#f5f4ef}
 @media(max-width:900px){.pgrid{grid-template-columns:1fr}.pstats{grid-template-columns:repeat(3,1fr)}}
@@ -117,7 +128,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
 
 <section id="login" class="center hidden">
   <div class="card">
-    <h2 style="margin-top:0">DLG HQ</h2>
+    <div style="text-align:center;margin-bottom:12px"><svg style="width:64px;height:64px;display:block;margin:0 auto 8px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 207.27 203.63"><defs><style>.cls-1{fill:#d5a940;}.cls-2{fill:#5c2977;}</style></defs><g id="Capa_2" data-name="Capa 2"><g id="Capa_4" data-name="Capa 4"><path class="cls-1" d="M134.08,106l73.19,18.29-53.77-8q-11-2.23-22.73-3.49a28.62,28.62,0,1,0-54.26,0c-7.83.83-15.43,2-22.72,3.49L0,124.25l72.25-18L22.4,104l50.79-2.69L0,83,73.66,94,28.45,72.9l48,16.94L15.78,44.93,79.63,83.25,45.93,46.46l37.82,34L44.93,15.78,89.25,75.62l-17-46.89,21.93,45.9L83,0l18,72.25,2.19-49.85L106,73.2,124.25,0l-11,73.66,21.1-45.22-16.94,48,44.9-60.62L124,79.63l36.79-33.69-34,37.82,64.68-38.83L131.66,89.26l46.89-17.05-45.9,21.93L207.27,83,135,101.08l49.84,2.19Z"/><path class="cls-2" d="M141,185v0c-1.31-.3-2.62-.58-3.94-.83v0C138.34,184.45,139.66,184.72,141,185Z"/><path class="cls-2" d="M146.88,186.23q-2.94-.79-5.91-1.47V160.57a3.14,3.14,0,0,0-1.26-2.5l-16.23-11.92V118.43a3.11,3.11,0,0,0-1.06-2.33l-5-4.4-11.8-10.29a3.08,3.08,0,0,0-4.11,0L90.18,111.69l-4.89,4.44a3.05,3.05,0,0,0-1,2.29v9.06L67.47,140.85a3.07,3.07,0,0,0-1.16,2.41v41.5c-2,.45-4,.94-5.91,1.47a132.1,132.1,0,0,0-39.61,17.4,262.22,262.22,0,0,1,41.09-10.57c1.74-.28,3.46-.58,5.2-.79s3.45-.55,5.2-.74c3.46-.45,7-.8,10.43-1.06,7-.6,13.94-.94,20.92-.86,7-.08,14,.26,20.94.86q5.22.39,10.43,1.06c1.73.19,3.46.51,5.2.74s3.46.51,5.19.79a262.05,262.05,0,0,1,41.1,10.57A132.32,132.32,0,0,0,146.88,186.23Zm-62.6-4.45c-.82.08-1.64.16-2.46.26-1.09.15-2.17.32-3.26.48,0-.7-.09-1.4-.13-2.1q-.66-10.56-1.32-21.12l-.34,0c-.44,7.91-.89,15.81-1.28,23.72-1.48.25-3,.51-4.45.79l-.8.15V143.67l14-11.16Zm17.29-1.09h0c-1.78,0-3.55.08-5.33.17,0-1.87-.09-3.74-.16-5.6q-.63-19.55-1.28-39.06l-.33,0c-.47,15-1,29.9-1.35,44.86-1.64.1-3.28.21-4.91.35V118.79l8.09-7.34,5.27-4.78Zm18,.73h0c-1.86-.17-3.74-.31-5.6-.41,0-1.91-.09-3.83-.16-5.75q-.63-19.55-1.28-39.06l-.33,0c-.46,14.9-1,29.79-1.34,44.69h0c-1.77-.08-3.54-.14-5.3-.17V106.55l5.61,4.91,8.43,7.35ZM137,183.94h0l-.79-.15c-1.56-.3-3.12-.57-4.68-.83h0c0-.31-.07-.62-.11-.93q-.68-6.18-1.34-12.35h-.33c-.41,4.27-.82,8.54-1.18,12.81h0l-3.1-.44-2-.23V151L137,161Z"/></g></g></svg><h2 style="margin:0;color:var(--brand)">DLG HQ</h2><div class="small" style="color:var(--gold-d);font-weight:600;letter-spacing:.4px">KINGDOM FIRST</div><div class="verse" style="margin-top:10px" id="verse2"></div></div>
     <input id="email" type="email" placeholder="Email" style="margin-bottom:8px">
     <input id="pw" type="password" placeholder="Password" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')signIn()">
     <div class="row"><button class="btn" onclick="signIn()">Sign in</button><button class="btn ghost" onclick="signUp()">Create login</button></div>
@@ -127,7 +138,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
 
 <div id="app" class="hidden">
   <aside id="side">
-    <div class="logo">DLG HQ<small>Dominion Land Group</small></div>
+    <div class="logo"><svg class="ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 207.27 203.63"><defs><style>.cls-1{fill:#d5a940;}.cls-2{fill:#5c2977;}</style></defs><g id="Capa_2" data-name="Capa 2"><g id="Capa_4" data-name="Capa 4"><path class="cls-1" d="M134.08,106l73.19,18.29-53.77-8q-11-2.23-22.73-3.49a28.62,28.62,0,1,0-54.26,0c-7.83.83-15.43,2-22.72,3.49L0,124.25l72.25-18L22.4,104l50.79-2.69L0,83,73.66,94,28.45,72.9l48,16.94L15.78,44.93,79.63,83.25,45.93,46.46l37.82,34L44.93,15.78,89.25,75.62l-17-46.89,21.93,45.9L83,0l18,72.25,2.19-49.85L106,73.2,124.25,0l-11,73.66,21.1-45.22-16.94,48,44.9-60.62L124,79.63l36.79-33.69-34,37.82,64.68-38.83L131.66,89.26l46.89-17.05-45.9,21.93L207.27,83,135,101.08l49.84,2.19Z"/><path class="cls-2" d="M141,185v0c-1.31-.3-2.62-.58-3.94-.83v0C138.34,184.45,139.66,184.72,141,185Z"/><path class="cls-2" d="M146.88,186.23q-2.94-.79-5.91-1.47V160.57a3.14,3.14,0,0,0-1.26-2.5l-16.23-11.92V118.43a3.11,3.11,0,0,0-1.06-2.33l-5-4.4-11.8-10.29a3.08,3.08,0,0,0-4.11,0L90.18,111.69l-4.89,4.44a3.05,3.05,0,0,0-1,2.29v9.06L67.47,140.85a3.07,3.07,0,0,0-1.16,2.41v41.5c-2,.45-4,.94-5.91,1.47a132.1,132.1,0,0,0-39.61,17.4,262.22,262.22,0,0,1,41.09-10.57c1.74-.28,3.46-.58,5.2-.79s3.45-.55,5.2-.74c3.46-.45,7-.8,10.43-1.06,7-.6,13.94-.94,20.92-.86,7-.08,14,.26,20.94.86q5.22.39,10.43,1.06c1.73.19,3.46.51,5.2.74s3.46.51,5.19.79a262.05,262.05,0,0,1,41.1,10.57A132.32,132.32,0,0,0,146.88,186.23Zm-62.6-4.45c-.82.08-1.64.16-2.46.26-1.09.15-2.17.32-3.26.48,0-.7-.09-1.4-.13-2.1q-.66-10.56-1.32-21.12l-.34,0c-.44,7.91-.89,15.81-1.28,23.72-1.48.25-3,.51-4.45.79l-.8.15V143.67l14-11.16Zm17.29-1.09h0c-1.78,0-3.55.08-5.33.17,0-1.87-.09-3.74-.16-5.6q-.63-19.55-1.28-39.06l-.33,0c-.47,15-1,29.9-1.35,44.86-1.64.1-3.28.21-4.91.35V118.79l8.09-7.34,5.27-4.78Zm18,.73h0c-1.86-.17-3.74-.31-5.6-.41,0-1.91-.09-3.83-.16-5.75q-.63-19.55-1.28-39.06l-.33,0c-.46,14.9-1,29.79-1.34,44.69h0c-1.77-.08-3.54-.14-5.3-.17V106.55l5.61,4.91,8.43,7.35ZM137,183.94h0l-.79-.15c-1.56-.3-3.12-.57-4.68-.83h0c0-.31-.07-.62-.11-.93q-.68-6.18-1.34-12.35h-.33c-.41,4.27-.82,8.54-1.18,12.81h0l-3.1-.44-2-.23V151L137,161Z"/></g></g></svg><div>DLG HQ<small>Dominion Land Group · Kingdom First</small></div></div>
     <a class="nav" data-v="dashboard">Dashboard</a>
     <a class="nav" data-v="campaigns">Campaigns</a>
     <div class="grp">Inboxes</div>
@@ -145,9 +156,10 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <a class="nav" data-v="templates">Templates</a>
     <a class="nav" data-v="tasks">Tasks</a>
     <a class="nav" data-v="import">Import</a>
-    <div class="foot"><span id="who"></span><br><button onclick="sb.auth.signOut().then(boot)">Sign out</button></div>
+    <div class="foot"><div id="verse" class="verse" style="margin-bottom:12px"></div><span id="who"></span><br><button onclick="sb.auth.signOut().then(boot)">Sign out</button></div>
   </aside>
   <main>
+    <div class="gsearch"><div class="gwrap"><input id="gq" placeholder="Search offer codes, contacts, phones, APNs, addresses, deals" autocomplete="off"><button class="gbtn" onclick="go('search:'+encodeURIComponent($('gq').value.trim()))">⌕</button><div id="gres" class="gres"></div></div></div>
     <div class="topbar"><button class="btn ghost sm" id="mtoggle" onclick="$('side').classList.toggle('open')">☰</button><h1 id="title">Dashboard</h1><div id="actions"></div></div>
     <div id="view"></div>
   </main>
@@ -192,12 +204,19 @@ const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox
  followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights};
 const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
-function go(v){const m=/^campaign:(\d+)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');vCampaign(+m[1]);return}
+function go(v){const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch(decodeURIComponent(m[2]));return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
   document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v===v));
   $('title').textContent=TITLES[v];$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');VIEWS[v]()}
 
 // ---------- dashboard ----------
+
+// ---------- Kingdom first: a short word for the day ----------
+const VERSES=[['Pray for wisdom.','James 1:5'],['The results are the LORD’s.','Proverbs 21:31'],['Peace, be still.','Mark 4:39'],['Seek first the Kingdom.','Matthew 6:33'],['Commit your work to the LORD.','Proverbs 16:3'],['Be strong and courageous.','Joshua 1:9'],['Faithful in little, faithful in much.','Luke 16:10'],['Do everything in love.','1 Corinthians 16:14'],['Trust in the LORD with all your heart.','Proverbs 3:5'],['Work as unto the Lord.','Colossians 3:23'],['The LORD will provide.','Genesis 22:14'],['Be still, and know that I am God.','Psalm 46:10'],['With God all things are possible.','Matthew 19:26'],['Let your light shine.','Matthew 5:16']];
+function verseHTML(){const d=new Date();const i=(d.getFullYear()*372+d.getMonth()*31+d.getDate())%VERSES.length;const [t,r]=VERSES[i];return `${esc(t)}<small>${esc(r)}</small>`}
+function showVerse(){for(const id of ['verse','verse2']){const v=document.getElementById(id);if(v)v.innerHTML=verseHTML()}}
+document.addEventListener('DOMContentLoaded',showVerse);setTimeout(showVerse,0);
+
 // ---------- dashboard (modeled on Pebble) ----------
 function dashRange(){const k=store.get('dashRange')||'30d';const t=new Date();t.setHours(12,0,0,0);const iso=d=>d.toISOString().slice(0,10);let a=new Date(t),b=new Date(t);
   if(k==='week'){a.setDate(t.getDate()-t.getDay())}else if(k==='month'){a=new Date(t.getFullYear(),t.getMonth(),1,12)}else if(k==='quarter'){a=new Date(t.getFullYear(),Math.floor(t.getMonth()/3)*3,1,12)}
@@ -252,9 +271,9 @@ async function vDashboard(){
     const hit=new Set((crs||[]).filter(x=>cIds.has(x.campaign_id)).map(x=>x.property_id));rows.forEach(r=>{if(r.buy&&r.sell&&hit.has(r.p?.id))attrProfit+=(+r.sell.price)-(+r.buy.price)-(+r.buy.costs||0)-(+r.sell.costs||0)})}}
   const roas=cSpent?attrProfit/cSpent*100:0;
   const S={conv:Math.round(h.conv)+live.conv,calls:Math.round(h.calls)+live.calls,missed:Math.round(h.missed)+live.missed,talk:h.talk+live.talk,texts:Math.round(h.texts)+live.texts,emails:Math.round(h.emails)+live.emails};
-  const pc=v=>`<span style="color:${v>0?'#1a9e5a':v<0?'var(--red)':'#e05a3a'}">${v.toFixed(2)}%</span>`;
+  const pc=v=>`<span style="color:${v>0?'#1a9e5a':v<0?'var(--red)':'#5C2977'}">${v.toFixed(2)}%</span>`;
   const stat=(l,v)=>`<div class="pst"><div class="l">${l}</div><div class="v">${v}</div></div>`;
-  $('view').innerHTML=`
+  $('view').innerHTML=`<div class="vbanner"><svg class="ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 207.27 203.63"><defs><style>.cls-1{fill:#d5a940;}.cls-2{fill:#5c2977;}</style></defs><g id="Capa_2" data-name="Capa 2"><g id="Capa_4" data-name="Capa 4"><path class="cls-1" d="M134.08,106l73.19,18.29-53.77-8q-11-2.23-22.73-3.49a28.62,28.62,0,1,0-54.26,0c-7.83.83-15.43,2-22.72,3.49L0,124.25l72.25-18L22.4,104l50.79-2.69L0,83,73.66,94,28.45,72.9l48,16.94L15.78,44.93,79.63,83.25,45.93,46.46l37.82,34L44.93,15.78,89.25,75.62l-17-46.89,21.93,45.9L83,0l18,72.25,2.19-49.85L106,73.2,124.25,0l-11,73.66,21.1-45.22-16.94,48,44.9-60.62L124,79.63l36.79-33.69-34,37.82,64.68-38.83L131.66,89.26l46.89-17.05-45.9,21.93L207.27,83,135,101.08l49.84,2.19Z"/><path class="cls-2" d="M141,185v0c-1.31-.3-2.62-.58-3.94-.83v0C138.34,184.45,139.66,184.72,141,185Z"/><path class="cls-2" d="M146.88,186.23q-2.94-.79-5.91-1.47V160.57a3.14,3.14,0,0,0-1.26-2.5l-16.23-11.92V118.43a3.11,3.11,0,0,0-1.06-2.33l-5-4.4-11.8-10.29a3.08,3.08,0,0,0-4.11,0L90.18,111.69l-4.89,4.44a3.05,3.05,0,0,0-1,2.29v9.06L67.47,140.85a3.07,3.07,0,0,0-1.16,2.41v41.5c-2,.45-4,.94-5.91,1.47a132.1,132.1,0,0,0-39.61,17.4,262.22,262.22,0,0,1,41.09-10.57c1.74-.28,3.46-.58,5.2-.79s3.45-.55,5.2-.74c3.46-.45,7-.8,10.43-1.06,7-.6,13.94-.94,20.92-.86,7-.08,14,.26,20.94.86q5.22.39,10.43,1.06c1.73.19,3.46.51,5.2.74s3.46.51,5.19.79a262.05,262.05,0,0,1,41.1,10.57A132.32,132.32,0,0,0,146.88,186.23Zm-62.6-4.45c-.82.08-1.64.16-2.46.26-1.09.15-2.17.32-3.26.48,0-.7-.09-1.4-.13-2.1q-.66-10.56-1.32-21.12l-.34,0c-.44,7.91-.89,15.81-1.28,23.72-1.48.25-3,.51-4.45.79l-.8.15V143.67l14-11.16Zm17.29-1.09h0c-1.78,0-3.55.08-5.33.17,0-1.87-.09-3.74-.16-5.6q-.63-19.55-1.28-39.06l-.33,0c-.47,15-1,29.9-1.35,44.86-1.64.1-3.28.21-4.91.35V118.79l8.09-7.34,5.27-4.78Zm18,.73h0c-1.86-.17-3.74-.31-5.6-.41,0-1.91-.09-3.83-.16-5.75q-.63-19.55-1.28-39.06l-.33,0c-.46,14.9-1,29.79-1.34,44.69h0c-1.77-.08-3.54-.14-5.3-.17V106.55l5.61,4.91,8.43,7.35ZM137,183.94h0l-.79-.15c-1.56-.3-3.12-.57-4.68-.83h0c0-.31-.07-.62-.11-.93q-.68-6.18-1.34-12.35h-.33c-.41,4.27-.82,8.54-1.18,12.81h0l-3.1-.44-2-.23V151L137,161Z"/></g></g></svg><div class="verse">${verseHTML()}</div></div>
   <div class="pgrid">
    <div class="card"><h3 class="sec">Summary</h3><div class="pstats">${stat('Deals<br>added',kfmt(deals))}${stat('Offers<br>made',Math.round(h.offers)+offersLive)}${stat('Properties<br>purchased',purchased)}${stat('Properties<br>sold',sold)}${stat('Transaction<br>duration (Avg.)',avgDur+' days')}<div class="pst"><div class="l big">ROI</div><div class="v">${pc(roi)}</div></div></div></div>
    <div class="card"><h3 class="sec">Deals added</h3><div style="height:150px"><canvas id="chDeals"></canvas></div></div>
@@ -273,7 +292,7 @@ async function vDashboard(){
    ${rows.map(r=>{const bp=r.buy?+r.buy.price:null,bc=r.buy?+(r.buy.costs||0):0,sp=r.sell?+r.sell.price:null,sc=r.sell?+(r.sell.costs||0):0,ms=bp!=null?bp+bc+sc:null,pr=ms!=null&&sp!=null?sp-ms:null,du=r.buy&&r.sell?Math.round((new Date(r.sell.tx_date)-new Date(r.buy.tx_date))/864e5):null;
      const apn=r.p?.apn||(r.notes||'').replace('Pebble ROI: APN ','');
      return `<tr>${'<td>'+(r.p?.id?`<a href="#" onclick="openProperty(${r.p.id});return false">${esc(apn)}</a>`:esc(apn||'—'))+'</td>'}<td>${fmtDate(r.buy?.tx_date)}</td><td class="right num">${money(bp)}</td><td class="right">-</td><td class="right num">${bc?money(bc):'-'}</td><td class="bl">${fmtDate(r.sell?.tx_date)}</td><td class="right num">${money(sp)}</td><td>-</td><td class="right num">${sc?money(sc):'-'}</td><td class="right">-</td>
-       <td class="right num bl" style="color:#e07a1f">${money(ms)}</td><td class="right num" style="color:#1a9e5a">${money(sp)}</td><td class="right num" style="color:${pr<0?'var(--red)':'#1a9e5a'}">${money(pr)}</td><td class="right">${du!=null?du+' days':'-'}</td><td class="right num"><b>${pr!=null&&ms?pc(pr/ms*100):'-'}</b></td></tr>`}).join('')||'<tr><td colspan="15" class="muted">No purchases or sales in this date range.</td></tr>'}
+       <td class="right num bl" style="color:#a7822a">${money(ms)}</td><td class="right num" style="color:#1a9e5a">${money(sp)}</td><td class="right num" style="color:${pr<0?'var(--red)':'#1a9e5a'}">${money(pr)}</td><td class="right">${du!=null?du+' days':'-'}</td><td class="right num"><b>${pr!=null&&ms?pc(pr/ms*100):'-'}</b></td></tr>`}).join('')||'<tr><td colspan="15" class="muted">No purchases or sales in this date range.</td></tr>'}
    ${rows.length?`<tr class="tot"><td colspan="10"><b>TOTAL:</b></td><td class="bl"></td><td class="right num" style="color:#1a9e5a"><b>${money(rev)}</b></td><td class="right num" style="color:#1a9e5a"><b>${money(profit)}</b></td><td></td><td class="right num"><b>${pc(roi)}</b></td></tr>`:''}</table></div>`;
   // charts
   CHARTS.forEach(c=>c.destroy());CHARTS=[];if(!window.Chart)return;
@@ -283,15 +302,15 @@ async function vDashboard(){
       mail:(camps||[]).filter(c=>c.drop_date>=x&&c.drop_date<=y).reduce((s,c)=>s+(c.records||0),0),
       calls:Math.round(hh.calls)+mm.filter(m=>m.channel==='call').length,texts:Math.round(hh.texts)+mm.filter(m=>m.channel==='sms'&&m.direction==='out').length,emails:Math.round(hh.emails)+mm.filter(m=>m.channel==='email'&&m.direction==='out').length}});
   const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,boxWidth:6,boxHeight:6},align:'end'}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{precision:0}}}};
-  CHARTS.push(new Chart($('chDeals'),{type:'bar',data:{labels:L,datasets:[{label:'Seller Deals',data:per.map(p=>p.seller),backgroundColor:'#EF643D'},{label:'Buyer Deals',data:per.map(p=>p.buyer),backgroundColor:'#15B79E'}]},options:base}));
-  CHARTS.push(new Chart($('chMail'),{type:'line',data:{labels:L,datasets:[{label:'Mailings sent',data:per.map(p=>p.mail),borderColor:'#EF643D',backgroundColor:'#EF643D',tension:.4}]},options:base}));
-  CHARTS.push(new Chart($('chComm'),{type:'line',data:{labels:L,datasets:[{label:'Calls',data:per.map(p=>p.calls),borderColor:'#EF643D',backgroundColor:'#EF643D',tension:.4},{label:'Text Messages',data:per.map(p=>p.texts),borderColor:'#15B79E',backgroundColor:'#15B79E',tension:.4},{label:'Emails',data:per.map(p=>p.emails),borderColor:'#FFD953',backgroundColor:'#FFD953',tension:.4}]},options:base}));
+  CHARTS.push(new Chart($('chDeals'),{type:'bar',data:{labels:L,datasets:[{label:'Seller Deals',data:per.map(p=>p.seller),backgroundColor:'#5C2977'},{label:'Buyer Deals',data:per.map(p=>p.buyer),backgroundColor:'#D5A940'}]},options:base}));
+  CHARTS.push(new Chart($('chMail'),{type:'line',data:{labels:L,datasets:[{label:'Mailings sent',data:per.map(p=>p.mail),borderColor:'#5C2977',backgroundColor:'#5C2977',tension:.4}]},options:base}));
+  CHARTS.push(new Chart($('chComm'),{type:'line',data:{labels:L,datasets:[{label:'Calls',data:per.map(p=>p.calls),borderColor:'#5C2977',backgroundColor:'#5C2977',tension:.4},{label:'Text Messages',data:per.map(p=>p.texts),borderColor:'#D5A940',backgroundColor:'#D5A940',tension:.4},{label:'Emails',data:per.map(p=>p.emails),borderColor:'#9b86b5',backgroundColor:'#9b86b5',tension:.4}]},options:base}));
 }
 
 // ---------- boards ----------
 async function vBoard(board){
   $('actions').innerHTML=`<input id="bf" placeholder="Filter name / address / APN" style="width:210px"><select id="bp" style="width:auto"><option value="">Any priority</option><option>hot</option><option>warm</option><option>cold</option></select><button class="btn" onclick="newDeal('${board}')">+ Add Deal</button><button class="btn ghost" onclick="addStage('${board}')">+ Stage</button>`;
-  const {data,error}=await sb.from('deals').select('*, leads(id,full_name,first_name,last_name,phone), properties(apn,address,city,county,county_state,acres)').eq('board',board).order('position');
+  let data=[],error=null;for(let f=0;;f+=1000){const r=await sb.from('deals').select('*, leads(id,full_name,first_name,last_name,phone), properties(apn,address,city,county,county_state,acres)').eq('board',board).order('position').range(f,f+999);if(r.error){error=r.error;break}data.push(...r.data);if(r.data.length<1000)break}
   if(error){$('view').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
   window._deals=data||[];
   const draw=()=>{
@@ -435,12 +454,11 @@ function mailProgress(c){if(c.channel&&c.channel!=='mail')return '<span class="s
   const i=Math.max(0,MSTEPS.findIndex(s=>s[0]===(c.mail_status||'not_sent')));const pct=i/(MSTEPS.length-1)*100;
   return `<div class="mprog" title="${MSTEPS[i][1]}"><div class="trk"><span style="width:${pct}%"></span></div><span class="small ${i===4?'ok':''}">${MSTEPS[i][1]}</span></div>`}
 let CSTATE={q:'',sort:'drop_date',dir:'desc',page:0};
-function campStats(c,dc){const a=dc[c.id]||{n:0,offer:0,purchase:0,sale:0};const n=(c.pebble_deals||0)+a.n;
-  return {deals:n,resp:c.records?n/c.records*100:0,offers:(c.pebble_offers||0)+a.offer,purchases:(c.pebble_purchases||0)+a.purchase,sales:(c.pebble_sales||0)+a.sale}}
-async function campDealCounts(){const [{data:stats},{data:tx}]=await Promise.all([sb.from('deals').select('id,campaign_id,source').limit(10000),sb.from('transactions').select('deal_id,kind').limit(10000)]);
-  // Pebble's own counts came over as the starting point; deals and offers made in DLG HQ add on top.
-  const dmap={},dc={};(stats||[]).forEach(d=>{dmap[d.id]=d;if(d.campaign_id&&d.source!=='pebble'){(dc[d.campaign_id]=dc[d.campaign_id]||{n:0,offer:0,purchase:0,sale:0}).n++}});
-  (tx||[]).forEach(t=>{const d=dmap[t.deal_id];if(d&&d.campaign_id&&d.source!=='pebble'){(dc[d.campaign_id]=dc[d.campaign_id]||{n:0,offer:0,purchase:0,sale:0})[t.kind]++}});return dc}
+function campStats(c,dc){const a=dc[c.id]||{n:0,offer:0,purchase:0,sale:0};const n=a.n; // every deal (Pebble's and new) is linked to its campaign
+  return {deals:n,resp:c.records?n/c.records*100:0,offers:a.offer,purchases:a.purchase,sales:a.sale}}
+async function campDealCounts(){const {data}=await sb.rpc('campaign_deal_counts');
+  // every deal (Pebble's and new) is linked to its campaign; offers/purchases/sales from Pebble came over per campaign, new ones add on
+  const dc={};(data||[]).forEach(r=>{dc[r.campaign_id]={n:+r.deals,offer:+r.offers,purchase:+r.purchases,sale:+r.sales}});return dc}
 async function vCampaigns(){
   $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;
   const [{data:c},dc]=await Promise.all([sb.from('campaigns').select('*').limit(2000),campDealCounts()]);
@@ -455,7 +473,7 @@ function drawCamps(){const P=10,q=CSTATE.q.toLowerCase();
   const pager=`<div class="pager"><span class="small">${L.length?CSTATE.page*P+1:0} - ${Math.min(L.length,CSTATE.page*P+P)} of ${L.length} results</span><button class="btn ghost sm" ${CSTATE.page?'':'disabled'} onclick="CSTATE.page--;drawCamps()">‹</button><button class="btn ghost sm" ${CSTATE.page<pages-1?'':'disabled'} onclick="CSTATE.page++;drawCamps()">›</button></div>`;
   $('ctab').innerHTML=pager+`<div class="card" style="overflow-x:auto;padding:0"><table class="ctable"><tr>${th('name','Name','')}${th('drop_date','Created','')}<th>Mailing Progress</th>${th('records','Records')}${th('cost','Amount Spent')}${th('deals','Deals')}${th('resp','Response Rate')}${th('offers','Offers')}${th('purchases','Purchases')}${th('sales','Sales')}<th></th></tr>
    ${S.map(x=>`<tr><td><a href="#" class="cname" onclick="go('campaign:${x.id}');return false">${esc(x.name)}</a></td><td>${fmtDate(x.drop_date||x.created_at)}</td><td>${mailProgress(x)}</td>
-     <td class="right num">${(x.records||0).toLocaleString()}</td><td class="right num" style="color:#e07a1f">${money(x.cost)}</td><td class="right num">${x.deals}</td><td class="right num">${x.resp.toFixed(2)}%</td><td class="right num">${x.offers}</td><td class="right num">${x.purchases}</td><td class="right num">${x.sales}</td>
+     <td class="right num">${(x.records||0).toLocaleString()}</td><td class="right num" style="color:#a7822a">${money(x.cost)}</td><td class="right num">${x.deals}</td><td class="right num">${x.resp.toFixed(2)}%</td><td class="right num">${x.offers}</td><td class="right num">${x.purchases}</td><td class="right num">${x.sales}</td>
      <td><div class="menu"><button class="btn ghost sm" onclick="toggleMenu(this)">···</button><div class="mlist"><a href="#" onclick="startMailing(${x.id});return false">Start Mailing</a><a href="#" onclick="copyMailLink(${x.id});return false">Copy mail house link</a><a href="#" onclick="remarket(${x.id});return false">Remarket</a><a href="#" onclick="splitCampaign(${x.id});return false">Split</a><a href="#" onclick="editCampaign(${x.id});return false">Edit</a></div></div></td></tr>`).join('')||'<tr><td colspan="11" class="muted">No campaigns match.</td></tr>'}</table></div>`+pager}
 function sortCamps(k){if(CSTATE.sort===k)CSTATE.dir=CSTATE.dir==='asc'?'desc':'asc';else{CSTATE.sort=k;CSTATE.dir=k==='name'?'asc':'desc'}CSTATE.page=0;drawCamps()}
 function toggleMenu(btn){const m=btn.nextElementSibling;const open=m.style.display==='block';document.querySelectorAll('.mlist').forEach(x=>x.style.display='none');m.style.display=open?'none':'block'}
@@ -472,7 +490,7 @@ async function vCampaign(id){
   $('actions').innerHTML=`<button class="btn ghost" onclick="go('campaigns')">← Back to Campaigns</button><button class="btn ghost" onclick="remarket(${id})">Remarket</button><button class="btn ghost" onclick="go('import')">Import List</button><button class="btn" onclick="startMailing(${id})">Start Mailing</button>
    <div class="menu"><button class="btn ghost" onclick="toggleMenu(this)">···</button><div class="mlist"><a href="#" onclick="splitCampaign(${id});return false">Split</a><a href="#" onclick="editCampaign(${id});return false">Edit Campaign</a></div></div>`;
   const st=(l,v,col)=>`<div class="pst"><div class="l">${l}</div><div class="v" ${col?`style="color:${col}"`:''}>${v}</div></div>`;
-  $('view').innerHTML=`<div class="card"><div class="pstats" style="grid-template-columns:repeat(7,1fr)">${st('Created',fmtDate(c.drop_date||c.created_at))}${st('Amount spent',money(c.cost),'#e07a1f')}${st('Deals',s.deals)}${st('Response Rate',s.resp.toFixed(2)+'%')}${st('Offers',s.offers)}${st('Purchases',s.purchases)}${st('Sales',s.sales)}</div></div>
+  $('view').innerHTML=`<div class="card"><div class="pstats" style="grid-template-columns:repeat(7,1fr)">${st('Created',fmtDate(c.drop_date||c.created_at))}${st('Amount spent',money(c.cost),'#a7822a')}${st('Deals',s.deals)}${st('Response Rate',s.resp.toFixed(2)+'%')}${st('Offers',s.offers)}${st('Purchases',s.purchases)}${st('Sales',s.sales)}</div></div>
    ${c.channel==='mail'?`<div class="card"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><b>Mailing Progress</b><div style="flex:1;min-width:220px">${mailProgress(c)}</div>
      <span class="small muted">${[['To mail house',c.mail_to_house_at],['Received',c.mail_received_at],['Processing',c.mail_processing_at],['Mailed',c.mail_sent_at]].filter(x=>x[1]).map(x=>x[0]+' '+new Date(x[1]).toLocaleDateString()).join(' · ')}</span>
      <button class="btn ghost sm" onclick="copyMailLink(${id})">Copy mail house link</button></div></div>`:''}
@@ -492,7 +510,7 @@ async function loadRecs(id){const P=20;
   const pager=`<div class="pager"><label class="small" style="margin-right:auto"><input type="checkbox" style="width:auto" onchange="selAllRecs(${id},this.checked)" ${RSTATE.all?'checked':''}> Select all ${total.toLocaleString()}</label><span class="small">${total?RSTATE.page*P+1:0} - ${Math.min(total,RSTATE.page*P+P)} of ${total.toLocaleString()} results</span><button class="btn ghost sm" ${RSTATE.page?'':'disabled'} onclick="RSTATE.page--;loadRecs(${id})">‹</button><button class="btn ghost sm" ${RSTATE.page<pages-1?'':'disabled'} onclick="RSTATE.page++;loadRecs(${id})">›</button></div>`;
   $('rlist').innerHTML=pager+rows.map(r=>`<div class="card rec"><input type="checkbox" style="width:auto" ${RSTATE.all||RSTATE.sel.has(r.rec_id)?'checked':''} onchange="selRec(${r.rec_id},this.checked)">
      <div class="rl"><a href="#" onclick="openLead(${r.lead_id});return false"><b>${esc(r.owner||'Unknown owner')}</b></a><address class="small">${esc(r.mail_address||'')}<br>${esc([r.mail_city,[r.mail_state,r.mail_zip].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</address>
-       <span class="code"><b>Code:</b> ${esc(r.offer_code||'—')}</span>${r.offer_price?` <span class="small muted">Offer ${money(r.offer_price)}</span>`:''}</div>
+       <a href="#" class="code" onclick="go('record:${r.rec_id}');return false"><b>Code:</b> ${esc(r.offer_code||'—')}</a>${r.offer_price?` <span class="small muted">Offer ${money(r.offer_price)}</span>`:''}</div>
      <div class="rr card">${r.property_id?`<a href="#" onclick="openProperty(${r.property_id});return false"><b>⛰ ${esc(r.apn||'APN not entered')}</b></a>`:''}<div class="small">${r.address?'⌂ '+esc([r.address,r.city].filter(Boolean).join(', ')):''}</div><div class="small muted">${esc([r.county,r.county_state].filter(Boolean).join(', '))}${r.acres?' | '+(+r.acres).toFixed(2)+' acres':''}</div>
        ${(r.tags||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join(' ')} ${r.deal_board?`<span class="pill hot">${r.deal_board==='seller'?'Seller Deals':'Buyer Deals'}</span>`:''}</div></div>`).join('')+(rows.length?pager:'<div class="card muted">No records match.</div>')}
 function selRec(id,on){RSTATE.all=false;on?RSTATE.sel.add(id):RSTATE.sel.delete(id)}
@@ -557,6 +575,67 @@ async function saveCampaign(id){const v=k=>$('c_'+k).value||null;const r={name:v
   const {error}=id?await sb.from('campaigns').update(r).eq('id',id):await sb.from('campaigns').insert({...r,source:'hq'});if(error)return toast(error.message);closeDrawer();if(id&&CUR==='campaign:'+id)vCampaign(id);else vCampaigns()}
 function openCampaign(id){closeDrawer();go('campaign:'+id)}
 
+// ---------- global search (like Pebble's top search) ----------
+const hl=(t,q)=>{t=esc(t||'');if(!q)return t;const i=t.toLowerCase().indexOf(q.toLowerCase());return i<0?t:t.slice(0,i)+'<mark>'+t.slice(i,i+q.length)+'</mark>'+t.slice(i+q.length)};
+async function gsearch(q,lim){const {data,error}=await sb.rpc('global_search',{q,lim});if(error){toast(error.message);return null}return data}
+function gsHTML(r,q,full){if(!r)return '';const sec=(title,items,fn,key)=>items&&items.length?`<div class="gh"><span>${title}</span><span>${full?'':items.length}</span></div>`+items.map(fn).join(''):'';
+  return sec('Campaign Records',r.records,x=>`<a href="#" onclick="gsGo('record:${x.id}');return false"><b>${hl(x.offer_code,q)}</b> - <b>${esc(x.campaign)}</b><div class="sm">👤 ${esc(x.owner||'')}</div></a>`)
+   +sec('Contacts',r.contacts,x=>`<a href="#" onclick="gsGo(null,()=>openLead(${x.id}));return false">${hl(x.name,q)}<div class="sm">${hl(x.phone||'',q)} ${esc([x.mail_address,x.mail_city,x.mail_state].filter(Boolean).join(', '))}</div></a>`)
+   +sec('Properties',r.properties,x=>`<a href="#" onclick="gsGo(null,()=>openProperty(${x.id}));return false"><b>⛰ ${hl(x.apn||'',q)}</b><div class="sm">${hl([x.address,x.city].filter(Boolean).join(', '),q)} · ${esc([x.county,x.county_state].filter(Boolean).join(', '))}${x.acres?' | '+(+x.acres).toFixed(2)+' acres':''}</div></a>`)
+   +sec('Deals',r.deals,x=>`<a href="#" onclick="gsGo(null,()=>openDeal(${x.id}));return false">${hl(x.title,q)}<div class="sm">${x.board==='buyer'?'Buyer Deals':'Seller Deals'} · ${esc(x.stage||'')}</div></a>`)
+   ||'<div class="muted small" style="padding:12px">No results.</div>'}
+function gsGo(view,fn){$('gres').style.display='none';if(view)go(view);if(fn)fn()}
+(function(){let t;const inp=()=>$('gq');document.addEventListener('input',e=>{if(e.target.id!=='gq')return;clearTimeout(t);const q=e.target.value.trim();if(q.length<2){$('gres').style.display='none';return}
+  t=setTimeout(async()=>{const r=await gsearch(q,5);if(inp().value.trim()!==q)return;$('gres').innerHTML=gsHTML(r,q)+`<a href="#" onclick="gsGo('search:${encodeURIComponent(q)}');return false" class="sm" style="text-align:center">See all results</a>`;$('gres').style.display='block'},250)});
+ document.addEventListener('keydown',e=>{if(e.target.id==='gq'&&e.key==='Enter'){gsGo('search:'+encodeURIComponent(e.target.value.trim()))}});
+ document.addEventListener('click',e=>{if(!e.target.closest('.gwrap'))$('gres').style.display='none'})})();
+let GSTAB='all';
+async function vSearch(q){$('title').textContent='Global Search';$('gq').value=q;const r=await gsearch(q,50);if(!r)return;
+  const n={records:r.records?.length||0,contacts:r.contacts?.length||0,properties:r.properties?.length||0,deals:r.deals?.length||0};
+  const tabs=[['all','All'],['contacts',`Contacts (${n.contacts})`],['properties',`Properties (${n.properties})`],['deals',`Deals (${n.deals})`],['records',`Campaign records (${n.records})`]];
+  const pick=GSTAB==='all'?r:{[GSTAB]:r[GSTAB]};
+  $('view').innerHTML=`<div class="card"><div class="tabs">${tabs.map(([k,l])=>`<button class="${GSTAB===k?'on':''}" onclick="GSTAB='${k}';vSearch(decodeURIComponent('${encodeURIComponent(q)}'))">${l}</button>`).join('')}</div></div><div class="card gres" style="display:block;position:static;box-shadow:none;max-height:none">${gsHTML(pick,q,true)}</div>`}
+
+// ---------- campaign record page (Pebble: Campaign Record + Add Deal) ----------
+async function vRecord(id){const {data:r,error}=await sb.from('campaign_records').select('*, campaigns(id,name,drop_date,mail_status,mail_sent_at,template), leads(*), properties(*)').eq('id',id).single();
+  if(error||!r){$('view').innerHTML='<div class="card">Record not found.</div>';return}
+  const l=r.leads||{},p=r.properties,c=r.campaigns||{};$('title').textContent=r.offer_code||'Campaign Record';
+  const [{data:deals},{data:others}]=await Promise.all([sb.from('deals').select('id,board,status,stage_id,property_label,value').or(`lead_id.eq.${r.lead_id||0},property_id.eq.${r.property_id||0}`),
+    sb.from('campaign_records').select('id,offer_code,campaigns(name,drop_date)').eq('lead_id',r.lead_id||0).neq('id',id).limit(50)]);
+  $('actions').innerHTML=`<button class="btn" onclick="addDealFromRecord(${id})">+ Add Deal</button>`;
+  $('view').innerHTML=`<div class="card"><div class="rhead"><div class="nm"><small>Campaign Record</small><b>${esc(l.full_name||'Unknown owner')}</b></div>
+     <div><small class="muted">Code</small><div class="codechip">${esc(r.offer_code||'—')}</div></div>
+     <div><small class="muted">Campaign</small><div><a href="#" onclick="go('campaign:${c.id}');return false">${esc(c.name||'')}</a></div></div>
+     <div><small class="muted">Created</small><div>${fmtDate(c.drop_date)}</div></div></div></div>
+   <div class="rgrid"><div>
+     <div class="card"><h3 class="sec" style="margin-top:0">Contact</h3><a href="#" onclick="openLead(${l.id});return false"><b>${esc(l.full_name||'')}</b></a>
+       ${l.phone?`<div class="small" style="margin-top:6px">📞 <a href="tel:${esc(l.phone)}">${esc(l.phone)}</a></div>`:''}${l.email?`<div class="small">✉ ${esc(l.email)}</div>`:''}
+       <div class="small muted" style="margin-top:8px">Address</div><div class="small">${esc(l.mail_address||'')}<br>${esc([l.mail_city,[l.mail_state,l.mail_zip].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</div>
+       <div style="margin-top:8px">${(l.tags||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join(' ')}</div></div>
+     <div class="card"><h3 class="sec" style="margin-top:0">Properties</h3>${p?`<div class="card" style="margin:0;padding:10px 12px"><a href="#" onclick="openProperty(${p.id});return false"><b>⛰ ${esc(p.apn||'APN not entered')}</b></a><div class="small">${p.address?'⌂ '+esc([p.address,p.city].filter(Boolean).join(', ')):''}</div><div class="small muted">${esc([p.county,p.county_state].filter(Boolean).join(', '))}${p.acres?' | '+(+p.acres).toFixed(2)+' acres':''}</div></div>`:'<div class="muted small">No property linked.</div>'}</div>
+     <div class="card"><h3 class="sec" style="margin-top:0">Mailing Details</h3><div class="small">${c.mail_sent_at?'Mailed '+fmtDate(c.mail_sent_at):c.mail_status&&c.mail_status!=='not_sent'?'At the mail house':'Not mailed yet'}</div>${r.offer_price?`<div class="small">Offer price: <b>${money(r.offer_price)}</b></div>`:''}${c.template?`<div class="small muted">Letter: ${esc(c.template)}</div>`:''}</div>
+   </div><div>
+     <div class="card"><h3 class="sec" style="margin-top:0">Deals</h3>${(deals||[]).map(d=>`<div style="padding:6px 0;border-top:1px solid var(--line)"><a href="#" onclick="openDeal(${d.id});return false">${esc(d.property_label||'Deal')}</a> <span class="small muted">· ${d.board==='buyer'?'Buyer Deals':'Seller Deals'} · ${esc(STAGES.find(s=>s.id===d.stage_id)?.name||'')}${d.value?' · '+money(d.value):''}</span></div>`).join('')||'<div class="muted small">No deal yet. Use <b>+ Add Deal</b> when this owner responds.</div>'}</div>
+     <div class="card"><h3 class="sec" style="margin-top:0">Other mailings to this owner</h3>${(others||[]).map(o=>`<div class="small" style="padding:4px 0"><a href="#" onclick="go('record:${o.id}');return false"><b>${esc(o.offer_code||'')}</b></a> · ${esc(o.campaigns?.name||'')} · ${fmtDate(o.campaigns?.drop_date)}</div>`).join('')||'<div class="muted small">None.</div>'}</div>
+   </div></div>`}
+async function addDealFromRecord(id){const {data:r}=await sb.from('campaign_records').select('*, campaigns(id,name), leads(id,full_name), properties(id,apn,address,city,county,county_state)').eq('id',id).single();
+  const p=r.properties,l=r.leads;const st=b=>STAGES.filter(s=>s.board===b).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  openDrawer(head('Add Deal')+`<div class="card"><label class="f">Deal Title</label><input id="ad_t" value="${esc(l?.full_name||p?.address||'')}">
+   <label class="f">Board</label><select id="ad_b" onchange="$('ad_s').innerHTML=(${st.toString()})(this.value)"><option value="seller">Seller Deals</option><option value="buyer">Buyer Deals</option></select>
+   <label class="f">Stage</label><select id="ad_s">${st('seller')}</select>
+   <label class="f">Priority</label><select id="ad_p"><option value="">None</option><option>hot</option><option>warm</option><option>cold</option></select>
+   <label class="f">Estimated Deal Value (optional)</label><input id="ad_v" type="number" placeholder="10,000">
+   <label class="f">Campaign</label><div class="card" style="margin:0;padding:10px"><b>${esc(r.campaigns?.name||'')}</b> <span class="small muted">· code ${esc(r.offer_code||'')}</span></div>
+   <label class="f">Contacts</label><div class="card" style="margin:0;padding:10px"><b>${esc(l?.full_name||'—')}</b></div>
+   <label class="f">Properties</label><div class="card" style="margin:0;padding:10px">${p?`<b>⛰ ${esc(p.apn||'')}</b><div class="small">${esc([p.address,p.city].filter(Boolean).join(', '))}</div><div class="small muted">${esc([p.county,p.county_state].filter(Boolean).join(', '))}</div>`:'—'}</div><br>
+   <button class="btn" style="width:100%" onclick="saveDealFromRecord(${id})">Save</button></div>`)}
+async function saveDealFromRecord(id){const {data:r}=await sb.from('campaign_records').select('lead_id,property_id,campaign_id,offer_code').eq('id',id).single();
+  const b=$('ad_b').value;const row={board:b,stage_id:+$('ad_s').value,priority:$('ad_p').value||null,value:+$('ad_v').value||null,property_label:$('ad_t').value||null,campaign_id:r.campaign_id,lead_id:r.lead_id,property_id:r.property_id,source:'campaign',status:'open'};
+  const {data,error}=await sb.from('deals').insert(row).select().single();if(error)return toast(error.message);
+  await sb.from('campaign_records').update({responded:true}).eq('id',id);if(r.lead_id)await sb.from('activity').insert({lead_id:r.lead_id,kind:'status',body:`Deal added from code ${r.offer_code}`});
+  toast('Deal added to '+(b==='buyer'?'Buyer':'Seller')+' Deals');closeDrawer();openDeal(data.id)}
+
+
 // ---------- properties + map ----------
 async function vProperties(){
   $('actions').innerHTML=`<button class="btn" onclick="editProperty()">+ Add Property</button>`;
@@ -578,7 +657,7 @@ async function loadProps(byMap){
   if(byMap&&!c&&!a&&!ad&&!t){const b=map.getBounds();q=q.gte('lat',b.getSouth()).lte('lat',b.getNorth()).gte('lng',b.getWest()).lte('lng',b.getEast())}
   const {data,error}=await q;if(error){$('plist').innerHTML=`<div style="padding:12px">${esc(error.message)}</div>`;return}
   const P=data||[];mapLayer.clearLayers();const pts=[];
-  P.forEach(p=>{if(p.lat&&p.lng){const m=L.circleMarker([p.lat,p.lng],{radius:6,color:'#1f4d36',weight:1,fillColor:'#2f6b4c',fillOpacity:.85}).bindTooltip(`${esc(p.apn||'')} ${esc(p.address||'')}`);m.on('click',()=>openProperty(p.id));m.addTo(mapLayer);pts.push([p.lat,p.lng])}});
+  P.forEach(p=>{if(p.lat&&p.lng){const m=L.circleMarker([p.lat,p.lng],{radius:6,color:'#5C2977',weight:1,fillColor:'#D5A940',fillOpacity:.85}).bindTooltip(`${esc(p.apn||'')} ${esc(p.address||'')}`);m.on('click',()=>openProperty(p.id));m.addTo(mapLayer);pts.push([p.lat,p.lng])}});
   if(!byMap&&pts.length)map.fitBounds(pts,{maxZoom:15,padding:[20,20]});
   $('plist').innerHTML=`<div class="small muted" style="padding:8px 12px">${P.length===1000?'1,000+':P.length.toLocaleString()} properties${byMap?' in this map area':''}</div>`+P.map(p=>`<div class="pitem" onclick="openProperty(${p.id})"><b>${esc(p.apn||'No APN')}</b><div class="small">${esc([p.address,p.city].filter(Boolean).join(', '))}</div><div class="small muted">${esc(p.county||'')}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' ac':''}</div></div>`).join('');
 }
