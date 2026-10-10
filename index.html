@@ -134,6 +134,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
 .enc{display:flex;flex-direction:column;gap:2px;margin-top:10px;padding:10px 12px;border-left:3px solid var(--gold);background:#fbf7ec;border-radius:8px;color:#4a3b5c;font-style:italic;font-size:13px;line-height:1.35}
 .enc .encr{font-style:normal;font-size:11px;font-weight:600;color:var(--gold-d);letter-spacing:.03em;text-transform:uppercase}.enc.inl{margin:10px 0 0;max-width:460px}
 .encfoot{margin:22px auto 6px;max-width:640px;text-align:center}.encfoot .enc{align-items:center;border-left:0;border-top:2px solid var(--gold);background:transparent}
+.chip{display:inline-block;padding:2px 9px;border-radius:999px;background:var(--chip);color:var(--brand);font-size:12px;font-weight:600}
 </style>
 </head>
 <body>
@@ -163,6 +164,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <a class="nav" data-v="properties">Properties</a>
     <a class="nav" data-v="contacts">Contacts</a>
     <a class="nav" data-v="buyers">Buyers</a>
+    <a class="nav" data-v="testimonials">Testimonials</a>
     <div class="grp">Configure</div>
     <a class="nav" data-v="followup">Auto Followup</a>
     <a class="nav" data-v="templates">Templates</a>
@@ -213,8 +215,8 @@ async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=
 // ---------- router ----------
 const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox('seller'),'inbox-buyer':()=>vInbox('buyer'),
  'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,
- followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights};
-const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights'};
+ followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials};
+const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
 function go(v){const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch(decodeURIComponent(m[2]));return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
@@ -867,6 +869,57 @@ async function vTasks(){const {data}=await sb.from('tasks').select('*, deals(id,
   const open=(data||[]).filter(t=>t.status==='todo'),done=(data||[]).filter(t=>t.status==='done').slice(0,30);
   const row=t=>`<tr><td style="width:30px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked).then(vTasks)"></td><td>${esc(t.title)}<div class="small muted">${t.deals?`<a href="#" onclick="openDeal(${t.deals.id});return false">${esc(t.deals.property_label||'deal')}</a>`:''} ${esc(t.leads?.full_name||'')}</div></td><td class="small" style="color:${t.due_at&&new Date(t.due_at)<new Date()&&t.status==='todo'?'var(--red)':'inherit'}">${t.due_at?new Date(t.due_at).toLocaleDateString():''}</td></tr>`;
   $('view').innerHTML=`<div class="card" style="padding:0"><table><tr><th></th><th>To do (${open.length})</th><th>Due</th></tr>${open.map(row).join('')||'<tr><td colspan="3" class="muted">All clear.</td></tr>'}</table></div><div class="card" style="padding:0"><table><tr><th></th><th>Done recently</th><th></th></tr>${done.map(row).join('')}</table></div>`}
+
+// ---------- testimonials: ask past sellers, collect text/video for the website ----------
+async function vTestimonials(){
+  const [{data:deals},{data:ts}]=await Promise.all([
+    sb.from('deals').select('id,property_label,updated_at,lead_id,status,board,leads(id,full_name,first_name,phone,email)').eq('status','won').order('updated_at',{ascending:false}).limit(500),
+    sb.from('testimonials').select('*').order('created_at',{ascending:false})]);
+  const by={};(ts||[]).forEach(t=>{if(t.deal_id)(by[t.deal_id]=by[t.deal_id]||[]).push(t)});
+  const asked=(ts||[]).filter(t=>t.requested_at).length,got=(ts||[]).filter(t=>t.received_at).length,pub=(ts||[]).filter(t=>t.ok_to_publish).length;
+  const st=(l,v)=>`<div><div class="small muted">${l}</div><div style="font-size:22px;font-weight:700">${v}</div></div>`;
+  const row=d=>{const l=d.leads||{};const t=(by[d.id]||[]);const rec=t.find(x=>x.received_at),req=t.find(x=>x.requested_at);
+    const stat=rec?`<span class="chip" style="background:#e6f4ec;color:#1a7a48">Received${rec.ok_to_publish?' · OK to publish':''}</span>`:req?`<span class="chip">Asked ${fmtDate(req.requested_at)}</span>`:'<span class="chip" style="background:#fbf4e2;color:var(--gold-d)">Not asked yet</span>';
+    return `<tr><td><b>${esc(l.full_name||'—')}</b><div class="small muted">${esc(d.property_label||'')}</div></td><td class="small">${esc(l.phone||'')}<br>${esc(l.email||'')}</td><td>${stat}</td>
+      <td style="white-space:nowrap"><button class="btn sm" onclick="askTestimonial(${d.id})">Ask</button> <button class="btn ghost sm" onclick="addTestimonial(${d.id})">Add received</button></td></tr>`};
+  $('view').innerHTML=`<div class="card"><div class="pstats" style="grid-template-columns:repeat(4,1fr)">${st('Closed deals',(deals||[]).length)}${st('Asked',asked)}${st('Received',got)}${st('OK to publish',pub)}</div>
+    <p class="small muted" style="margin-bottom:0">When a deal is marked Closed, “Ask for a testimonial” lands on your Tasks. Nothing is sent until you press Send.</p></div>
+   ${(ts||[]).filter(t=>t.received_at).length?`<div class="card"><h3 class="sec">Received</h3>${(ts||[]).filter(t=>t.received_at).map(t=>`<div style="border-top:1px solid var(--line);padding:10px 0"><b>${esc(t.name||'')}</b> <span class="small muted">${esc(t.location||'')} · ${t.kind}</span>
+      ${t.body?`<div style="margin-top:4px;font-style:italic">“${esc(t.body)}”</div>`:''}${t.video_url?`<div><a href="#" onclick="openDealFile('${esc(t.video_url)}');return false">▶ Watch video</a></div>`:''}
+      <label class="small" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" style="width:auto" ${t.ok_to_publish?'checked':''} onchange="sb.from('testimonials').update({ok_to_publish:this.checked}).eq('id',${t.id}).then(()=>toast('Saved'))"> OK to use on the website</label></div>`).join('')}</div>`:''}
+   <div class="card" style="padding:0;overflow-x:auto"><table><tr><th>Past seller</th><th>Contact</th><th>Status</th><th></th></tr>${(deals||[]).map(row).join('')||'<tr><td colspan="4" class="muted">No closed deals yet.</td></tr>'}</table></div>`}
+function fillTpl(b,l){return (b||'').replace(/\{first_name\}/g,(l.first_name||(l.full_name||'').split(/[\s&,]/)[0]||'there').trim())}
+async function askTestimonial(dealId){const {data:d}=await sb.from('deals').select('id,lead_id,leads(*)').eq('id',dealId).single();const l=d.leads||{};
+  const {data:tp}=await sb.from('templates').select('kind,subject,body').eq('name','Testimonial request');const tx=(tp||[]).find(x=>x.kind==='text'),em=(tp||[]).find(x=>x.kind==='email');
+  openDrawer(head('Ask '+esc(l.full_name||'seller')+' for a testimonial')+`<div class="card">
+   <label class="f">Text message${l.phone?' to '+esc(l.phone):''}</label><textarea id="ts_txt" style="min-height:150px">${esc(fillTpl(tx?.body,l))}</textarea>
+   <div class="row" style="margin-top:8px"><button class="btn" ${l.phone?'':'disabled'} onclick="sendTestimonialText(${d.id},${l.id||0})">Send text</button></div>
+   <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+   <label class="f">Email${l.email?' to '+esc(l.email):' (no email on file)'}</label><input id="ts_subj" value="${esc(em?.subject||'')}"><textarea id="ts_em" style="min-height:200px;margin-top:6px">${esc(fillTpl(em?.body,l))}</textarea>
+   <div class="row" style="margin-top:8px"><button class="btn ghost" ${l.email?'':'disabled'} onclick="emailTestimonial(${d.id},${l.id||0},'${esc(l.email||'')}')">Open in Gmail</button></div>
+   <p class="small muted">Gmail opens with the message filled in. You review it and press Send.</p></div>`)}
+async function markAsked(dealId,leadId){const {data:ex}=await sb.from('testimonials').select('id').eq('deal_id',dealId).is('received_at',null).limit(1);
+  if(ex&&ex[0])await sb.from('testimonials').update({requested_at:new Date().toISOString()}).eq('id',ex[0].id);
+  else await sb.from('testimonials').insert({deal_id:dealId,lead_id:leadId||null,requested_at:new Date().toISOString()});
+  await sb.from('tasks').update({status:'done'}).eq('deal_id',dealId).like('title','Ask % for a testimonial%')}
+async function sendTestimonialText(dealId,leadId){const text=$('ts_txt').value.trim();if(!text)return;const {data:tid,error:e1}=await sb.rpc('thread_for_lead',{lid:leadId,box:'seller'});if(e1)return toast(e1.message);
+  const {data,error}=await sb.functions.invoke('quo/send',{body:{thread_id:tid,text}});const err=error?(await error.context?.json?.().catch(()=>null))?.error||error.message:data?.error;
+  if(err)return toast('Not sent: '+err);await markAsked(dealId,leadId);toast('Sent');closeDrawer();if(CUR==='testimonials')vTestimonials()}
+async function emailTestimonial(dealId,leadId,to){window.open('https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(to)+'&su='+encodeURIComponent($('ts_subj').value)+'&body='+encodeURIComponent($('ts_em').value),'_blank');
+  await markAsked(dealId,leadId);toast('Marked as asked');if(CUR==='testimonials')vTestimonials()}
+async function addTestimonial(dealId){const {data:d}=await sb.from('deals').select('id,lead_id,property_label,leads(full_name,mail_city,mail_state)').eq('id',dealId).single();const l=d.leads||{};
+  openDrawer(head('Add testimonial')+`<div class="card"><label class="f">Name (as it should appear)</label><input id="tm_name" value="${esc(l.full_name||'')}">
+   <label class="f">Location</label><input id="tm_loc" value="${esc([l.mail_city,l.mail_state].filter(Boolean).join(', '))}">
+   <label class="f">What they said</label><textarea id="tm_body" style="min-height:120px"></textarea>
+   <label class="f">Video (optional)</label><input type="file" id="tm_vid" accept="video/*">
+   <label class="small" style="display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" id="tm_ok" style="width:auto"> They said it's OK to use on the website</label>
+   <br><button class="btn" onclick="saveTestimonial(${d.id},${d.lead_id||0})">Save</button></div>`)}
+async function saveTestimonial(dealId,leadId){const f=$('tm_vid').files[0];let video_url=null;
+  if(f){const path=`testimonials/${dealId}-${Date.now()}-${f.name.replace(/[^\w.\- ]+/g,'_')}`;const {error}=await sb.storage.from('deal-files').upload(path,f);if(error)return toast(error.message);video_url=path}
+  const row={deal_id:dealId,lead_id:leadId||null,name:$('tm_name').value,location:$('tm_loc').value,body:$('tm_body').value||null,video_url,kind:f?'video':'text',ok_to_publish:$('tm_ok').checked,received_at:new Date().toISOString()};
+  const {data:ex}=await sb.from('testimonials').select('id').eq('deal_id',dealId).is('received_at',null).limit(1);
+  const {error}=ex&&ex[0]?await sb.from('testimonials').update(row).eq('id',ex[0].id):await sb.from('testimonials').insert(row);if(error)return toast(error.message);
+  toast('Saved');closeDrawer();vTestimonials()}
 
 // ---------- import ----------
 // Pebble-style Import List: pick or create a campaign, upload the list, offer codes are assigned automatically

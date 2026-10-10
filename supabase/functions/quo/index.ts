@@ -142,10 +142,29 @@ async function send(req: Request) {
   return json({ ok: true, id: m.id, status: m.status });
 }
 
+async function numbers(req: Request) {
+  const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  const { data: u } = await sb.auth.getUser(tok);
+  if (!u?.user) return json({ error: "Sign in again" }, 401);
+  const key = Deno.env.get("QUO_API_KEY");
+  if (!key) return json({ error: "Quo API key not set yet" }, 400);
+  const res = await fetch("https://api.quo.com/v1/phone-numbers", { headers: { Authorization: key } });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) return json({ error: out?.message || out?.title || `Quo error ${res.status}` }, 400);
+  const list = (out.data || []).map((n: any) => ({ number: d10(n.number || n.phoneNumber || n.formattedNumber), quo_id: n.id, name: n.name || "" })).filter((n: any) => n.number);
+  for (const n of list) {
+    const { data: ex } = await sb.from("phone_numbers").select("number").eq("number", n.number).maybeSingle();
+    if (ex) await sb.from("phone_numbers").update({ quo_id: n.quo_id }).eq("number", n.number);
+    else await sb.from("phone_numbers").insert({ number: n.number, quo_id: n.quo_id, inbox: "seller", label: n.name ? "Quo: " + n.name : "Quo number" });
+  }
+  return json({ ok: true, numbers: list });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const url = new URL(req.url);
   if (url.pathname.endsWith("/send")) return send(req);
+  if (url.pathname.endsWith("/numbers")) return numbers(req);
   if (req.method !== "POST") return json({ ok: true, service: "dlg-quo" });
   const raw = await req.text();
   if (!(await verify(raw, req.headers.get("openphone-signature")))) return json({ error: "bad signature" }, 401);
