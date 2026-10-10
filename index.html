@@ -480,11 +480,11 @@ async function loadDealFiles(id){const {data}=await sb.from('deal_files').select
   const el=$('d_files');if(!el)return;if(!data||!data.length){el.innerHTML='<span class="muted">No files yet.</span>';return}
   el.innerHTML=data.map(f=>`<div class="frow"><span class="fic">${/\.docx?$/i.test(f.storage_path||'')?'W':/\.pdf$/i.test(f.storage_path||'')?'PDF':'▤'}</span><a href="#" onclick="viewDealFile('${esc(f.storage_path||'')}','${esc(f.name)}');return false">${esc(f.name)}</a><span class="muted" style="margin-left:auto">${new Date(f.created_at).toLocaleDateString()}</span></div>`).join('')}
 async function openDealFile(path){if(!path)return toast('File is on your Desktop in DLG Contracts');const {data,error}=await sb.storage.from('deal-files').createSignedUrl(path,3600);if(error)return toast(error.message);window.open(data.signedUrl,'_blank')}
-async function docxPreviewLib(){if(window.docx&&window.docx.renderAsync)return;const ld=u=>new Promise((r,j)=>{const x=document.createElement('script');x.src=u;x.onload=r;x.onerror=()=>j(new Error('Could not load the viewer'));document.head.appendChild(x)});
-  if(!window.JSZip)await ld('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');await ld('https://cdn.jsdelivr.net/npm/docx-preview@0.3.2/dist/docx-preview.min.js')}
+async function docxPreviewLib(){if(window._docxPrev)return;const ld=u=>new Promise((r,j)=>{const x=document.createElement('script');x.src=u;x.onload=r;x.onerror=()=>j(new Error('Could not load the viewer'));document.head.appendChild(x)});
+  if(!window.JSZip)await ld('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');const keep=window.docx;await ld('https://cdn.jsdelivr.net/npm/docx-preview@0.3.2/dist/docx-preview.min.js');window._docxPrev=window.docx;if(keep)window.docx=keep}
 async function showDocx(blob,title,dl){const back=window._dl?.id;
   $('panel').innerHTML=`<div class="dhead"><h2 style="margin:0">${esc(title)}</h2><div class="row" style="flex:0 0 auto;gap:8px">${dl?`<a class="btn ghost" href="${dl}" download="${esc(title)}.docx">Download</a>`:''}${back?`<button class="btn ghost" onclick="openDeal(${back})">← Back to deal</button>`:''}<button class="btn ghost" onclick="closeDrawer()">Close</button></div></div><div id="docv" class="docv">Opening…</div>`;
-  try{await docxPreviewLib();$('docv').innerHTML='';await window.docx.renderAsync(blob,$('docv'),null,{inWrapper:true,ignoreWidth:false})}catch(e){$('docv').textContent='Could not show it here: '+e.message}}
+  try{await docxPreviewLib();$('docv').innerHTML='';await window._docxPrev.renderAsync(blob,$('docv'),null,{inWrapper:true,ignoreWidth:false})}catch(e){$('docv').textContent='Could not show it here: '+e.message}}
 async function viewDealFile(path,name){if(!path)return toast('File is on your Desktop in DLG Contracts');const {data,error}=await sb.storage.from('deal-files').createSignedUrl(path,3600);if(error)return toast(error.message);
   if(!/\.docx$/i.test(path))return window.open(data.signedUrl,'_blank');const blob=await (await fetch(data.signedUrl)).blob();showDocx(blob,name,data.signedUrl)}
 async function uploadDealFiles(dealId,propId){const fs=$('d_up').files;if(!fs.length)return toast('Pick a file first');
@@ -1076,8 +1076,9 @@ async function addLead(){const v=i=>$(i).value||null;const r={first_name:v('a_fi
   r.full_name=[r.first_name,r.last_name].filter(Boolean).join(' ')||null;const {data,error}=await sb.from('leads').insert(r).select('id').single();if(error)return toast(error.message);openLead(data.id)}
 
 // ---------- buyers ----------
+const BB_LINK='https://dominionlandgroup-hub.github.io/dlg-hq/buybox.html?t=',BB_FORM='https://dominionlandgroup-hub.github.io/dlg-hq/buybox.html';
 async function vBuyers(){
-  $('actions').innerHTML=`<button class="btn ghost" onclick="navigator.clipboard.writeText('https://dominionlandgroup-hub.github.io/dlg-hq/buybox.html');toast('Form link copied')">Copy buy-box form link</button><button class="btn" onclick="editBuyer(0)">+ Add Buyer</button>`;
+  $('actions').innerHTML=`<button class="btn ghost" onclick="navigator.clipboard.writeText(BB_FORM);toast('Form link copied')">Copy buy-box form link</button><button class="btn" onclick="editBuyer(0)">+ Add Buyer</button>`;
   let data=[];for(let f=0;;f+=1000){const r=await sb.from('buyers').select('*').order('name').range(f,f+999);data.push(...(r.data||[]));if(!r.data||r.data.length<1000)break}
   const {data:sw}=await sb.rpc('buybox_switch',{turn:null});
   const cnt=k=>data.filter(b=>(b.bb_status||'not sent')===k&&(k!=='not sent'||b.bb_group)).length;
@@ -1118,7 +1119,7 @@ async function editBuyer(id){const [{data:b},{data:dl}]=await Promise.all([id?sb
    <label class="f">Type</label><select id="b_kind">${['buyer','agent','builder','lender'].map(k=>`<option ${k===b.kind?'selected':''}>${k}</option>`).join('')}</select>
    <div class="row" style="margin-top:12px"><button class="btn" onclick="saveBuyer(${id||0})">Save buyer</button></div></div>
    ${b.bb_submitted_at?`<div class="card"><b>Buy box</b> <span class="small muted">filled out ${fmtDate(b.bb_submitted_at)}</span><div class="kv" style="margin-top:8px">${[['Role',b.role],['Represents',b.represents],['Send deals by',(b.send_by||[]).join(', ')],['Cities',(b.cities||[]).join(', ')],['Zips',(b.zips||[]).join(', ')],['Price per lot',(b.price_ranges||[]).join(', ')],['Lot size',(b.lot_sizes||[]).join(', ')],['Lots / teardowns',b.lot_type],['Utilities',(b.utilities||[]).join(', ')],['Recent lot',b.recent_lot],['Deal-breakers',b.deal_breakers],['Lots per year',b.lots_per_year]].filter(x=>x[1]).map(([k,v])=>`<div>${k}</div><div>${esc(v)}</div>`).join('')}</div></div>`
-     :`<div class="card"><b>Buy box</b><div class="small muted" style="margin-top:6px">Not filled out yet${b.bb_status&&b.bb_status!=='not sent'?' · emails: '+esc(b.bb_status):''}.</div>${b.bb_token?`<div class="row" style="margin-top:8px"><button class="btn ghost" onclick="navigator.clipboard.writeText('https://dominionlandgroup-hub.github.io/dlg-hq/buybox.html?t=${b.bb_token}');toast('Their personal form link is copied')">Copy their form link</button>${b.bb_group?`<button class="btn ghost" onclick="bbPreview(${b.id})">Preview their emails</button>`:''}</div>`:''}</div>`}
+     :`<div class="card"><b>Buy box</b><div class="small muted" style="margin-top:6px">Not filled out yet${b.bb_status&&b.bb_status!=='not sent'?' · emails: '+esc(b.bb_status):''}.</div>${b.bb_token?`<div class="row" style="margin-top:8px"><button class="btn ghost" onclick="navigator.clipboard.writeText(BB_LINK+'${b.bb_code||b.bb_token}');toast('Their personal form link is copied')">Copy their form link</button>${b.bb_group?`<button class="btn ghost" onclick="bbPreview(${b.id})">Preview their emails</button>`:''}</div>`:''}</div>`}
    <div class="card"><b>Deals with this buyer</b>${(dl||[]).map(x=>`<div style="margin-top:6px"><a href="#" onclick="openDeal(${x.id});return false">${esc(x.leads?.full_name||x.property_label||'Deal')}</a> <span class="small muted">${esc([x.properties?.city,x.properties?.county].filter(Boolean).join(', '))} · ${x.status==='won'?'closed':x.status}</span></div>`).join('')||'<div class="muted small" style="margin-top:6px">None linked yet. Pick this buyer on a deal (Deal terms → Buyer) and it shows here.</div>'}</div>`)}
 async function saveBuyer(id){const v=k=>$('b_'+k).value.trim()||null;const r={name:v('name'),company:v('company'),phone:v('phone'),email:v('email'),buy_box:v('buy_box'),kind:v('kind')||'buyer',counties:(v('counties')||'').split(',').map(x=>x.trim()).filter(Boolean)};
   if(!r.name)return toast('Name is required');const {error}=id?await sb.from('buyers').update(r).eq('id',id):await sb.from('buyers').insert(r);if(error)return toast(error.message);BUYERS=null;toast('Saved');closeDrawer();vBuyers()}
@@ -1156,11 +1157,17 @@ async function savePlan(id){const r={name:$('pl_name').value||'Untitled plan',st
 async function delPlan(id){if(!confirm('Delete this plan?'))return;await sb.from('followup_plans').delete().eq('id',id);closeDrawer();vFollowup()}
 
 // ---------- templates ----------
+async function blankContract(which,dl){try{await docxLib();const w={psa:false,asg:false,cancel:false,notice:false};w[which]=true;
+  const [[name,doc]]=buildDocs({sellers:[],assignment:{},cancel:{},notice:{},additional_terms:''},w);const blob=await _docxLib.Packer.toBlob(doc);const url=URL.createObjectURL(blob);
+  if(dl){const a=document.createElement('a');a.href=url;a.download=name+' (blank).docx';document.body.appendChild(a);a.click();a.remove();return}
+  window._dl=null;window._wideNext=true;openDrawer('');showDocx(blob,name+' (blank)',url)}catch(e){toast('Could not open it: '+e.message)}}
 async function vTemplates(){
-  const k=store.get('tplKind')||'text';
+  const k=store.get('tplKind')||'text';const tabs=`<div class="tabs">${['mail','email','text','contracts'].map(x=>`<button class="${x===k?'on':''}" onclick="store.set('tplKind','${x}');vTemplates()">${x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div>`;
+  if(k==='contracts'){$('actions').innerHTML='';$('view').innerHTML=tabs+`<div class="card"><p class="small muted" style="margin-top:0">Your contract wording, blank. View one, or download it as a Word file to keep. To fill one in for a deal, open the deal and use Contracts &amp; documents.</p>
+     ${[['psa','Purchase & Sale Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation of Contract'],['notice','Notice of Termination']].map(([d,t])=>`<div class="frow" style="padding:10px 0"><span class="fic">W</span><b style="flex:1">${t}</b><button class="btn ghost sm" onclick="blankContract('${d}')">View</button><button class="btn ghost sm" onclick="blankContract('${d}',1)">Download</button></div>`).join('')}</div>`;return}
   $('actions').innerHTML=`<button class="btn" onclick="editTpl(0,'${k}')">+ Add Template</button>`;
   const {data}=await sb.from('templates').select('*').eq('kind',k).order('name');
-  $('view').innerHTML=`<div class="tabs">${['mail','email','text'].map(x=>`<button class="${x===k?'on':''}" onclick="store.set('tplKind','${x}');vTemplates()">${x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div>
+  $('view').innerHTML=tabs+`
    <div class="card" style="padding:0;overflow-x:auto"><table><tr><th>Name</th><th>${k==='email'?'Subject':k==='mail'?'Word file (DM LETTERS folder)':'Body'}</th><th>Last edited</th></tr>${(data||[]).map(t=>`<tr class="click" onclick="editTpl(${t.id},'${k}')"><td><b>${esc(t.name)}</b></td><td class="small">${esc(k==='email'?t.subject:k==='mail'?t.file_name:(t.body||'').slice(0,160))}</td><td class="small muted">${new Date(t.updated_at).toLocaleDateString()}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">None yet.</td></tr>'}</table></div>
    ${k==='mail'?'<p class="small muted">Mail templates are your Word merge letters in Desktop / DM LETTERS. Merge fields: «Owner» «Greeting» «Mail1» «Mail2» «Mail3» «PropertyAddress» «PropertyCity» «APN» «OfferCode».</p>':''}`}
 async function editTpl(id,kind){const {data:t}=id?await sb.from('templates').select('*').eq('id',id).single():{data:{kind}};
@@ -1209,14 +1216,14 @@ async function sendAsk(){const q=$('askIn').value.trim();if(!q)return;if(_rec)_r
 // ---------- testimonials: ask past sellers, collect text/video for the website ----------
 async function vTestimonials(){
   const [{data:deals},{data:ts}]=await Promise.all([
-    sb.from('deals').select('id,property_label,updated_at,lead_id,status,board,leads(id,full_name,first_name,phone,email)').eq('status','won').order('updated_at',{ascending:false}).limit(500),
+    sb.from('deals').select('id,property_label,updated_at,lead_id,status,board,leads(id,full_name,first_name,phone,email),properties(address,city,state,county,apn)').eq('status','won').order('updated_at',{ascending:false}).limit(500),
     sb.from('testimonials').select('*').order('created_at',{ascending:false})]);
   const by={};(ts||[]).forEach(t=>{if(t.deal_id)(by[t.deal_id]=by[t.deal_id]||[]).push(t)});
   const asked=(ts||[]).filter(t=>t.requested_at).length,got=(ts||[]).filter(t=>t.received_at).length,pub=(ts||[]).filter(t=>t.ok_to_publish).length;
   const st=(l,v)=>`<div><div class="small muted">${l}</div><div style="font-size:22px;font-weight:700">${v}</div></div>`;
   const row=d=>{const l=d.leads||{};const t=(by[d.id]||[]);const rec=t.find(x=>x.received_at),req=t.find(x=>x.requested_at);
     const stat=rec?`<span class="chip" style="background:#e6f4ec;color:#1a7a48">Received${rec.ok_to_publish?' · OK to publish':''}</span>`:req?`<span class="chip">Asked ${fmtDate(req.requested_at)}</span>`:'<span class="chip" style="background:#fbf4e2;color:var(--gold-d)">Not asked yet</span>';
-    return `<tr><td><b>${esc(l.full_name||'—')}</b><div class="small muted">${esc(d.property_label||'')}</div></td><td class="small">${l.phone?esc(l.phone):`<a href="#" onclick="addContactInfo(${l.id||0});return false">+ Add phone</a>`}<br>${l.email?esc(l.email):`<a href="#" onclick="addContactInfo(${l.id||0},1);return false" class="muted">+ Add email</a>`}</td><td>${stat}</td>
+    return `<tr><td><b>${esc(l.full_name||'—')}</b><div class="small muted">${esc((propPhrase(d.properties)||{}).t||'')}</div></td><td class="small">${l.phone?esc(l.phone):`<a href="#" onclick="addContactInfo(${l.id||0});return false">+ Add phone</a>`}<br>${l.email?esc(l.email):`<a href="#" onclick="addContactInfo(${l.id||0},1);return false" class="muted">+ Add email</a>`}</td><td>${stat}</td>
       <td style="white-space:nowrap"><button class="btn sm" onclick="askTestimonial(${d.id})">Ask by text or email</button> <button class="btn ghost sm" onclick="addTestimonial(${d.id})">Add received</button></td></tr>`};
   $('view').innerHTML=`<div class="card"><div class="pstats" style="grid-template-columns:repeat(4,1fr)">${st('Closed deals',(deals||[]).length)}${st('Asked',asked)}${st('Received',got)}${st('OK to publish',pub)}</div>
     <p class="small muted" style="margin-bottom:0">When a deal is marked Closed, “Ask for a testimonial” lands on your Tasks. Nothing is sent until you press Send.</p></div>
@@ -1224,14 +1231,17 @@ async function vTestimonials(){
       ${t.body?`<div style="margin-top:4px;font-style:italic">“${esc(t.body)}”</div>`:''}${t.video_url?`<div><a href="#" onclick="openDealFile('${esc(t.video_url)}');return false">▶ Watch video</a></div>`:''}
       <label class="small" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" style="width:auto" ${t.ok_to_publish?'checked':''} onchange="sb.from('testimonials').update({ok_to_publish:this.checked}).eq('id',${t.id}).then(()=>toast('Saved'))"> OK to use on the website</label></div>`).join('')}</div>`:''}
    <div class="card" style="padding:0;overflow-x:auto"><table><tr><th>Past seller</th><th>Contact</th><th>Status</th><th></th></tr>${(deals||[]).map(row).join('')||'<tr><td colspan="4" class="muted">No closed deals yet.</td></tr>'}</table></div>`}
-function fillTpl(b,l){return (b||'').replace(/\{first_name\}/g,(l.first_name||(l.full_name||'').split(/[\s&,]/)[0]||'there').trim())}
-async function askTestimonial(dealId){const {data:d}=await sb.from('deals').select('id,lead_id,leads(*)').eq('id',dealId).single();const l=d.leads||{};
+function propPhrase(p){p=p||{};const st=(p.address&&/\d|\w{3,} (st|rd|ln|dr|ave|ct|loop|way|blvd|hwy|pl|cir|trl)\b/i.test(p.address)&&!/^[A-Za-z .]+, [A-Z]{2}$/.test(p.address))?p.address:'';
+  if(st)return {at:true,t:[st,p.city].filter(Boolean).join(', ')};if(p.city)return {at:false,t:p.city+(p.state?', '+p.state:'')};if(p.county)return {at:false,t:p.county.replace(/ county$/i,'')+' County'+(p.apn?' (parcel '+p.apn+')':'')};return null}
+function fillTpl(b,l,p){const ph=propPhrase(p);let t=(b||'').replace(/\{first_name\}/g,(l.first_name||(l.full_name||'').split(/[\s&,]/)[0]||'there').trim());
+  t=ph?t.replace(/ at \{property\}/g,(ph.at?' at ':' in ')+ph.t).replace(/\{property\}/g,ph.t):t.replace(/ at \{property\}/g,'').replace(/ ?\(\{property\}\)/g,'').replace(/\{property\}/g,'your property');return t}
+async function askTestimonial(dealId){const {data:d}=await sb.from('deals').select('id,lead_id,leads(*),properties(address,city,state,county,apn)').eq('id',dealId).single();const l=d.leads||{},pp=d.properties;
   const {data:tp}=await sb.from('templates').select('kind,subject,body').eq('name','Testimonial request');const tx=(tp||[]).find(x=>x.kind==='text'),em=(tp||[]).find(x=>x.kind==='email');
   openDrawer(head('Ask '+esc(l.full_name||'seller')+' for a testimonial')+`<div class="card">
-   <label class="f">Text message${l.phone?' to '+esc(l.phone):''}</label><textarea id="ts_txt" style="min-height:150px">${esc(fillTpl(tx?.body,l))}</textarea>
+   <label class="f">Text message${l.phone?' to '+esc(l.phone):''}</label><textarea id="ts_txt" style="min-height:150px">${esc(fillTpl(tx?.body,l,pp))}</textarea>
    <div class="row" style="margin-top:8px"><button class="btn" ${l.phone?'':'disabled'} onclick="sendTestimonialText(${d.id},${l.id||0})">Send text</button></div>
    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
-   <label class="f">Email${l.email?' to '+esc(l.email):' (no email on file)'}</label><input id="ts_subj" value="${esc(em?.subject||'')}"><textarea id="ts_em" style="min-height:200px;margin-top:6px">${esc(fillTpl(em?.body,l))}</textarea>
+   <label class="f">Email${l.email?' to '+esc(l.email):' (no email on file)'}</label><input id="ts_subj" value="${esc(fillTpl(em?.subject||'',l,pp))}"><textarea id="ts_em" style="min-height:200px;margin-top:6px">${esc(fillTpl(em?.body,l,pp))}</textarea>
    <div class="row" style="margin-top:8px"><button class="btn" ${l.email?'':'disabled'} onclick="emailTestimonial(${d.id},${l.id||0},'${esc(l.email||'')}')">Send email</button></div>
    <p class="small muted">Sends from your seller Gmail (damien@dominionlandgroup.land) and shows in the Seller Inbox.</p></div>`)}
 async function markAsked(dealId,leadId){const {data:ex}=await sb.from('testimonials').select('id').eq('deal_id',dealId).is('received_at',null).limit(1);

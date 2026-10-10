@@ -71,7 +71,7 @@ const $=id=>document.getElementById(id);
 document.querySelectorAll('input[name=role]').forEach(r=>r.onchange=()=>{$('repwrap').hidden=!/agent/i.test(r.value)});
 const t=new URLSearchParams(location.search).get('t')||'';
 const rpc=(fn,body)=>fetch(SB+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
-if(/^[0-9a-f-]{36}$/i.test(t))rpc('buybox_prefill',{t}).then(r=>r.ok?r.json():null).then(p=>{if(!p)return;
+if(/^([0-9a-f-]{36}|[a-z0-9]{6})$/i.test(t))rpc('buybox_prefill',{t}).then(r=>r.ok?r.json():null).then(p=>{if(!p)return;
  if(p.name&&!/@/.test(p.name)&&p.name!==p.company)$('name').value=p.name;['company','email','phone'].forEach(k=>{if(p[k])$(k).value=p[k]});
  if(p.first_name)$('intro').textContent='Thanks, '+p.first_name+'. '+$('intro').textContent}).catch(()=>{});
 const vals=n=>[...document.querySelectorAll(`input[name=${n}]:checked`)].map(x=>x.value);
