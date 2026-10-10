@@ -134,6 +134,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
 .msg.in{background:#f0efe9;align-self:flex-start}.msg.out{background:var(--brand);color:#fff;align-self:flex-end}
 .msg .when{font-size:11px;opacity:.7;margin-top:3px}
 .composer{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px}
+#upbar{position:fixed;left:50%;transform:translateX(-50%);top:10px;z-index:3000;background:var(--brand);color:#fff;padding:8px 10px 8px 16px;border-radius:999px;box-shadow:0 6px 20px #0003;font-weight:600;font-size:14px}#upbar button{margin-left:10px;border:0;border-radius:999px;padding:5px 12px;background:var(--gold);color:#231b30;font-weight:700}
 .composer2{border-top:1px solid var(--line);padding:10px 12px;display:flex;flex-direction:column;gap:8px}.composer2 .crow{display:flex;gap:8px;align-items:center}.composer2 .cmode{flex:1 1 auto}
 .composer2 .tplsel{flex:0 0 auto;width:auto;max-width:200px;font-size:13px;padding:5px 8px}.composer2 .replybox{width:100%;min-height:96px;max-height:320px;resize:vertical;font:inherit;line-height:1.45}.composer2 #esubj{width:100%}
 .newmsg{position:fixed;right:18px;bottom:76px;z-index:60;max-width:340px;background:#fff;border-left:4px solid var(--gold);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px 14px;cursor:pointer;display:flex;flex-direction:column;gap:3px;font-size:13px}.newmsg span{color:#333}.newmsg small{color:#888}
@@ -274,6 +275,11 @@ function encFill(root){(root||document).querySelectorAll('.muted').forEach(el=>{
   const v=document.getElementById('view');if(v&&v.children.length&&!v.querySelector('.inbox3')&&!v.querySelector(':scope > .encfoot')&&!/Loading…/.test(v.textContent.slice(0,40))){v.insertAdjacentHTML('beforeend','<div class="encfoot">'+enc()+'</div>')}}
 let _encT;new MutationObserver(()=>{clearTimeout(_encT);_encT=setTimeout(()=>encFill(),250)}).observe(document.documentElement,{childList:true,subtree:true});
 
+// new version check: when DLG HQ is updated, offer a one-click refresh
+(function(){let base=null;const sig=t=>t.length+':'+t.slice(-400);
+  const chk=async()=>{try{const t=await (await fetch(location.pathname+'?vc='+Date.now(),{cache:'no-store'})).text();if(base===null){base=sig(t);return}
+    if(sig(t)!==base&&!document.getElementById('upbar')){const b=document.createElement('div');b.id='upbar';b.innerHTML='DLG HQ was updated. <button onclick="location.href=location.pathname+\'?v=\'+Date.now()+location.hash">Refresh now</button>';document.body.appendChild(b)}}catch(e){}};
+  chk();setInterval(chk,120000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)chk()})})();
 // ---------- dashboard (modeled on Pebble) ----------
 function dashRange(){const k=store.get('dashRange')||'30d';const t=new Date();t.setHours(12,0,0,0);const iso=d=>d.toISOString().slice(0,10);let a=new Date(t),b=new Date(t);
   if(k==='week'){a.setDate(t.getDate()-t.getDay())}else if(k==='month'){a=new Date(t.getFullYear(),t.getMonth(),1,12)}else if(k==='quarter'){a=new Date(t.getFullYear(),Math.floor(t.getMonth()/3)*3,1,12)}
