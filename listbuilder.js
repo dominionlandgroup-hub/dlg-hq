@@ -73,7 +73,7 @@ async function getJSON(url, opt, tries = 3) {
 const miles = (a, b) => { const R = 3958.8, dLa = (b[0] - a[0]) * Math.PI / 180, dLo = (b[1] - a[1]) * Math.PI / 180, s = Math.sin(dLa / 2) ** 2 + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(s)); };
 
 // ---- roads + flood, fetched once per ~1.4 mile tile ----
-const TILE = 0.02, roadCache = new Map(), floodCache = new Map();
+const TILE = 0.01, roadCache = new Map(), floodCache = new Map();
 const tileKey = (lng, lat) => Math.floor(lng / TILE) + ':' + Math.floor(lat / TILE);
 // the free road map allows only a couple of requests at a time: queue them, space them out, retry
 let opQueue = Promise.resolve();
@@ -88,11 +88,10 @@ function overpass(q) {
 }
 async function tileRoads(k) {
   if (roadCache.has(k)) return roadCache.get(k);
-  const p = (async () => { const [tx, ty] = k.split(':').map(Number), pad = 0.003, w = tx * TILE - pad, s = ty * TILE - pad, e = (tx + 1) * TILE + pad, n = (ty + 1) * TILE + pad;
-    const q = `[out:json][timeout:25];way["highway"](${s.toFixed(5)},${w.toFixed(5)},${n.toFixed(5)},${e.toFixed(5)});out geom;`;
+  const p = (async () => { const [tx, ty] = k.split(':').map(Number), pad = 0.002, w = tx * TILE - pad, s = ty * TILE - pad, e = (tx + 1) * TILE + pad, n = (ty + 1) * TILE + pad;
+    const q = `[out:json][timeout:25];way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|road)(_link)?$"]["service"!~"driveway|parking_aisle|drive-through"]["access"!~"^(private|no)$"](${s.toFixed(5)},${w.toFixed(5)},${n.toFixed(5)},${e.toFixed(5)});out skel geom;`;
     const j = await overpass(q); if (!j) return null;
-    const bad = /footway|path|cycleway|steps|pedestrian|bridleway|proposed|construction|track|corridor|platform|abandoned|raceway/;
-    return j.elements.filter(x => x.geometry && !bad.test(x.tags.highway) && !/driveway|parking_aisle|drive-through/.test(x.tags.service || '') && x.tags.access !== 'private').map(x => x.geometry.map(p => [p.lon, p.lat])); })();
+    return j.elements.filter(x => x.geometry).map(x => x.geometry.map(p => [p.lon, p.lat])); })();
   roadCache.set(k, p); return p;
 }
 async function tileFlood(k) {
