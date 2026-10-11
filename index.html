@@ -498,7 +498,7 @@ async function openDealForm(d){
      :`<div class="row" style="margin-top:8px"><input id="d_lq" placeholder="Search contact by name, phone or APN"><button class="btn ghost" style="flex:0" onclick="pickLead(${d.id})">Find</button></div><div id="d_lres"></div>`}</div>
    <div class="card"><div class="row" style="align-items:center"><h3 class="sec" style="margin:0;flex:1">Property</h3><a href="#" class="small" onclick="addPropertyFor(${d.lead_id||'null'},${d.id});return false">${p?'Change property':'+ Link property'}</a></div>${p?`<div><a href="#" onclick="openProperty(${p.id});return false"><b>APN ${esc(p.apn||'—')}</b></a></div><div>${esc([p.address,p.city,p.state,p.zip].filter(Boolean).join(', ')||d.property_label||'')}</div><div class="small muted">${esc([p.county,p.county_state].filter(Boolean).join(', '))}${p.acres?' · '+(+p.acres).toFixed(2)+' acres':''}</div>`:`<div>${esc(d.property_label||'')}</div><div class="muted small">No parcel linked.</div>`}</div>
    <div class="card"><h3 class="sec" style="margin-top:0">Contracts &amp; documents</h3>
-     <div class="docbtns">${[['psa','Land Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,t])=>`<button class="btn ghost" onclick="contractsFor(${d.id},'${k}')">+ ${t}</button>`).join('')}</div>
+     <div class="docbtns">${[['psa','Land Purchase Agreement'],['house','House Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,t])=>`<button class="btn ghost" onclick="contractsFor(${d.id},'${k}')">+ ${t}</button>`).join('')}</div>
      <div id="d_files" class="small" style="margin-top:10px">Loading…</div>
      <div class="row" style="margin-top:10px"><input type="file" id="d_up" multiple><button class="btn ghost" style="flex:0" onclick="uploadDealFiles(${d.id},${d.property_id||'null'})">Upload</button></div></div>`:''}
    </div><div>
@@ -585,7 +585,7 @@ function buildDocs(deal,which){const {Document,Packer,Paragraph,TextRun,Alignmen
   const sellers=Array.isArray(deal.sellers)?deal.sellers.filter(Boolean).join(' and '):deal.sellers;
   const extraLines=t=>(t||'').split('\n').filter(Boolean);
   const out=[];
-  if(which.psa){S=20;LINE=264;// Pebble "Land Purchase Contract" wording, verbatim; only blanks are filled (DD days, closing date, closing location, optional EMD)
+  if(which.psa){S=19;LINE=250;// Pebble "Land Purchase Contract" wording, verbatim; only blanks are filled (DD days, closing date, closing location, optional EMD)
     const ST={NC:'North Carolina',SC:'South Carolina',GA:'Georgia',FL:'Florida',TN:'Tennessee',VA:'Virginia',TX:'Texas'};const stt=String(deal.state||'').toUpperCase();
     const num=(t,o={})=>p([b(t+'\t'),...(o.runs||[])],{indent:{left:720,hanging:360},tabs:[{type:TabStopType.LEFT,position:720}],after:o.after??100});
     const hasEmd=deal.emd!==undefined&&deal.emd!==null&&deal.emd!==''&&Number(deal.emd)>0;const extra=extraLines(deal.additional_terms);let k=11;
@@ -615,6 +615,41 @@ function buildDocs(deal,which){const {Document,Packer,Paragraph,TextRun,Alignmen
       ...(Array.isArray(deal.sellers)&&deal.sellers.length?deal.sellers:['']).flatMap(n=>[p('____________________________________        Date: _______________',{after:20}),p(n||'Seller',{after:0}),p('Seller',{after:200})]),
       p('____________________________________        Date: _______________',{after:20}),p('Dominion Land Group',{after:0}),p('Buyer',{after:0})];
     out.push(['Land Purchase Agreement',doc('LAND SALE AGREEMENT',pc)])}
+  if(which.house){S=18;LINE=236;// Damien's HOUSE P&S AGREEMENT MASTER COPY, wording verbatim; only blanks filled
+    const fv=(x,len)=>(x===undefined||x===null||x==='')?{text:'_'.repeat(len)}:{text:String(x),bold:true,underline:{}};
+    const fm=(x,len)=>(x===undefined||x===null||x==='')?{text:'$'+'_'.repeat(len)}:{text:money(x),bold:true,underline:{}};
+    const hasEmd=deal.emd!==undefined&&deal.emd!==null&&deal.emd!==''&&Number(deal.emd)>0;const price=deal.purchase_price;
+    const cash=price!==undefined&&price!==null&&price!==''?Number(price)-(hasEmd?Number(deal.emd):0):null;const extra=extraLines(deal.additional_terms);
+    const sec=(t,rest,o={})=>p([b(t),...rest],{after:o.after??90});
+    const line=w=>p([b(w+': '),{text:'_'.repeat(70)},'   ',b('DATE: '),{text:'__________'}],{after:160});
+    const hc=[
+      p(['This agreement is made this ',fv(deal.contract_date,18)],{after:60}),
+      p(['between Seller(s) ',fv(sellers,40)],{after:60}),
+      p(['and Buyer(s) ',fv('Dominion Land Group')],{after:60}),
+      p('and or assignor. Seller agrees to sell and Buyer agrees to buy the following described real property together with all improvements and fixtures and the personal property described below:',{after:120}),
+      p([b('Street Address: '),{...fv(deal.property_address,60),size:24}],{after:60}),
+      p([b('County: '),fv(deal.county?String(deal.county).toUpperCase():'',20)],{after:60}),
+      p([b('Personal property included: '),b('PROPERTY SOLD “AS- IS”')],{after:140}),
+      p([b('Earnest Money Deposit\t'),hasEmd?fm(deal.emd):{text:'$0.00',bold:true,underline:{}}],{indent:{left:1800},tabs:[{type:TabStopType.LEFT,position:5040}],after:40}),
+      p([b('Cash To Seller At Closing\t'),fm(cash,12)],{indent:{left:1800},tabs:[{type:TabStopType.LEFT,position:5040}],after:40}),
+      p([b('Purchase Price\t'),fm(price,12)],{indent:{left:1800},tabs:[{type:TabStopType.LEFT,position:5040}],after:140}),
+      p(['The purchase price to be paid as follows: ',b('BUYER SHALL PAY ALL CLOSING COST MINUS ANY UNPAID TAXES, LIENS OR MORTGAGES.')],{after:100}),
+      sec('1. EARNEST MONEY: ',hasEmd?[fm(deal.emd),' to be deposited with the closing agent and credited to Buyer at closing.']:['None.']),
+      sec('2. THE BALANCE DUE TO SELLER ',['in the amount of ',fm(cash,10),' shall be paid as follows: ',b('CASH, CASHIER’S CHECK, OR BANK WIRE')]),
+      sec('3. PRORATIONS, IMPOUNDS & SECURITY DEPOSITS: ',['Loan interest, property taxes, insurance, and rents shall be prorated as of the date of closing. All security deposits shall be transferred to buyer at closing. All impound accounts for taxes and insurance are included in the purchase price and shall be transferred to buyer at closing. Any shortage in these accounts shall be charged to seller at closing.']),
+      sec('4. CLOSING DATE AND TRANSFER OF TITLE: ',['This transaction shall close on or before ',fv(deal.close_date?String(deal.close_date).toUpperCase():'',16),' Closing will be held at ',fv(deal.closing_agent,30),' and Seller(s) agree to transfer marketable title free and clear of all encumbrances except those listed and pay any required state taxes or stamps required to record deed and mortgage. Seller agrees to furnish title insurance in the amount of the purchase price, showing no encumbrances or exceptions other than previously noted.']),
+      sec('5. DAMAGE TO PROPERTY: ',['Seller shall maintain property in its current condition and keep it insured against all loss until closing in the event of destruction covered by insurance, buyer may elect to close and collect the insurance proceeds.']),
+      sec('6. DEFAULTS: ',['If buyer defaults under this contract, any and all monies deposited by buyer(s) shall be retained by seller as full liquidated damages. If seller defaults, buyer may pursue all remedies allowed by law and sellers default.']),
+      sec('7. SUCCESSORS AND ASSIGNS: ',['The terms and conditions of this contract shall bind all successors, heirs, administrators, trustees, executors and assignees of the respective parties.']),
+      sec('8. ACCESS ADVERTISING AND REPAIRS MADE BY BUYERS: ',['Seller agrees that this agreement may be marketable on the Multiple Listing Service and buyer may have access during reasonable hours to show property to others. If the property is vacant and in need of repairs, buyers at their expense may make repairs and improvements, and any improvements made shall become the property of the seller should the buyer default.']),
+      sec('9. The Liability shall be limited to the property itself and shall not extend beyond.',[]),
+      sec('10. This contract constitutes the entire agreement between Purchaser and Seller regarding the property and supersedes all prior discussions, negotiations and agreements whether oral or written.',[]),
+      sec('11. BUYER ',['will have a ',fv(deal.dd_days,4),' business day inspection period and has the right to cancel this agreement with written notice to the seller within the inspection period. The inspection period starts when the last party has signed this agreement. If Buyer timely cancels this Contract, the deposit(s) paid shall be immediately returned to Buyer; thereupon, Buyer and Seller shall be released of all further obligations under this Contract.']),
+      sec('12. ADDITIONAL TERMS AND CONDITIONS: ',extra.length?[extra[0]]:[],{after:extra.length>1?30:200}),
+      ...extra.slice(1).map((t,i)=>p(t,{indent:{left:360},after:i===extra.length-2?200:30})),
+      p([b('THIS IS INTENDED TO BE A LEGALLY BINDING CONTRACT, IF YOU DO NOT UNDERSTAND THE LEGAL EFFECT OF ANY PART OF THIS CONTRACT, SEEK LEGAL ADVICE BEFORE SIGNING.')],{after:240}),
+      line('SELLER(S)'),line('SELLER(S)'),line('BUYER(S)'),line('BUYER(S)')];
+    out.push(['House Purchase and Sale Agreement',doc('Purchase and Sale Agreement',hc)])}
   if(which.asg){S=18;LINE=240;const a=deal.assignment||{};
     const price=Number(deal.purchase_price||0),fee=Number(a.assignment_fee||0),dep=Number(a.deposit||0);
     const haveNums=deal.purchase_price&&a.assignment_fee!==undefined&&a.assignment_fee!=='';const has=x=>x!==undefined&&x!=='';
@@ -692,15 +727,15 @@ async function contractsFor(id,only){const {data:d}=await sb.from('deals').selec
   const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   const addr=[d.properties?.address,d.properties?.city,d.properties?.state,d.properties?.zip].filter(Boolean).join(', ')||d.property_label||'';
   const f=(id2,label,val,type='text',ph='')=>`<div><label class="f">${label}</label><input id="k_${id2}" type="${type}" value="${esc(val??'')}" placeholder="${esc(ph)}"></div>`;
-  const DOCN={psa:'Land Purchase Agreement',asg:'Assignment of Contract',cancel:'Cancellation',notice:'Notice of Termination'};const on=k=>only?k===only:(k==='psa'||(k==='asg'&&!!(d.buyers?.represents||d.buyers?.name)));
+  const DOCN={psa:'Land Purchase Agreement',house:'House Purchase Agreement',asg:'Assignment of Contract',cancel:'Cancellation',notice:'Notice of Termination'};const on=k=>only?k===only:(k==='psa'||(k==='asg'&&!!(d.buyers?.represents||d.buyers?.name)));
   window._wideNext=true;openDrawer(`<div class="dhead"><h2 style="margin:0">${only?DOCN[only]:'Contracts'}</h2><div class="row" style="flex:0 0 auto;gap:8px"><button class="btn ghost" onclick="openDeal(${id})">← Back to deal</button><button class="btn ghost" onclick="closeDrawer()">Close</button></div></div><div class="card"><p class="small muted" style="margin-top:0">The contract wording never changes. Fill or fix the blanks, add anything special under Additional Terms, then create. Blank fields print as fill-in lines.</p>
-   <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">${[['psa','Land Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,l])=>`<label class="small" style="display:${only?'none':'flex'};gap:6px;align-items:center"><input type="checkbox" id="w_${k}" ${on(k)?'checked':''} style="width:auto" onchange="$('kx_${k}')&&($('kx_${k}').style.display=this.checked?'':'none')"> ${l}</label>`).join('')}</div>
+   <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">${[['psa','Land Purchase Agreement'],['house','House Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,l])=>`<label class="small" style="display:${only?'none':'flex'};gap:6px;align-items:center"><input type="checkbox" id="w_${k}" ${on(k)?'checked':''} style="width:auto" onchange="$('kx_${k}')&&($('kx_${k}').style.display=this.checked?'':'none')"> ${l}</label>`).join('')}</div>
    <h4 style="margin:10px 0 4px">Deal</h4>
    ${f('contract_date','Contract date',today)}${f('sellers','Seller name(s) — separate two sellers with " and "',d.leads?.full_name||'')}${f('address','Property address',addr)}${f('apn','Parcel ID / APN',d.properties?.apn||'')}
    ${f('legal','Legal description (optional)','')}
    <div class="row" style="flex-wrap:nowrap;gap:8px">${f('price','Purchase price $',d.purchase_price??d.value??'','number')}${f('emd','Earnest money $ (blank = none)',d.emd??'','number')}</div>
    <div class="row" style="flex-wrap:nowrap;gap:8px">${f('feas','Due diligence (business days)',d.dd_days??10,'number')}${f('closedate','Close on or before',d.closing_date?fmtDate(d.closing_date):fmtDate(new Date(Date.now()+40*864e5).toISOString().slice(0,10)))}</div>
-   ${f('sellermail',"Seller mailing address (for 'To Seller at')",[d.leads?.mail_address,[d.leads?.mail_city,d.leads?.mail_state].filter(Boolean).join(', '),d.leads?.mail_zip].filter(Boolean).join(' ').replace(/ (\d{5})$/,' $1'))}${f('state','Property state',d.properties?.state||'NC')}
+   ${f('sellermail',"Seller mailing address (for 'To Seller at')",[d.leads?.mail_address,[d.leads?.mail_city,d.leads?.mail_state].filter(Boolean).join(', '),d.leads?.mail_zip].filter(Boolean).join(' ').replace(/ (\d{5})$/,' $1'))}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('county','County',d.properties?.county||'')}${f('state','Property state',d.properties?.state||'NC')}</div>
    ${f('agent','Closing agent',d.attorney||'','text','e.g. Merritt Law, PLLC, Kannapolis, NC')}
    <label class="f">Additional Terms (one per line)</label><div class="row" style="flex-wrap:nowrap;gap:6px;align-items:flex-start"><textarea id="k_terms" style="min-height:70px;flex:1" placeholder="e.g. Buyer may assign this contract."></textarea>${micBtn('k_terms')}</div>
    <div id="kx_asg" style="display:${on('asg')?'':'none'}"><h4 style="margin:14px 0 4px">Assignment</h4>
@@ -714,9 +749,9 @@ async function contractsFor(id,only){const {data:d}=await sb.from('deals').selec
     <label class="f">Section</label><select id="k_nreason"><option value="feasibility">Did not pass feasibility (2b)</option><option value="title">No clear title (2c)</option><option value="nostudy">Seller did not allow feasibility study (2c)</option></select></div>
    <br><button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">${only?'Create '+DOCN[only]:'Create documents'}</button><div id="k_msg" class="small" style="margin-top:8px"></div></div>`)}
 async function makeContracts(id){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?undefined:Number(g(k));
-  const which={psa:$('w_psa').checked,asg:$('w_asg').checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};if(!Object.values(which).some(Boolean))return toast('Pick at least one document');
+  const which={psa:$('w_psa').checked,house:$('w_house').checked,asg:$('w_asg').checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};if(!Object.values(which).some(Boolean))return toast('Pick at least one document');
   const deal={contract_date:g('contract_date'),sellers:g('sellers').split(/\s+and\s+/i).filter(Boolean),property_address:g('address'),apn:g('apn'),legal_description:g('legal'),purchase_price:num('price'),emd:num('emd'),
-    feasibility_days:g('feas'),dd_days:g('feas'),close_date:g('closedate'),state:g('state'),seller_lines:[...g('sellers').split(/\s+and\s+/i).filter(Boolean),...(g('sellermail')?[g('sellermail')]:[])],closing_agent:g('agent'),additional_terms:$('k_terms').value,
+    feasibility_days:g('feas'),dd_days:g('feas'),close_date:g('closedate'),state:g('state'),county:g('county'),seller_lines:[...g('sellers').split(/\s+and\s+/i).filter(Boolean),...(g('sellermail')?[g('sellermail')]:[])],closing_agent:g('agent'),additional_terms:$('k_terms').value,
     assignment:{assignee:g('assignee'),assignment_fee:num('fee'),deposit:num('adep'),deposit_to:g('depto'),deposit_due:g('depdue'),close_by:g('closeby'),exam_ends:g('exam')},
     cancel:{date:g('cdate'),reason:$('k_creason')?.value,other:g('cother'),emd_to:$('k_cemd')?.value,release_days:g('crel'),additional_terms:$('k_cterms')?.value||''},
     notice:{date:g('ndate'),reason:$('k_nreason')?.value}};
@@ -1370,14 +1405,14 @@ async function savePlan(id){const r={name:$('pl_name').value||'Untitled plan',st
 async function delPlan(id){if(!confirm('Delete this plan?'))return;await sb.from('followup_plans').delete().eq('id',id);closeDrawer();vFollowup()}
 
 // ---------- templates ----------
-async function blankContract(which,dl){try{await docxLib();const w={psa:false,asg:false,cancel:false,notice:false};w[which]=true;
+async function blankContract(which,dl){try{await docxLib();const w={psa:false,house:false,asg:false,cancel:false,notice:false};w[which]=true;
   const [[name,doc]]=buildDocs({sellers:[],assignment:{},cancel:{},notice:{},additional_terms:''},w);const blob=await _docxLib.Packer.toBlob(doc);const url=URL.createObjectURL(blob);
   if(dl){const a=document.createElement('a');a.href=url;a.download=name+' (blank).docx';document.body.appendChild(a);a.click();a.remove();return}
   window._dl=null;window._wideNext=true;openDrawer('');showDocx(blob,name+' (blank)',url)}catch(e){toast('Could not open it: '+e.message)}}
 async function vTemplates(){
   const k=store.get('tplKind')||'text';const tabs=`<div class="tabs">${['mail','email','text','contracts'].map(x=>`<button class="${x===k?'on':''}" onclick="store.set('tplKind','${x}');vTemplates()">${x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div>`;
   if(k==='contracts'){$('actions').innerHTML='';$('view').innerHTML=tabs+`<div class="card"><p class="small muted" style="margin-top:0">Your contract wording, blank. View one, or download it as a Word file to keep. To fill one in for a deal, open the deal and use Contracts &amp; documents.</p>
-     ${[['psa','Land Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation of Contract'],['notice','Notice of Termination']].map(([d,t])=>`<div class="frow" style="padding:10px 0"><span class="fic">W</span><b style="flex:1">${t}</b><button class="btn ghost sm" onclick="blankContract('${d}')">View</button><button class="btn ghost sm" onclick="blankContract('${d}',1)">Download</button></div>`).join('')}</div>`;return}
+     ${[['psa','Land Purchase Agreement'],['house','House Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation of Contract'],['notice','Notice of Termination']].map(([d,t])=>`<div class="frow" style="padding:10px 0"><span class="fic">W</span><b style="flex:1">${t}</b><button class="btn ghost sm" onclick="blankContract('${d}')">View</button><button class="btn ghost sm" onclick="blankContract('${d}',1)">Download</button></div>`).join('')}</div>`;return}
   $('actions').innerHTML=`<button class="btn" onclick="editTpl(0,'${k}')">+ Add Template</button>`;
   const {data}=await sb.from('templates').select('*').eq('kind',k).order('name');
   $('view').innerHTML=tabs+`
