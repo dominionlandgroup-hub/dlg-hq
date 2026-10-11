@@ -1005,7 +1005,16 @@ async function startMailing(id){
    <label class="f">Letter template</label><select id="m_tpl">${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}" ${c.template===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
    <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Remove opt-outs, "not selling" and do-not-mail</label>
    <p class="small muted">Downloads the mail-house list with every merge field (Owner name, first and last name, mailing address, city, state, zip, property address, city, state, zip, county, FIPS, APN, acres, offer code), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. Attach the list and the letter from your DM LETTERS folder, then send.</p>
-   <button class="btn" onclick="buildMailList(${id})">Download list + draft email</button><div id="m_msg" class="small" style="margin-top:8px"></div></div>`)}
+   <div class="card" id="m_pray" style="margin:12px 0;background:#f7f3ea;border-left:4px solid #b8963e"><b>Pray before you send</b>
+    <p style="font-style:italic;line-height:1.6;margin:8px 0">${esc(PRAYERS[(id||0)%PRAYERS.length].replace('{n}',(c.records||0).toLocaleString()))}</p>
+    <button class="btn ghost" onclick="amen(${id})">🙏 Amen</button></div>
+   <button class="btn" id="m_send" disabled title="Pray first" onclick="buildMailList(${id})">Download list + draft email</button><div id="m_msg" class="small" style="margin-top:8px"></div></div>`)}
+const PRAYERS=['Lord, this business is Yours before it is mine. Give me wisdom for every call these {n} letters bring, keep me honest with every owner, and lead me to the people You want me to serve. Amen.',
+ 'Father, I put these {n} letters in Your hands. Give me wisdom, open the right doors and close the wrong ones, and let every deal honor You. Amen.',
+ 'God, thank You for this business. Grant me wisdom and patience with every seller who calls, and let Your favor go before this mailing. Amen.',
+ 'Lord, guide these {n} letters to the right homes. Give me a clear mind, a fair heart, and the wisdom to do right by every family I talk to. Amen.'];
+async function amen(id){const {data:c}=await sb.from('campaigns').select('name').eq('id',id).single();await sb.from('activity').insert({kind:'note',body:'Prayed over campaign: '+(c?.name||id)});
+  $('m_send').disabled=false;$('m_send').title='';$('m_pray').innerHTML='<b>🙏 Amen.</b> <span class="small muted">Prayed over this campaign. You can send it now.</span>'}
 async function buildMailList(id){
   $('m_msg').textContent='Building list…';const all=[];
   for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('offer_code, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status), properties(apn,address,city,state,zip,county,fips,acres)').eq('campaign_id',id).range(from,from+999);
