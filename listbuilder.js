@@ -15,6 +15,7 @@ LB.RULES = {
   costPerPiece: 0.55,     // postage + print per letter
   rampSize: 500, rampUntil: '2026-10-26', // first two weekly lists are 500 while the new filters prove out
   countyCapPct: 0.30,     // no county gets more than 30% of a list
+  marketShare: 0.40,      // water & sewer markets get 2 of every 5 picks (Mecklenburg church lots first)
   maxSlopePct: 10,       // average ground slope across the lot (NC 3-ft LiDAR); infill builders grade to ~2%
   minLandValue: 15000,
   // water & sewer markets (Damien, Oct 2026): pulled every week; only lots inside a public sewer area are mailed here
@@ -306,6 +307,10 @@ LB.run = async function (opt = {}) {
       if (sh.compact < R.minCompact) { cutAdd('sliver / odd shape'); continue; }
       c.nm = nm; pass1.push(c); }
     log(`${pass1.length.toLocaleString()} lots passed size, width, shape, owner and red-flag checks.`);
+    // mix: water & sewer market lots take 2 of every 5 slots, closest-to-deals lots the other 3
+    { const mk = pass1.filter(c => c.sewerMarket).sort((a, b) => (b.church ? 1 : 0) - (a.church ? 1 : 0) || (/^mecklenburg$/i.test(b.r.county) ? 1 : 0) - (/^mecklenburg$/i.test(a.r.county) ? 1 : 0) || a.dist - b.dist), ot = pass1.filter(c => !c.sewerMarket);
+      const per5 = Math.round(5 * (R.marketShare || 0)); pass1.length = 0; let i = 0, j = 0;
+      while (i < mk.length || j < ot.length) { for (let k = 0; k < per5 && i < mk.length; k++) pass1.push(mk[i++]); for (let k = 0; k < 5 - per5 && j < ot.length; k++) pass1.push(ot[j++]); } }
     // DLG HQ check + roads + flood, closest lots first, in batches (only checks as many as it needs)
     st.phase = 'checking owners'; const ownerBlock = await LB.ownerBlocks(R.recentDays, log); const supp = await LB.suppressedApns();
     const pickedOwners = new Set();
