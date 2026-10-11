@@ -244,7 +244,8 @@ LB.ownerBlocks = async function (days, log) {
   log && log(`${block.size.toLocaleString()} owners blocked by mailing address (recent letters, resting, responded, tagged or do-not-mail).`);
   return block;
 };
-LB.suppressedApns = async function () { const set = new Set(); for (let o = 0; ; o += 1000) { const { data } = await sb.from('suppression').select('apn').not('apn', 'is', null).range(o, o + 999); (data || []).forEach(x => set.add(String(x.apn))); if (!data || data.length < 1000) break; } return set; };
+LB.apnKey = a => String(a || '').toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/^0+/, '');
+LB.suppressedApns = async function () { const set = new Set(); for (let o = 0; ; o += 1000) { const { data } = await sb.from('suppression').select('apn').not('apn', 'is', null).range(o, o + 999); (data || []).forEach(x => { set.add(String(x.apn)); set.add(LB.apnKey(x.apn)); }); if (!data || data.length < 1000) break; } return set; };
 // ---- main ----
 LB.run = async function (opt = {}) {
   const R = { ...LB.RULES, ...opt };
@@ -328,7 +329,7 @@ LB.run = async function (opt = {}) {
       for (const c of batch) { if (final.length >= R.size) break;
         const w = worked.get(String(c.r.apn) + '|' + c.r.county.toLowerCase()) || (c.r.apn2 && worked.get(String(c.r.apn2) + '|' + c.r.county.toLowerCase()));
         if (w) { cutAdd(w.startsWith('tagged') ? 'tagged in DLG HQ (DD or negative)' : (w.startsWith('mailed') || w.startsWith('resting')) ? w : 'already worked in DLG HQ'); continue; }
-        if (supp.has(String(c.r.apn)) || (c.r.apn2 && supp.has(String(c.r.apn2)))) { cutAdd('on the suppression list'); continue; }
+        if (supp.has(String(c.r.apn)) || supp.has(LB.apnKey(c.r.apn)) || (c.r.apn2 && (supp.has(String(c.r.apn2)) || supp.has(LB.apnKey(c.r.apn2))))) { cutAdd('on the suppression list'); continue; }
         const ok_ = normAddr(c.r.mail, c.r.mzip); if (pickedOwners.has(ok_)) { cutAdd('same owner already on this list (one letter per owner)'); continue; }
         const ob = ownerBlock.get(ok_); if (ob) { cutAdd(ob.startsWith('owner tagged') ? 'tagged in DLG HQ (DD or negative)' : ob); continue; }
         if (multiCounty && (perCounty.get(c.r.county) || 0) >= cap) { st.held++; continue; } // county already has its 30%
