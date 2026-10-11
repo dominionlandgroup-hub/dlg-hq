@@ -15,6 +15,7 @@ LB.RULES = {
   costPerPiece: 0.55,     // postage + print per letter
   rampSize: 500, rampUntil: '2026-10-26', // first two weekly lists are 500 while the new filters prove out
   countyCapPct: 0.30,     // no county gets more than 30% of a list
+  churchShare: 0.10,      // church-owned lots: Mecklenburg only, at most 10% of a list
   marketShare: 0.40,      // water & sewer markets get 2 of every 5 picks (Mecklenburg church lots first)
   maxSlopePct: 10,       // average ground slope across the lot (NC 3-ft LiDAR); infill builders grade to ~2%
   minLandValue: 15000,
@@ -63,7 +64,7 @@ LB.names = function (r) {
 };
 const GOV = /\b(COUNTY OF|COUNTY\b.*\b(BOARD|COMMISSION)|CITY OF|TOWN OF|VILLAGE OF|STATE OF|UNITED STATES|USA\b|U S A|DEPT|DEPARTMENT|BOARD OF EDUCATION|SCHOOL|AUTHORITY|COMMISSION|HOMEOWNERS|HOME OWNERS|HOA\b|PROPERTY OWNERS|OWNERS ASS|ASSOCIATION|ASSN|POA\b|DUKE ENERGY|PROGRESS ENERGY|DOMINION ENERGY|ELECTRIC|MEMBERSHIP CORP|EMC\b|UTILIT|RAILROAD|RAILWAY|WATER (AND|&) SEWER|SANITARY DISTRICT|TELEPHONE|NCDOT|SCDOT|DEPARTMENT OF TRANSPORTATION|HOUSING AUTHORITY|CEMETERY|LAND TRUST|CONSERVANCY|NATURE CONSERVANCY)\b/i;
 const BUILDER = /\b(BUILDERS?|BUILDING|CONSTRUCTION|HOMES|HOMEBUILDERS?|DEVELOPMENT|DEVELOPERS?|DEVELOP|COMMUNITIES|RESIDENTIAL|REALTY|LAND CO|LAND COMPANY|LAND GROUP|LAND HOLDINGS|LOTS|SUBDIVISION|NVR|PULTE|LENNAR|D R HORTON|DR HORTON|MERITAGE|TAYLOR MORRISON|TRUE HOMES|MATTAMY|EASTWOOD|CENTURY COMMUNITIES|DREAM FINDERS|SMITH DOUGLAS|STANLEY MARTIN|DAN RYAN|MUNGO|ADAMS HOMES|LGI)\b/i;
-const CHURCH = /\b(CHURCH|MINISTR|FELLOWSHIP|TEMPLE|TABERNACLE|CONGREGATION|BAPTIST|METHODIST|PRESBYTERIAN|EPISCOPAL|LUTHERAN|PENTECOSTAL|HOLINESS|A M E|AME ZION|MISSIONARY|DIOCESE|PARISH|CATHOLIC)\b/i;
+const CHURCH = /\b(CHURCH(?! (ST|STREET|RD|ROAD|AVE|LN|DR)\b)|MINISTR|FELLOWSHIP|TABERNACLE|CONGREGATION|BAPTIST|METHODIST|PRESBYTERIAN|EPISCOPAL|LUTHERAN|PENTECOSTAL|HOLINESS|AME ZION|DIOCESE|CATHOLIC|HOUSE OF PRAYER)/i;
 const REDFLAG = /EASEMENT|DRIVEWAY|DRIVE WAY|R\/W\b|RIGHT[- ]OF[- ]WAY|\bROW\b|COMMON AREA|COMMON PROP|COMMON OPEN|OPEN SPACE|BUFFER|\bSTRIP\b|REMNANT|DRAINAGE|DETENTION|RETENTION|\bPOND\b|UTILITY|CEMETERY|LANDLOCK|LAND LOCK|NO ACCESS|UNBUILDABLE|NON[- ]BUILDABLE|NOT BUILDABLE|SLIVER|\bGAP\b|AMENITY|RECREATION AREA|CONSERVATION|WETLAND|SEWER|PUMP STATION|LIFT STATION|TOWER SITE|CELL TOWER|SUBSTATION/i;
 // tags/status in DLG HQ that mean: do not mail
 const NEGTAG = /due diligence|\bdd\b|run claude dd|dd done|not sell|overpriced|paid too much|listed|bad lot|\bsold\b|\bdnc\b|do not (mail|call|contact)|opted|opt out|not interested|not_interested|stop|wrong (owner|person)|deceased|hostile/i;
@@ -294,7 +295,7 @@ LB.run = async function (opt = {}) {
       if (c.dist < 0.03) { cutAdd('your own deal lot'); continue; }
       if (BUILDER.test(r.owner || '')) { cutAdd('builder / developer owner'); continue; }
       if (buyerNames.has(normOwner(r.owner))) { cutAdd('one of your buyers'); continue; }
-      if (CHURCH.test(r.owner || '')) { c.church = true; if (/^mecklenburg$/i.test(r.county)) c.dist = 0; } // church lots: Mecklenburg ones go to the front
+      if (CHURCH.test(r.owner || '')) { if (!/^mecklenburg$/i.test(r.county)) { cutAdd('church lot outside Mecklenburg'); continue; } c.church = true; c.dist = 0; } // Mecklenburg church lots go to the front
       if (!c.church && (ownerCount.get(normOwner(r.owner)) || 0) >= 4) { cutAdd('owns 4+ lots nearby (developer inventory)'); continue; }
       if (!nm || !r.mail || !r.mcity || !r.mstate || !r.mzip) { cutAdd('no mailing address'); continue; }
       if (r.built) { cutAdd('has a building'); continue; }
@@ -308,12 +309,12 @@ LB.run = async function (opt = {}) {
       c.nm = nm; pass1.push(c); }
     log(`${pass1.length.toLocaleString()} lots passed size, width, shape, owner and red-flag checks.`);
     // mix: water & sewer market lots take 2 of every 5 slots, closest-to-deals lots the other 3
-    { const mk = pass1.filter(c => c.sewerMarket).sort((a, b) => (b.church ? 1 : 0) - (a.church ? 1 : 0) || (/^mecklenburg$/i.test(b.r.county) ? 1 : 0) - (/^mecklenburg$/i.test(a.r.county) ? 1 : 0) || a.dist - b.dist), ot = pass1.filter(c => !c.sewerMarket);
+    { const mk = pass1.filter(c => c.sewerMarket).sort((a, b) => (b.church ? 1 : 0) - (a.church ? 1 : 0) || a.dist - b.dist), ot = pass1.filter(c => !c.sewerMarket);
       const per5 = Math.round(5 * (R.marketShare || 0)); pass1.length = 0; let i = 0, j = 0;
       while (i < mk.length || j < ot.length) { for (let k = 0; k < per5 && i < mk.length; k++) pass1.push(mk[i++]); for (let k = 0; k < 5 - per5 && j < ot.length; k++) pass1.push(ot[j++]); } }
     // DLG HQ check + roads + flood, closest lots first, in batches (only checks as many as it needs)
     st.phase = 'checking owners'; const ownerBlock = await LB.ownerBlocks(R.recentDays, log); const supp = await LB.suppressedApns();
-    const pickedOwners = new Set();
+    const pickedOwners = new Set(); let churchN = 0;
     const final = [], perCounty = new Map(), multiCounty = !opt.noCountyCap && new Set(pass1.map(c => c.r.county)).size > 1; let i = 0;
     const cap = Math.max(1, Math.ceil(R.size * R.countyCapPct));
     for (let b = 0; b < pass1.length && final.length < R.size; b += 600) {
@@ -327,6 +328,7 @@ LB.run = async function (opt = {}) {
         const ok_ = normAddr(c.r.mail, c.r.mzip); if (pickedOwners.has(ok_)) { cutAdd('same owner already on this list (one letter per owner)'); continue; }
         const ob = ownerBlock.get(ok_); if (ob) { cutAdd(ob.startsWith('owner tagged') ? 'tagged in DLG HQ (DD or negative)' : ob); continue; }
         if (multiCounty && (perCounty.get(c.r.county) || 0) >= cap) { st.held++; continue; } // county already has its 30%
+        if (c.church && churchN >= Math.ceil(R.size * (R.churchShare || 0))) { st.held++; continue; }
         if (c.slope && c.slope.pct > R.maxSlopePct) { cutAdd('too steep (over ' + R.maxSlopePct + '% slope)'); continue; }
         i++; const k = tileKey(c.c[0], c.c[1]); st.tile = k; const t0 = Date.now(); const [roads, flood] = await Promise.all([tileRoads(k), tileFlood(k)]); st.lastTileMs = Date.now() - t0; st.checked = i;
         if (flood === null) { cutAdd('flood map unavailable (skipped to be safe)'); continue; }
@@ -337,7 +339,7 @@ LB.run = async function (opt = {}) {
         if (c.r.state === 'NC') { const sw = await tileSewer(k); c.sewer = sw === null ? 'unknown' : sw.some(fr => inPoly(c.c, fr)) ? 'likely public sewer' : 'likely septic'; } else c.sewer = 'unknown';
         if (c.sewerMarket && c.sewer !== 'likely public sewer') { cutAdd('no public sewer (water & sewer market)'); continue; }
         perCounty.set(c.r.county, (perCounty.get(c.r.county) || 0) + 1);
-        pickedOwners.add(ok_);
+        pickedOwners.add(ok_); if (c.church) churchN++;
         final.push(c); st.picked = final.length; if (i % 100 === 0) log(`Checked ${i} lots for road and flood, ${final.length} picked.`); }
     }
     st.final = final; st.byCounty = Object.fromEntries(perCounty);
