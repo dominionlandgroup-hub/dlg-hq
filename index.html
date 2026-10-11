@@ -19,6 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="listbuilder.js?v=2"></script>
 <style>.tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.tagchip{display:inline-flex;align-items:center;gap:4px;background:#efe7fb;color:#4b2a7b;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;font-weight:600}.tagchip.sm{padding:2px 8px;font-size:11px}.tagchip button{border:0;background:none;color:#4b2a7b;cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.tagadd{border:1px dashed #b9a6d6;background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#4b2a7b}.linkres{position:absolute;left:0;right:0;z-index:20;background:var(--card,#fff);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:8px;max-height:300px;overflow:auto}.linkres .pitem{padding:8px 10px;border-bottom:1px solid var(--line,#eee);cursor:pointer}.linkres .pitem:hover{background:#f5f1fb}
 
 :root{color-scheme:light;--bg:#f7f6fa;--card:#fff;--ink:#231b30;--muted:#6e6880;--line:#e7e3ee;--brand:#5C2977;--brand2:#7a3f9c;--accent:#D5A940;--gold:#D5A940;--gold-d:#a7822a;--red:#b23b3b;--chip:#f2ecf7;--side:#ffffff;--hot:#d9480f}
@@ -896,8 +897,27 @@ function campStats(c,dc){const a=dc[c.id]||{n:0,open:0,offer:0,purchase:0,sale:0
 async function campDealCounts(){const {data}=await sb.rpc('campaign_deal_counts');
   // every deal (Pebble's and new) is linked to its campaign; offers/purchases/sales from Pebble came over per campaign, new ones add on
   const dc={};(data||[]).forEach(r=>{dc[r.campaign_id]={n:+r.deals,open:+r.open||0,offer:+r.offers,purchase:+r.purchases,sale:+r.sales}});return dc}
+// ---------- weekly buildable list (listbuilder.js) ----------
+function nextMonday(){const d=new Date();d.setDate(d.getDate()+((8-d.getDay())%7||7));return d.toISOString().slice(0,10)}
+function weeklyList(opt={}){const R=LB.RULES;openDrawer(head('Build weekly list')+`<div class="card">
+  <p class="small" style="margin-top:0">Pulls fresh vacant lots straight from the county around your closed deals, the lots you have under contract or in escrow, and your builder buy boxes. Keeps only buildable lots and removes anyone already worked in DLG HQ. Neutral letter only.</p>
+  <div class="row"><label class="f" style="flex:1">Records<input id="wl_n" type="number" value="${opt.size||R.size}"></label><label class="f" style="flex:1">Mail date<input id="wl_d" type="date" value="${nextMonday()}"></label></div>
+  <div class="row"><label class="f" style="flex:1">Min acres<input id="wl_a" type="number" step="0.01" value="${R.minAcres}"></label><label class="f" style="flex:1">Max acres<input id="wl_b" type="number" step="0.01" value="${R.maxAcres}"></label><label class="f" style="flex:1">Min width (ft)<input id="wl_w" type="number" value="${R.minAvgWidthFt}"></label></div>
+  <details class="small" style="margin:10px 0"><summary>What gets cut</summary><ul style="padding-left:18px;line-height:1.6;margin:6px 0">
+   <li>Too narrow (under the width above) or a sliver shape</li><li>No public road frontage (US Census road map)</li><li>In a FEMA flood zone</li><li>Has a building on it</li>
+   <li>Easement, driveway, common area, HOA, right of way, buffer, drainage, cemetery and similar in the county records</li><li>Government, HOA and utility owners; builders and developers; owners of 4+ lots nearby; your buyers; your own deal lots</li>
+   <li>Anyone tagged Due Diligence / DD or any negative tag, anyone who already responded, do-not-mail, and anyone mailed in the last ${R.recentDays} days</li></ul></details>
+  <button class="btn" id="wl_go" onclick="weeklyGo()">Build the list</button>
+  <div id="wl_out" class="small" style="margin-top:12px;white-space:pre-wrap"></div></div>`)}
+async function weeklyGo(){const btn=$('wl_go');btn.disabled=true;btn.textContent='Working… keep this tab open';
+  const opt={size:+$('wl_n').value||1000,minAcres:+$('wl_a').value,maxAcres:+$('wl_b').value,minAvgWidthFt:+$('wl_w').value};
+  const tick=setInterval(()=>{const s=LB.status;if(s&&$('wl_out'))$('wl_out').textContent=`Step: ${s.phase}${s.picked?' · '+s.picked.toLocaleString()+' picked':''}${s.loaded?' · '+s.loaded+' loaded':''}\n`+s.log.slice(-6).join('\n')},1000);
+  try{await LB.run(opt);const name='Weekly List – '+new Date($('wl_d').value+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    LB.status.phase='loading into DLG HQ';const r=await LB.toCampaign(name,{drop:$('wl_d').value});clearInterval(tick);
+    $('wl_out').innerHTML=`<b>Done.</b> ${esc(LB.status.report)}<br><br><button class="btn" onclick="closeDrawer();startMailing(${r.campaign})">Review &amp; Start Mailing</button> <button class="btn ghost" onclick="closeDrawer();go('campaigns')">See campaigns</button>`;toast('Weekly list ready')}
+  catch(e){clearInterval(tick);$('wl_out').textContent='Stopped: '+e.message+'\n'+(LB.status?.log||[]).slice(-6).join('\n');btn.disabled=false;btn.textContent='Try again'}}
 async function vCampaigns(){
-  $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;
+  $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn ghost" onclick="weeklyList()">🧭 Build weekly list</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;
   const [{data:c},dc]=await Promise.all([sb.from('campaigns').select('*').limit(2000),campDealCounts()]);
   window._camps=(c||[]).map(x=>({...x,...campStats(x,dc)}));
   $('view').innerHTML=`<div class="card" style="padding:12px 14px"><div class="row" style="align-items:center;gap:10px"><span class="small muted" style="flex:0">Campaign</span><input id="cq" placeholder="Search by name" value="${esc(CSTATE.q)}" style="max-width:320px"></div></div><div id="ctab"></div>`;
