@@ -257,7 +257,7 @@ LB.toCampaign = async function (name, opt = {}) {
       return sb.from('properties').update({ fips: c.r.fips || null, fields: { ...(p.fields || {}), buildable: { checked: new Date().toISOString().slice(0, 10), avg_width_ft: c.sh.avgWidth, length_ft: c.sh.length, road_frontage_ft: c.front, flood: 'not in SFHA', source: LB.source(c.r.state, c.r.county).name } } }).eq('id', p.id); }));
     if (data.length < 1000) break; }
   const skipped = res.reduce((a, d) => a + d.skipped_dnm + d.skipped_not_interested + d.skipped_recent, 0);
-  st.campaign = camp.id; st.report = LB.report(st, rec, skipped);
+  st.campaign = camp.id; st.report = LB.report(st, rec, skipped); st.phase = 'done';
   await sb.from('activity').insert({ kind: 'note', body: 'Weekly list built: ' + st.report });
   return { campaign: camp.id, records: rec, skipped };
 };
@@ -278,6 +278,6 @@ LB.report = function (st, rec, skipped) {
   const cutN = Object.values(st.cut).reduce((a, b) => a + b, 0) + (skipped || 0);
   const lines = Object.entries(st.cut).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v.toLocaleString()} ${k}`);
   if (skipped) lines.push(`${skipped} removed at import (do-not-mail, said no, or mailed recently)`);
-  return `${rec.toLocaleString()} records picked from ${Number(st.pool || 0).toLocaleString()} vacant lots. ${cutN.toLocaleString()} cut, about ${(cutN * 0.55).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} in postage not spent: ${lines.join('; ')}.` + (st.missing && st.missing.length ? ` Pull county data for: ${st.missing.join(', ')}.` : '');
+  return `${rec.toLocaleString()} records picked from ${Number(st.pool || 0).toLocaleString()} vacant lots. ${cutN.toLocaleString()} lots cut before mailing (they would have cost about ${(cutN * 0.55).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} at $0.55): ${lines.join('; ')}.` + (st.missing && st.missing.length ? ` Pull county data for: ${st.missing.join(', ')}.` : '');
 };
 })();
