@@ -28,6 +28,7 @@ const YORK = { oid: 'OBJECTID', name: 'York County SC parcels', url: 'https://se
   vacantWhere: (a, b) => `(AprBldgVal=0 OR AprBldgVal IS NULL) AND (BuildingCount=0 OR BuildingCount IS NULL) AND GISSizeAC>=${a} AND GISSizeAC<=${b}`,
   map: a => ({ apn: a.ParcelID, owner: [a.Owner1, a.Owner2].filter(Boolean).join(' & '), mail: [a.MailAddr1, a.MailAddr2].filter(Boolean).join(' '), mcity: a.MailCity, mstate: a.MailState, mzip: a.MailZip,
     site: a.PropertyAddress, acres: a.GISSizeAC || a.deededacres, built: (a.AprBldgVal || 0) > 0 || (a.BuildingCount || 0) > 0, use: a.LandUseDesc, legal: a.LegalDescription, county: 'York', state: 'SC', fips: '45091' }) };
+LB._tileRoads = (...a) => tileRoads(...a); LB._tileFlood = (...a) => tileFlood(...a);
 LB.source = (state, county) => state === 'NC' ? NC : (state === 'SC' && /^york$/i.test(county || '')) ? YORK : null;
 
 // ---- helpers ----
@@ -214,7 +215,7 @@ LB.run = async function (opt = {}) {
     // road + flood (one lookup per tile)
     st.phase = 'checking roads and flood'; const final = []; let i = 0, noRoadData = 0;
     for (const c of pass2) { if (final.length >= R.size) break; i++;
-      const k = tileKey(c.c[0], c.c[1]); const [roads, flood] = await Promise.all([tileRoads(k), tileFlood(k)]);
+      const k = tileKey(c.c[0], c.c[1]); st.tile = k; const t0 = Date.now(); const [roads, flood] = await Promise.all([tileRoads(k), tileFlood(k)]); st.lastTileMs = Date.now() - t0; st.checked = i;
       if (flood === null) { cutAdd('flood map unavailable (skipped to be safe)'); continue; }
       if (flood.length && floodShare(c.rings, flood) >= 0.25) { cutAdd('in a FEMA flood zone'); continue; }
       if (roads === null) { noRoadData++; cutAdd('road map unavailable (skipped to be safe)'); continue; }
