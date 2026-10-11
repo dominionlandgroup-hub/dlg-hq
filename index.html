@@ -984,16 +984,18 @@ async function startMailing(id){
    <div class="card"><p style="margin-top:0"><b>${esc(c.name)}</b></p>
    <label class="f">Letter template</label><select id="m_tpl">${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}" ${c.template===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
    <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Remove opt-outs, "not selling" and do-not-mail</label>
-   <p class="small muted">Downloads the mail-house list with your letter's merge fields (Owner, Greeting, Mail1–3, PropertyAddress, PropertyCity, APN, OfferCode), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. Attach the list and the letter from your DM LETTERS folder, then send.</p>
+   <p class="small muted">Downloads the mail-house list with every merge field (Owner name, first and last name, mailing address, city, state, zip, property address, city, state, zip, county, FIPS, APN, acres, offer code), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. Attach the list and the letter from your DM LETTERS folder, then send.</p>
    <button class="btn" onclick="buildMailList(${id})">Download list + draft email</button><div id="m_msg" class="small" style="margin-top:8px"></div></div>`)}
 async function buildMailList(id){
   $('m_msg').textContent='Building list…';const all=[];
-  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('offer_code, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status), properties(apn,address,city)').eq('campaign_id',id).range(from,from+999);
+  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('offer_code, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status), properties(apn,address,city,state,zip,county,fips,acres)').eq('campaign_id',id).range(from,from+999);
     if(error){$('m_msg').textContent=error.message;return}all.push(...data);if(data.length<1000)break}
   const sup=new Set(),on=$('m_sup').checked;if(on){const {data:s}=await sb.from('suppression').select('phone,apn');(s||[]).forEach(x=>{if(x.phone)sup.add(x.phone);if(x.apn)sup.add('A'+x.apn)})}
   const rows=all.filter(r=>!on||(!r.leads?.do_not_mail&&r.leads?.status!=='not_selling'&&!sup.has(r.leads?.phone)&&!sup.has('A'+r.properties?.apn)))
    .map(r=>{const l=r.leads||{},p=r.properties||{};return {Owner:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),Greeting:l.first_name||l.full_name||'Property Owner',
-     Mail1:l.mail_address||'',Mail2:'',Mail3:[l.mail_city,[l.mail_state,l.mail_zip].filter(Boolean).join(' ')].filter(Boolean).join(', '),PropertyAddress:p.address||'',PropertyCity:p.city||'',APN:p.apn||'',OfferCode:r.offer_code||''}});
+     Mail1:l.mail_address||'',Mail2:'',Mail3:[l.mail_city,[l.mail_state,l.mail_zip].filter(Boolean).join(' ')].filter(Boolean).join(', '),PropertyAddress:p.address||'',PropertyCity:/^\d{5}$/.test(p.city||'')?'':(p.city||''),APN:p.apn||'',OfferCode:r.offer_code||'',
+     OwnerName:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),FirstName:l.first_name||'',LastName:l.last_name||'',MailAddress:l.mail_address||'',MailCity:l.mail_city||'',MailState:l.mail_state||'',MailZip:l.mail_zip||'',
+     PropertyState:p.state||'',PropertyZip:p.zip||(/^\d{5}$/.test(p.city||'')?p.city:''),County:p.county||'',FIPS:p.fips||'',Acres:p.acres!=null?String(+(+p.acres).toFixed(2)):''}});
   const missing=rows.filter(r=>!r.OfferCode).length;
   const {data:c}=await sb.from('campaigns').select('name,mail_token').eq('id',id).single();
   dlCSV(`${c.name.replace(/[^\w ]+/g,'')} - mail house.csv`,rows);
