@@ -311,7 +311,9 @@ LB.run = async function (opt = {}) {
       c.nm = nm; pass1.push(c); }
     log(`${pass1.length.toLocaleString()} lots passed size, width, shape, owner and red-flag checks.`);
     // mix: water & sewer market lots take 2 of every 5 slots, closest-to-deals lots the other 3
-    { const mk = pass1.filter(c => c.sewerMarket).sort((a, b) => (b.church ? 1 : 0) - (a.church ? 1 : 0) || a.dist - b.dist), ot = pass1.filter(c => !c.sewerMarket);
+    { const ot = pass1.filter(c => !c.sewerMarket), byC = new Map();
+      pass1.filter(c => c.sewerMarket).sort((a, b) => (b.church ? 1 : 0) - (a.church ? 1 : 0) || a.dist - b.dist).forEach(c => { const g = byC.get(c.r.county) || []; g.push(c); byC.set(c.r.county, g); });
+      const mk = [], gs = [...byC.values()]; for (let k = 0; gs.some(g => k < g.length); k++) gs.forEach(g => { if (k < g.length) mk.push(g[k]); }); // the markets take turns
       const per5 = Math.round(5 * (R.marketShare || 0)); pass1.length = 0; let i = 0, j = 0;
       while (i < mk.length || j < ot.length) { for (let k = 0; k < per5 && i < mk.length; k++) pass1.push(mk[i++]); for (let k = 0; k < 5 - per5 && j < ot.length; k++) pass1.push(ot[j++]); } }
     // DLG HQ check + roads + flood, closest lots first, in batches (only checks as many as it needs)
