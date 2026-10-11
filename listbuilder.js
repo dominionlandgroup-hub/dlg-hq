@@ -47,6 +47,7 @@ LB.names = function (r) {
   return { owner: ownerPretty, first: titleCase(firstOne), last: titleCase(last), greeting: firstOne ? titleCase(firstOne) : 'Property Owner' };
 };
 const GOV = /\b(COUNTY OF|COUNTY\b.*\b(BOARD|COMMISSION)|CITY OF|TOWN OF|VILLAGE OF|STATE OF|UNITED STATES|USA\b|U S A|DEPT|DEPARTMENT|BOARD OF EDUCATION|SCHOOL|AUTHORITY|COMMISSION|HOMEOWNERS|HOME OWNERS|HOA\b|PROPERTY OWNERS|OWNERS ASS|ASSOCIATION|ASSN|POA\b|DUKE ENERGY|PROGRESS ENERGY|DOMINION ENERGY|ELECTRIC|MEMBERSHIP CORP|EMC\b|UTILIT|RAILROAD|RAILWAY|WATER (AND|&) SEWER|SANITARY DISTRICT|TELEPHONE|NCDOT|SCDOT|DEPARTMENT OF TRANSPORTATION|HOUSING AUTHORITY|CEMETERY|LAND TRUST|CONSERVANCY|NATURE CONSERVANCY)\b/i;
+const BUILDER = /\b(BUILDERS?|BUILDING|CONSTRUCTION|HOMES|HOMEBUILDERS?|DEVELOPMENT|DEVELOPERS?|DEVELOP|COMMUNITIES|RESIDENTIAL|REALTY|LAND CO|LAND COMPANY|LAND GROUP|LAND HOLDINGS|LOTS|SUBDIVISION|NVR|PULTE|LENNAR|D R HORTON|DR HORTON|MERITAGE|TAYLOR MORRISON|TRUE HOMES|MATTAMY|EASTWOOD|CENTURY COMMUNITIES|DREAM FINDERS|SMITH DOUGLAS|STANLEY MARTIN|DAN RYAN|MUNGO|ADAMS HOMES|LGI)\b/i;
 const REDFLAG = /EASEMENT|DRIVEWAY|DRIVE WAY|R\/W\b|RIGHT[- ]OF[- ]WAY|\bROW\b|COMMON AREA|COMMON PROP|COMMON OPEN|OPEN SPACE|BUFFER|\bSTRIP\b|REMNANT|DRAINAGE|DETENTION|RETENTION|\bPOND\b|UTILITY|CEMETERY|LANDLOCK|LAND LOCK|NO ACCESS|UNBUILDABLE|NON[- ]BUILDABLE|NOT BUILDABLE|SLIVER|\bGAP\b|AMENITY|RECREATION AREA|CONSERVATION|WETLAND|SEWER|PUMP STATION|LIFT STATION|TOWER SITE|CELL TOWER|SUBSTATION/i;
 // tags/status in DLG HQ that mean: do not mail
 const NEGTAG = /due diligence|\bdd\b|run claude dd|dd done|not sell|overpriced|paid too much|listed|bad lot|\bsold\b|\bdnc\b|do not (mail|call|contact)|opted|opt out|not interested|not_interested|stop|wrong (owner|person)|deceased|hostile/i;
@@ -198,7 +199,15 @@ LB.run = async function (opt = {}) {
     st.pool = cands.length;
     // fast checks first
     st.phase = 'checking lots'; const pass1 = [];
+    const normOwner = o => String(o || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+    const ownerCount = new Map(); cands.forEach(c => { const k = normOwner(c.r.owner); if (k) ownerCount.set(k, (ownerCount.get(k) || 0) + 1); });
+    const { data: buyers } = await sb.from('buyers').select('name,company').limit(5000);
+    const buyerNames = new Set((buyers || []).flatMap(b => [b.company, b.name]).map(normOwner).filter(x => x && x.length > 4));
     for (const c of cands) { const r = c.r, nm = LB.names(r);
+      if (c.dist < 0.03) { cutAdd('your own deal lot'); continue; }
+      if (BUILDER.test(r.owner || '')) { cutAdd('builder / developer owner'); continue; }
+      if (buyerNames.has(normOwner(r.owner))) { cutAdd('one of your buyers'); continue; }
+      if ((ownerCount.get(normOwner(r.owner)) || 0) >= 4) { cutAdd('owns 4+ lots nearby (developer inventory)'); continue; }
       if (!nm || !r.mail || !r.mcity || !r.mstate || !r.mzip) { cutAdd('no mailing address'); continue; }
       if (r.built) { cutAdd('has a building'); continue; }
       if (GOV.test(r.owner || '')) { cutAdd('government / HOA / utility owner'); continue; }
@@ -234,7 +243,7 @@ LB.toCampaign = async function (name, opt = {}) {
   const st = LB.status, R = { ...LB.RULES, ...opt }; if (!st || !st.final) throw new Error('Run the list first');
   const drop = opt.drop || (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d.toISOString().slice(0, 10); })();
   const { data: camp, error } = await sb.from('campaigns').insert({ name, channel: 'mail', drop_date: drop, template: R.template, source: 'hq' }).select().single(); if (error) throw error;
-  const rows = st.final.map(c => { const r = c.r, n = c.nm; return { full_name: n.owner, first_name: n.first || null, last_name: n.last || null, mail_address: titleCase(r.mail), mail_city: titleCase(r.mcity), mail_state: String(r.mstate || '').toUpperCase(), mail_zip: String(r.mzip || '').slice(0, 10),
+  const rows = st.final.map(c => { const r = c.r, n = c.nm; return { full_name: n.owner, first_name: n.first || null, last_name: n.last || null, mail_address: titleCase(String(r.mail).replace(/\s+\d{5}(-\d{4})?$/, '')), mail_city: titleCase(r.mcity), mail_state: String(r.mstate || '').toUpperCase(), mail_zip: String(r.mzip || '').slice(0, 10),
     apn: String(r.apn), address: r.site ? titleCase(r.site) : null, city: r.scity ? titleCase(r.scity) : null, state: r.state, zip: r.szip || null, county: r.county, acres: +(c.sh.sqft / 43560).toFixed(3), lat: c.c[1], lng: c.c[0] }; });
   let rec = 0; const res = [];
   for (let i = 0; i < rows.length; i += 100) { const { data, error } = await sb.rpc('import_campaign_list', { cid: camp.id, rows: rows.slice(i, i + 100), src: 'county', tag: 'Weekly List', skip_dnm: true, skip_ni: true, skip_days: R.recentDays }); if (error) throw error; res.push(data); rec += data.records; st.loaded = rec; }
