@@ -72,12 +72,22 @@ const miles = (a, b) => { const R = 3958.8, dLa = (b[0] - a[0]) * Math.PI / 180,
 // ---- roads + flood, fetched once per ~1.4 mile tile ----
 const TILE = 0.02, roadCache = new Map(), floodCache = new Map();
 const tileKey = (lng, lat) => Math.floor(lng / TILE) + ':' + Math.floor(lat / TILE);
+// the free road map allows only a couple of requests at a time: queue them, space them out, retry
+let opQueue = Promise.resolve();
+function overpass(q) {
+  const run = async () => {
+    const hosts = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+    for (let a = 0; a < 6; a++) { const host = hosts[a % hosts.length];
+      try { const r = await fetch(host + '?data=' + encodeURIComponent(q)); const t = await r.text(); if (t[0] === '{') { await sleep(400); return JSON.parse(t); } } catch (e) {}
+      await sleep(2500 * (a + 1)); }
+    return null; };
+  const p = opQueue.then(run); opQueue = p.catch(() => null); return p;
+}
 async function tileRoads(k) {
   if (roadCache.has(k)) return roadCache.get(k);
   const p = (async () => { const [tx, ty] = k.split(':').map(Number), pad = 0.003, w = tx * TILE - pad, s = ty * TILE - pad, e = (tx + 1) * TILE + pad, n = (ty + 1) * TILE + pad;
     const q = `[out:json][timeout:90];way["highway"](${s.toFixed(5)},${w.toFixed(5)},${n.toFixed(5)},${e.toFixed(5)});out geom;`;
-    let j; for (const host of ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter']) { try { j = await getJSON(host + '?data=' + encodeURIComponent(q), undefined, 2); break; } catch (e) { j = null; } }
-    if (!j) return null;
+    const j = await overpass(q); if (!j) return null;
     const bad = /footway|path|cycleway|steps|pedestrian|bridleway|proposed|construction|track|corridor|platform|abandoned|raceway/;
     return j.elements.filter(x => x.geometry && !bad.test(x.tags.highway) && !/driveway|parking_aisle|drive-through/.test(x.tags.service || '') && x.tags.access !== 'private').map(x => x.geometry.map(p => [p.lon, p.lat])); })();
   roadCache.set(k, p); return p;
@@ -98,7 +108,7 @@ LB.frontage = function (rings, roads) {
   const dps = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy; let t = L ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); };
   const P = ring.map(T); let fr = 0;
   for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(L / 5));
-    for (let k = 0; k < n; k++) { const p = [a[0] + (b[0] - a[0]) * (k + .5) / n, a[1] + (b[1] - a[1]) * (k + .5) / n]; let best = 1e9; for (const s of segs) { const d = dps(p, s[0], s[1]); if (d < best) best = d; if (best < 50) break; } if (best < 50) fr += L / n; } }
+    for (let k = 0; k < n; k++) { const p = [a[0] + (b[0] - a[0]) * (k + .5) / n, a[1] + (b[1] - a[1]) * (k + .5) / n]; let best = 1e9; for (const s of segs) { const d = dps(p, s[0], s[1]); if (d < best) best = d; if (best < 35) break; } if (best < 35) fr += L / n; } }
   return Math.round(fr / 2); // both sides of a road strip count once
 };
 function floodShare(rings, flood) {
