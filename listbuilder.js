@@ -218,20 +218,22 @@ LB.run = async function (opt = {}) {
       if (sh.compact < R.minCompact) { cutAdd('sliver / odd shape'); continue; }
       c.nm = nm; pass1.push(c); }
     log(`${pass1.length.toLocaleString()} lots passed size, width, shape, owner and red-flag checks.`);
-    // DLG HQ check
-    st.phase = 'checking DLG HQ'; const worked = await workedSet(pass1, log); const pass2 = [];
-    for (const c of pass1) { const w = worked.get(String(c.r.apn) + '|' + c.r.county.toLowerCase()) || (c.r.apn2 && worked.get(String(c.r.apn2) + '|' + c.r.county.toLowerCase())); if (w) { cutAdd(w.startsWith('tagged') ? 'tagged in DLG HQ (DD or negative)' : w.startsWith('mailed') ? w : 'already worked in DLG HQ'); continue; } pass2.push(c); }
-    log(`${pass2.length.toLocaleString()} left after removing people already worked, tagged or recently mailed.`);
-    // road + flood (one lookup per tile)
-    st.phase = 'checking roads and flood'; const final = []; let i = 0, noRoadData = 0;
-    for (const c of pass2) { if (final.length >= R.size) break; i++;
-      const k = tileKey(c.c[0], c.c[1]); st.tile = k; const t0 = Date.now(); const [roads, flood] = await Promise.all([tileRoads(k), tileFlood(k)]); st.lastTileMs = Date.now() - t0; st.checked = i;
-      if (flood === null) { cutAdd('flood map unavailable (skipped to be safe)'); continue; }
-      if (flood.length && floodShare(c.rings, flood) >= 0.25) { cutAdd('in a FEMA flood zone'); continue; }
-      if (roads === null) { noRoadData++; cutAdd('road map unavailable (skipped to be safe)'); continue; }
-      const fr = LB.frontage(c.rings, roads); c.front = fr;
-      if (fr < R.minFrontageFt) { cutAdd('no road frontage'); continue; }
-      final.push(c); st.picked = final.length; if (i % 50 === 0) log(`Checked ${i} lots for road and flood, ${final.length} picked.`); }
+    // DLG HQ check + roads + flood, closest lots first, in batches (only checks as many as it needs)
+    const final = []; let i = 0;
+    for (let b = 0; b < pass1.length && final.length < R.size; b += 600) {
+      st.phase = 'checking DLG HQ'; const batch = pass1.slice(b, b + 600); const worked = await workedSet(batch, log);
+      st.phase = 'checking roads and flood';
+      for (const c of batch) { if (final.length >= R.size) break;
+        const w = worked.get(String(c.r.apn) + '|' + c.r.county.toLowerCase()) || (c.r.apn2 && worked.get(String(c.r.apn2) + '|' + c.r.county.toLowerCase()));
+        if (w) { cutAdd(w.startsWith('tagged') ? 'tagged in DLG HQ (DD or negative)' : w.startsWith('mailed') ? w : 'already worked in DLG HQ'); continue; }
+        i++; const k = tileKey(c.c[0], c.c[1]); st.tile = k; const t0 = Date.now(); const [roads, flood] = await Promise.all([tileRoads(k), tileFlood(k)]); st.lastTileMs = Date.now() - t0; st.checked = i;
+        if (flood === null) { cutAdd('flood map unavailable (skipped to be safe)'); continue; }
+        if (flood.length && floodShare(c.rings, flood) >= 0.25) { cutAdd('in a FEMA flood zone'); continue; }
+        if (roads === null) { cutAdd('road map unavailable (skipped to be safe)'); continue; }
+        const fr = LB.frontage(c.rings, roads); c.front = fr;
+        if (fr < R.minFrontageFt) { cutAdd('no road frontage'); continue; }
+        final.push(c); st.picked = final.length; if (i % 100 === 0) log(`Checked ${i} lots for road and flood, ${final.length} picked.`); }
+    }
     st.final = final;
     log(`Picked ${final.length.toLocaleString()} lots.` + (final.length < R.size ? ` Short of ${R.size}: widen the area or connect more county data.` : ''));
     return st;
