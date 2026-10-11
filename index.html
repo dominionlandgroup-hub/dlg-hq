@@ -20,7 +20,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="listbuilder.js?v=17"></script>
-<style>.tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.tagchip{display:inline-flex;align-items:center;gap:4px;background:#efe7fb;color:#4b2a7b;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;font-weight:600}.tagchip.sm{padding:2px 8px;font-size:11px}.tagchip button{border:0;background:none;color:#4b2a7b;cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.tagadd{border:1px dashed #b9a6d6;background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#4b2a7b}.linkres{position:absolute;left:0;right:0;z-index:20;background:var(--card,#fff);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:8px;max-height:300px;overflow:auto}.linkres .pitem{padding:8px 10px;border-bottom:1px solid var(--line,#eee);cursor:pointer}.linkres .pitem:hover{background:#f5f1fb}
+<style>
+.impsteps{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}.impsteps span{font-size:12px;padding:4px 10px;border-radius:999px;background:#eee;color:#666}.impsteps span.on{background:#efe7fb;color:#4b2a7b;font-weight:700}.impsteps span.done{background:#e3f1e6;color:#2f6b3a}
+.tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.tagchip{display:inline-flex;align-items:center;gap:4px;background:#efe7fb;color:#4b2a7b;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;font-weight:600}.tagchip.sm{padding:2px 8px;font-size:11px}.tagchip button{border:0;background:none;color:#4b2a7b;cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.tagadd{border:1px dashed #b9a6d6;background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#4b2a7b}.linkres{position:absolute;left:0;right:0;z-index:20;background:var(--card,#fff);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:8px;max-height:300px;overflow:auto}.linkres .pitem{padding:8px 10px;border-bottom:1px solid var(--line,#eee);cursor:pointer}.linkres .pitem:hover{background:#f5f1fb}
 
 :root{color-scheme:light;--bg:#f7f6fa;--card:#fff;--ink:#231b30;--muted:#6e6880;--line:#e7e3ee;--brand:#5C2977;--brand2:#7a3f9c;--accent:#D5A940;--gold:#D5A940;--gold-d:#a7822a;--red:#b23b3b;--chip:#f2ecf7;--side:#ffffff;--hot:#d9480f}
 *{box-sizing:border-box}html,body{height:100%}
@@ -1436,18 +1438,58 @@ async function saveTestimonial(dealId,leadId){const f=$('tm_vid').files[0];let v
 
 // ---------- import ----------
 // Pebble-style Import List: pick or create a campaign, upload the list, offer codes are assigned automatically
-async function vImport(){const {data:camps}=await sb.from('campaigns').select('id,name,drop_date,records').order('created_at',{ascending:false}).limit(300);
-  $('view').innerHTML=`<div class="card"><h3 style="margin-top:0">Import List</h3><p class="muted small">Upload a mailing list into a campaign. Each row becomes a contact, a property and a campaign record, and every record gets its offer code automatically (next prefix ${await nextPrefix()}). Existing contacts and parcels are matched, not duplicated.</p>
-  <label class="f">Campaign</label><select id="impCamp" onchange="$('impNew').style.display=this.value==='new'?'':'none'"><option value="new">+ New campaign</option>${(camps||[]).map(c=>`<option value="${c.id}">${esc(c.name)} · ${fmtDate(c.drop_date)} · ${(c.records||0).toLocaleString()} records</option>`).join('')}<option value="none">No campaign (contacts only)</option></select>
-  <div id="impNew" class="row" style="margin-top:8px"><input id="icName" placeholder="Campaign name (e.g. Gaston NC Oct 2026)"><input id="icCounty" placeholder="County"><input id="icState" placeholder="State" style="max-width:90px"><input id="icDate" type="date" value="${new Date().toISOString().slice(0,10)}"><input id="icCost" type="number" placeholder="Cost $" style="max-width:120px"></div><br>
-  <div class="row"><select id="impSource"><option value="hq">Other list</option><option value="pebble">Pebble export</option><option value="ghl">GoHighLevel export</option></select><input id="impTag" placeholder="Tag (optional)"></div><br>
-  <div class="small" style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-bottom:12px"><b>Leave off this campaign:</b>
-   <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skDnm" checked style="width:auto"> Do not mail</label>
-   <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skNi" checked style="width:auto"> People who said no <span class="small muted">(Sold &amp; Bad lot: never. Not selling, Overpriced, Listed, Opted out: wait 6 months)</span></label>
-   <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skRec" style="width:auto"> Mailed in the last <input id="skDays" type="number" value="60" min="1" style="width:70px;padding:4px 6px"> days</label></div>
-  <input type="file" id="impFile" accept=".csv" onchange="previewImport()"><div id="impMap" class="small" style="margin-top:10px"></div><br>
-  <button class="btn" onclick="runImport()">Import</button><div id="impMsg" class="small" style="margin-top:10px"></div></div>
-  <div class="card"><h3 style="margin-top:0">Before you mail 🙏</h3><p class="muted small" style="margin:0">Lord, I give You this list. Lead me to the families You want me to serve, give me wisdom in every offer, and let every deal honor You.</p>${enc()}${enc()}</div>${recToolCard()}`}
+const NC_COUNTIES='Alamance,Alexander,Alleghany,Anson,Ashe,Avery,Beaufort,Bertie,Bladen,Brunswick,Buncombe,Burke,Cabarrus,Caldwell,Camden,Carteret,Caswell,Catawba,Chatham,Cherokee,Chowan,Clay,Cleveland,Columbus,Craven,Cumberland,Currituck,Dare,Davidson,Davie,Duplin,Durham,Edgecombe,Forsyth,Franklin,Gaston,Gates,Graham,Granville,Greene,Guilford,Halifax,Harnett,Haywood,Henderson,Hertford,Hoke,Hyde,Iredell,Jackson,Johnston,Jones,Lee,Lenoir,Lincoln,Macon,Madison,Martin,McDowell,Mecklenburg,Mitchell,Montgomery,Moore,Nash,New Hanover,Northampton,Onslow,Orange,Pamlico,Pasquotank,Pender,Perquimans,Person,Pitt,Polk,Randolph,Richmond,Robeson,Rockingham,Rowan,Rutherford,Sampson,Scotland,Stanly,Stokes,Surry,Swain,Transylvania,Tyrrell,Union,Vance,Wake,Warren,Washington,Watauga,Wayne,Wilkes,Wilson,Yadkin,Yancey'.split(',').map(c=>c+', NC').concat('York,Lancaster,Chester,Spartanburg,Greenville,Anderson,Pickens,Oconee,Horry,Berkeley,Dorchester,Charleston,Richland,Lexington,Kershaw,Cherokee,Union'.split(',').map(c=>c+', SC'));
+let IMP={step:1,counties:[],cols:[],rows:[],map:{}};
+async function vImport(){IMP={step:1,counties:[],cols:[],rows:[],map:{}};const {data:tpls}=await sb.from('templates').select('name,file_name').eq('kind','mail').order('name');
+  $('view').innerHTML=`<div class="card"><h3 style="margin-top:0">Import List</h3>
+   <div class="impsteps"><span id="st1" class="on">1 Campaign</span><span id="st2">2 Counties</span><span id="st3">3 Upload</span><span id="st4">4 Match fields</span><span id="st5">5 Save</span></div>
+   <label class="f">Campaign name</label><input id="icName" placeholder="e.g. Gaston NC Lots Oct 2026">
+   <div class="row" style="margin-top:8px"><label class="f" style="flex:1">Mail date<input id="icDate" type="date" value="${new Date().toISOString().slice(0,10)}"></label>
+    <label class="f" style="flex:1">Letter<select id="icTpl">${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}">${esc(t.name)}</option>`).join('')}</select></label>
+    <label class="f" style="flex:1">Cost per letter<input id="icPiece" type="number" step="0.01" value="0.55"></label></div>
+   <label class="f" style="margin-top:10px">Counties <span class="small muted">(pick every county on the list; more than one needs a FIPS column)</span></label>
+   <div id="icCtys" class="tagrow"></div><div class="row" style="margin-top:6px"><input id="icCtyIn" list="ctyList" placeholder="Type a county, e.g. Gaston, NC" onkeydown="if(event.key==='Enter'){impAddCounty();event.preventDefault()}"><button class="btn ghost" style="flex:0" onclick="impAddCounty()">Add county</button></div>
+   <datalist id="ctyList">${NC_COUNTIES.map(c=>`<option value="${c}">`).join('')}</datalist>
+   <label class="f" style="margin-top:12px">List file (CSV)</label><input type="file" id="impFile" accept=".csv" onchange="impLoad()">
+   <div id="impMap" style="margin-top:12px"></div>
+   <div class="small" style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:12px 0"><b>Leave off:</b>
+    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skDnm" checked style="width:auto"> Do not mail</label>
+    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skNi" checked style="width:auto"> People who said no</label>
+    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skRec" checked style="width:auto"> Mailed in the last <input id="skDays" type="number" value="90" min="1" style="width:70px;padding:4px 6px"> days</label></div>
+   <button class="btn" id="impSave" onclick="impSave()">Save</button><div id="impMsg" class="small" style="margin-top:10px"></div></div>
+  <div class="card"><h3 style="margin-top:0">Before you mail 🙏</h3><p class="muted small" style="margin:0">Lord, I give You this list. Lead me to the families You want me to serve, give me wisdom in every offer, and let every deal honor You.</p></div>${recToolCard()}`;
+  $('icName').oninput=()=>impStep()}
+function impStep(){const n=!!$('icName').value.trim(),c=IMP.counties.length>0,u=IMP.rows.length>0,m=u&&IMP.map.mail_address&&(IMP.map.full_name||IMP.map.last_name);
+  [n,n&&c,n&&c&&u,n&&c&&m,false].forEach((ok,i)=>{const e=$('st'+(i+1));if(e){e.classList.toggle('done',!!ok);e.classList.toggle('on',!ok&&(i===0||[n,n&&c,n&&c&&u,n&&c&&m][i-1]))}})}
+function impAddCounty(){let v=$('icCtyIn').value.trim();if(!v)return;if(!/,\s*[A-Z]{2}$/i.test(v))v+=', NC';v=v.replace(/\s+county/i,'').replace(/,\s*([a-z]{2})$/i,(m,s)=>', '+s.toUpperCase());if(!IMP.counties.includes(v))IMP.counties.push(v);$('icCtyIn').value='';impDrawCounties()}
+function impDrawCounties(){$('icCtys').innerHTML=IMP.counties.map((c,i)=>`<span class="tagchip">${esc(c)}<button onclick="IMP.counties.splice(${i},1);impDrawCounties()">×</button></span>`).join('')||'<span class="small muted">No counties yet.</span>';impStep();if(IMP.rows.length)impDrawMap()}
+const IMP_LABELS={full_name:'Owner name',first_name:'First name',last_name:'Last name',mail_address:'Mailing address',mail_city:'Mailing city',mail_state:'Mailing state',mail_zip:'Mailing zip',apn:'APN',address:'Property address',city:'Property city',state:'Property state',zip:'Property zip',county:'County',fips:'FIPS',acres:'Acres',phone:'Phone',email:'Email',lat:'Latitude',lng:'Longitude',offer_code:'Offer code (optional)'};
+function impLoad(){const f=$('impFile').files[0];if(!f)return;Papa.parse(f,{header:true,skipEmptyLines:true,complete:r=>{IMP.cols=r.meta.fields||[];IMP.rows=r.data;IMP.map=impMapCols(IMP.cols);impDrawMap();impStep()}})}
+function impDrawMap(){const multi=IMP.counties.length>1;
+  $('impMap').innerHTML=`<b>Match fields</b> <span class="small muted">${IMP.rows.length.toLocaleString()} rows. We matched what we could; fix anything that's wrong.</span>
+   <table style="margin-top:6px">${Object.entries(IMP_LABELS).map(([k,l])=>{const need=['mail_address','mail_city','mail_state','mail_zip','apn'].includes(k)||(k==='fips'&&multi);return `<tr><td>${l}${need?' <span style="color:var(--red)">*</span>':''}</td><td><select onchange="IMP.map['${k}']=this.value||undefined;impStep()"><option value="">(skip)</option>${IMP.cols.map(c=>`<option ${IMP.map[k]===c?'selected':''}>${esc(c)}</option>`).join('')}</select></td><td class="small muted">${esc(IMP.map[k]?String((IMP.rows[0]||{})[IMP.map[k]]??'').slice(0,40):'')}</td></tr>`}).join('')}</table>`}
+async function impSave(){const msg=t=>$('impMsg').innerHTML=t,M=IMP.map,name=$('icName').value.trim();
+  if(!name)return toast('Name the campaign');if(!IMP.counties.length)return toast('Pick at least one county');if(!IMP.rows.length)return toast('Upload the list');
+  for(const k of ['mail_address','mail_city','mail_state','mail_zip','apn'])if(!M[k])return toast('Match '+IMP_LABELS[k]);if(!M.full_name&&!M.last_name)return toast('Match Owner name or Last name');
+  const multi=IMP.counties.length>1;if(multi&&!M.fips&&!M.county)return toast('More than one county: match the FIPS column');
+  const one=IMP.counties[0].split(',');const fipsMap={};
+  const rows=IMP.rows.map(o=>{const x={};for(const [k,c] of Object.entries(M)){if(!c)continue;let v=o[c]==null?'':String(o[c]).trim();if(!v)continue;if(['acres','lat','lng'].includes(k)){v=Number(v.replace(/[$,]/g,''));if(isNaN(v))continue}x[k]=v}
+    if(!x.full_name&&(x.first_name||x.last_name))x.full_name=[x.first_name,x.last_name].filter(Boolean).join(' ');
+    if(!multi){x.county=x.county||one[0].trim();x.state=x.state||one[1].trim()}if(x.county)x.county=x.county.replace(/\s+county$/i,'');
+    if(x.fips&&x.apn)fipsMap[x.apn+'|'+String(x.county||'').toLowerCase()]=x.fips;delete x.fips;return x}).filter(x=>x.mail_address&&(x.full_name||x.apn));
+  $('impSave').disabled=true;msg('Creating the campaign…');
+  const states=[...new Set(IMP.counties.map(c=>c.split(',')[1].trim()))];
+  const {data:camp,error}=await sb.from('campaigns').insert({name,channel:'mail',county:IMP.counties.map(c=>c.split(',')[0].trim()).join(', '),state:states.join(', '),drop_date:$('icDate').value||null,template:$('icTpl').value||null,cost:0,source:'hq',mail_status:'not_sent'}).select('id').single();
+  if(error){$('impSave').disabled=false;return msg(esc(error.message))}
+  const tot={leads:0,properties:0,records:0,skipped_dnm:0,skipped_not_interested:0,skipped_recent:0,duplicate_codes:0};const skip={skip_dnm:$('skDnm').checked,skip_ni:$('skNi').checked,skip_days:$('skRec').checked?Number($('skDays').value)||0:0};
+  for(let i=0;i<rows.length;i+=500){const {data,error}=await sb.rpc('import_campaign_list',{cid:camp.id,rows:rows.slice(i,i+500),src:'hq',tag:null,...skip});
+    if(error){$('impSave').disabled=false;return msg('Stopped: '+esc(error.message))}for(const k in tot)tot[k]+=data[k];msg(`Saved ${tot.records.toLocaleString()} of ${rows.length.toLocaleString()} records…`)}
+  const {data:fin}=await sb.rpc('finish_campaign_import',{cid:camp.id});const piece=Number($('icPiece').value)||0.55;
+  await sb.from('campaigns').update({records:tot.records,cost:+(tot.records*piece).toFixed(2)}).eq('id',camp.id);
+  if(Object.keys(fipsMap).length){msg('Saving FIPS codes…');for(let o=0;;o+=1000){const {data}=await sb.from('campaign_records').select('properties(id,apn,county,fips)').eq('campaign_id',camp.id).range(o,o+999);if(!data||!data.length)break;
+    const ups=data.map(x=>x.properties).filter(p=>p&&!p.fips&&fipsMap[p.apn+'|'+String(p.county||'').toLowerCase()]);for(let i=0;i<ups.length;i+=25)await Promise.all(ups.slice(i,i+25).map(p=>sb.from('properties').update({fips:fipsMap[p.apn+'|'+String(p.county||'').toLowerCase()]}).eq('id',p.id)));if(data.length<1000)break}}
+  document.querySelectorAll('.impsteps span').forEach(e=>e.classList.add('done'));
+  msg(`<b>Saved.</b> ${tot.records.toLocaleString()} records · cost ${money(tot.records*piece)} · ${(fin?.coded||0).toLocaleString()} offer codes${fin?.first_code?' starting '+esc(fin.first_code):''}.${tot.skipped_dnm+tot.skipped_not_interested+tot.skipped_recent?`<br>Left off: ${tot.skipped_dnm} do-not-mail · ${tot.skipped_not_interested} said no · ${tot.skipped_recent} mailed recently.`:''} <a href="#" onclick="go('campaign:${camp.id}');return false">Open campaign →</a>`)}
 // ---- move Pebble call recordings (Desktop / DLG Recordings) into storage ----
 function recToolCard(){return `<div class="card"><h3 style="margin-top:0">Move call recordings off Pebble</h3><p class="muted small">Pick the <b>DLG Recordings</b> folder on your Desktop. Each recording is uploaded to DLG HQ and the inbox switches to playing it from here, so nothing is lost when Pebble is cancelled. Safe to run again; it skips files already moved.</p>
   <input type="file" id="recDir" webkitdirectory multiple><br><br><button class="btn" onclick="moveRecordings()">Upload recordings</button><div id="recMsg" class="small" style="margin-top:10px"></div></div>`}
@@ -1471,7 +1513,7 @@ const IMP_FIELDS={full_name:['ownername','owner','name','fullname','owner1fullna
   phone:['phone','phoneprimary','phone1','mobile'],email:['email'],
   mail_address:['mailingaddress','mailaddress','mailingstreetaddress','addressline1'],mail_city:['mailingcity','mailcity'],mail_state:['mailingstate','mailstate'],mail_zip:['mailingzip','mailzip','mailingzipcode'],
   apn:['apn','parcel','parcelid','parcelnumber','propertyassessorsparcelnumberapn'],address:['propertyaddress','situsaddress','siteaddress','address'],city:['propertycity','situscity','city'],state:['propertystate','situsstate','state'],zip:['propertyzip','situszip','zip'],
-  county:['county','countyname','propertycounty'],acres:['acres','lotacres','acreage','lotsizeacres'],lat:['latitude','lat'],lng:['longitude','lng','long'],offer_price:['offerprice','offer','offeramount'],offer_code:['offercode','code','referencecode']};
+  county:['county','countyname','propertycounty'],acres:['acres','lotacres','acreage','lotsizeacres'],fips:['fips','fipscode','countyfips','stcntyfips','fipscountycode'],lat:['latitude','lat'],lng:['longitude','lng','long'],offer_price:['offerprice','offer','offeramount'],offer_code:['offercode','code','referencecode']};
 const impKey=k=>k.toLowerCase().replace(/[^a-z0-9]/g,'');
 function impMapCols(cols){const m={};for(const [f,ks] of Object.entries(IMP_FIELDS)){const c=cols.find(x=>ks.includes(impKey(x)));if(c)m[f]=c}return m}
 function previewImport(){const f=$('impFile').files[0];if(!f)return;Papa.parse(f,{header:true,preview:3,complete:r=>{const m=impMapCols(r.meta.fields||[]);
