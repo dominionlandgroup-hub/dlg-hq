@@ -552,7 +552,7 @@ async function saveDeal(id,board){
   const n=k=>{const v=$('d_'+k).value;return v===''?null:Number(v)};
   const r={board,stage_id:n('stage_id'),priority:$('d_priority').value||null,value:n('value'),property_label:$('d_property_label').value||null,campaign_id:n('campaign_id'),
     source:$('d_source').value||null,purchase_price:n('purchase_price'),assignment_price:n('assignment_price'),emd:n('emd'),closing_date:$('d_closing_date').value||null,
-    attorney:$('d_attorney').value||null,buyer_id:n('buyer_id'),notes:$('d_notes').value||null,updated_at:new Date().toISOString()};
+    attorney:$('d_attorney').value||null,buyer_id:n('buyer_id'),updated_at:new Date().toISOString()};
   const {data,error}=id?await sb.from('deals').update(r).eq('id',id).select().single():await sb.from('deals').insert(r).select().single();
   if(error)return toast(error.message);toast('Saved');if(!id)openDeal(data.id);else closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
 async function delDeal(id,board){if(!confirm('Delete this deal?'))return;await sb.from('deals').delete().eq('id',id);closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
