@@ -306,6 +306,7 @@ LB.run = async function (opt = {}) {
     log(`${pass1.length.toLocaleString()} lots passed size, width, shape, owner and red-flag checks.`);
     // DLG HQ check + roads + flood, closest lots first, in batches (only checks as many as it needs)
     st.phase = 'checking owners'; const ownerBlock = await LB.ownerBlocks(R.recentDays, log); const supp = await LB.suppressedApns();
+    const pickedOwners = new Set();
     const final = [], perCounty = new Map(), multiCounty = !opt.noCountyCap && new Set(pass1.map(c => c.r.county)).size > 1; let i = 0;
     const cap = Math.max(1, Math.ceil(R.size * R.countyCapPct));
     for (let b = 0; b < pass1.length && final.length < R.size; b += 600) {
@@ -316,7 +317,8 @@ LB.run = async function (opt = {}) {
         const w = worked.get(String(c.r.apn) + '|' + c.r.county.toLowerCase()) || (c.r.apn2 && worked.get(String(c.r.apn2) + '|' + c.r.county.toLowerCase()));
         if (w) { cutAdd(w.startsWith('tagged') ? 'tagged in DLG HQ (DD or negative)' : (w.startsWith('mailed') || w.startsWith('resting')) ? w : 'already worked in DLG HQ'); continue; }
         if (supp.has(String(c.r.apn)) || (c.r.apn2 && supp.has(String(c.r.apn2)))) { cutAdd('on the suppression list'); continue; }
-        const ob = ownerBlock.get(normAddr(c.r.mail, c.r.mzip)); if (ob) { cutAdd(ob.startsWith('owner tagged') ? 'tagged in DLG HQ (DD or negative)' : ob); continue; }
+        const ok_ = normAddr(c.r.mail, c.r.mzip); if (pickedOwners.has(ok_)) { cutAdd('same owner already on this list (one letter per owner)'); continue; }
+        const ob = ownerBlock.get(ok_); if (ob) { cutAdd(ob.startsWith('owner tagged') ? 'tagged in DLG HQ (DD or negative)' : ob); continue; }
         if (multiCounty && (perCounty.get(c.r.county) || 0) >= cap) { st.held++; continue; } // county already has its 30%
         if (c.slope && c.slope.pct > R.maxSlopePct) { cutAdd('too steep (over ' + R.maxSlopePct + '% slope)'); continue; }
         i++; const k = tileKey(c.c[0], c.c[1]); st.tile = k; const t0 = Date.now(); const [roads, flood] = await Promise.all([tileRoads(k), tileFlood(k)]); st.lastTileMs = Date.now() - t0; st.checked = i;
@@ -328,6 +330,7 @@ LB.run = async function (opt = {}) {
         if (c.r.state === 'NC') { const sw = await tileSewer(k); c.sewer = sw === null ? 'unknown' : sw.some(fr => inPoly(c.c, fr)) ? 'likely public sewer' : 'likely septic'; } else c.sewer = 'unknown';
         if (c.sewerMarket && c.sewer !== 'likely public sewer') { cutAdd('no public sewer (water & sewer market)'); continue; }
         perCounty.set(c.r.county, (perCounty.get(c.r.county) || 0) + 1);
+        pickedOwners.add(ok_);
         final.push(c); st.picked = final.length; if (i % 100 === 0) log(`Checked ${i} lots for road and flood, ${final.length} picked.`); }
     }
     st.final = final; st.byCounty = Object.fromEntries(perCounty);
