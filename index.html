@@ -437,6 +437,15 @@ function card(d){const p=d.properties||{},l=d.leads;
    <div class="s">${esc([p.address||d.property_label,p.city].filter(Boolean).join(', '))}</div>
    ${p.county?`<div class="s">${esc(p.county)}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' ac':''}</div>`:''}
    <div class="s" style="display:flex;gap:6px;align-items:center;margin-top:6px">${d.priority?`<span class="pill ${d.priority}">${d.priority}</span>`:''}${d.closing_date?`<span>Close ${d.closing_date}</span>`:''}<span style="margin-left:auto">${ago(d.updated_at||d.created_at)}</span></div></div>`}
+// ---------- deal milestones: offer made / under contract / closed, counted on each campaign ----------
+async function dealMilestone(id,kind){try{const {data:d}=await sb.from('deals').select('property_id,purchase_price,assignment_price,lead_id').eq('id',id).single();if(!d)return;
+  const {data:ex}=await sb.from('transactions').select('id').eq('deal_id',id).eq('kind',kind).like('notes','HQ:%').limit(1);if((ex||[]).length)return;
+  const label={offer:'offer made',purchase:'under contract',sale:'closed'}[kind];
+  await sb.from('transactions').insert({deal_id:id,property_id:d.property_id||null,kind,tx_date:new Date().toISOString().slice(0,10),price:kind==='sale'?(d.assignment_price||d.purchase_price||null):(d.purchase_price||null),costs:0,notes:'HQ: '+label});
+  if(d.lead_id){const order=['record','new','contacted','interested','offer','under_contract','assigned','closed'];const to={offer:'offer',purchase:'under_contract',sale:'closed'}[kind];
+    const {data:l}=await sb.from('leads').select('status').eq('id',d.lead_id).single();const cur=order.indexOf(l?.status);if(cur<order.indexOf(to)&&!['dead','not_selling'].includes(l?.status))await sb.from('leads').update({status:to,updated_at:new Date().toISOString()}).eq('id',d.lead_id);
+    sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:label[0].toUpperCase()+label.slice(1)+(d.purchase_price?' · $'+Number(kind==='sale'?(d.assignment_price||d.purchase_price):d.purchase_price).toLocaleString():'')})}}catch(e){console.warn('milestone',e)}}
+async function stageMilestone(id,sid){const s=STAGES.find(x=>x.id===sid);if(!s)return;if(s.board==='buyer'&&!/no go/i.test(s.name))await dealMilestone(id,'purchase');if(s.board==='buyer'&&(s.closed||/^closed$/i.test(s.name)))await dealMilestone(id,'sale')}
 function wireDnD(board){let dragId=null;
   document.querySelectorAll('.dcard').forEach(c=>{c.ondragstart=e=>{dragId=+c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c.dataset.id)};c.ondragend=()=>c.classList.remove('dragging')});
   document.querySelectorAll('.col').forEach(col=>{col.ondragover=e=>{e.preventDefault();col.classList.add('over')};col.ondragleave=()=>col.classList.remove('over');
@@ -444,7 +453,7 @@ function wireDnD(board){let dragId=null;
       const s=STAGES.find(x=>x.id===sid);
       const upd={stage_id:sid,updated_at:new Date().toISOString(),status:s.closed?'won':/dead|no go/i.test(s.name)?'lost':'open'};
       const {error}=await sb.from('deals').update(upd).eq('id',dragId);
-      if(error)toast(error.message);else{toast('Moved to '+s.name);if(d.lead_id)sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:'Deal moved to '+s.name})}
+      if(error)toast(error.message);else{toast('Moved to '+s.name);stageMilestone(dragId,sid);if(d.lead_id)sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:'Deal moved to '+s.name})}
       vBoard(board)}});}
 async function addStage(board){const n=prompt('New stage name');if(!n)return;const pos=Math.max(0,...STAGES.filter(s=>s.board===board).map(s=>s.position))+1;
   const {data,error}=await sb.from('board_stages').insert({board,name:n,position:pos}).select().single();if(error)return toast(error.message);STAGES.push(data);vBoard(board)}
@@ -545,7 +554,7 @@ async function uploadDealFiles(dealId,propId){const fs=$('d_up').files;if(!fs.le
   toast('Uploaded');loadDealFiles(dealId)}
 async function moveToBuyer(id){const s=STAGES.find(x=>x.board==='buyer');if(!s)return toast('No buyer stages');
   const {data:d,error}=await sb.from('deals').update({board:'buyer',stage_id:s.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id).select().single();if(error)return toast(error.message);
-  if(d.lead_id)sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:'Under contract, moved to Buyer Deals'});
+  await dealMilestone(id,'purchase');
   toast('Moved to Buyer Deals → '+s.name);closeDrawer();go('board-buyer')}
 async function moveToSeller(id){const s=STAGES.find(x=>x.board==='seller');const {error}=await sb.from('deals').update({board:'seller',stage_id:s.id,updated_at:new Date().toISOString()}).eq('id',id);if(error)return toast(error.message);toast('Moved back to Seller Deals');closeDrawer();go('board-seller')}
 async function saveDeal(id,board){
@@ -556,7 +565,7 @@ async function saveDeal(id,board){
   const put=r=>id?sb.from('deals').update(r).eq('id',id).select().single():sb.from('deals').insert(r).select().single();
   let {data,error}=await put(r);let note='Saved';
   if(error&&/dd_days/.test(error.message)){delete r.dd_days;({data,error}=await put(r));note='Saved (due diligence days will save once the database is updated)'}
-  if(error)return toast(error.message);toast(note);if(!id)openDeal(data.id);else closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
+  if(error)return toast(error.message);if(r.stage_id)stageMilestone(data.id,r.stage_id);toast(note);if(!id)openDeal(data.id);else closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
 async function delDeal(id,board){if(!confirm('Delete this deal?'))return;await sb.from('deals').delete().eq('id',id);closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
 async function pickLead(dealId){const q=$('d_lq').value.trim();if(!q)return;const {data}=await sb.rpc('search_leads',{q,lim:8});
   $('d_lres').innerHTML=(data||[]).map(l=>`<div class="pitem" onclick="linkLead(${dealId},${l.id})">${esc(leadName(l))} <span class="small muted">${esc(l.phone||'')} ${esc(l.prop_address||'')}</span></div>`).join('')||'<div class="muted small">No match.</div>'}
@@ -685,14 +694,14 @@ function buildDocs(deal,which){const {Document,Packer,Paragraph,TextRun,Alignmen
   if(which.cancel){S=19;LINE=252;const c=deal.cancel||{};const extra=extraLines(c.additional_terms);const r=c.reason||'';const em=c.emd_to||'';const ind={indent:{left:720}};
     const cc=[
       p(['This Cancellation dated ',u(c.date,15),' is between Buyer: Dominion Land Group, and Seller(s): ',u(sellers,44),'.'],{after:120}),
-      p(['Buyer and Seller agree to cancel the Purchase and Sale Contract dated ',u(deal.contract_date,15),' (the "Contract") for the following described real estate:'],{after:120}),
+      p(['Buyer and Seller agree to cancel the Purchase Agreement dated ',u(deal.contract_date,15),' (the "Contract") for the following described real estate:'],{after:120}),
       p([b('Address: '),u(deal.property_address,71)],{after:100}),
       p([b('Parcel ID: '),u(deal.apn,69)],{after:120}),
       p('Buyer and Seller agree:',{after:80}),
       p([b('1.\t'),'The Contract is cancelled as of the date of this Cancellation and is of no further force or effect.']),
       p([b('2.\t'),'Reason for cancellation (check one):'],{after:40}),
-      p(box(r==='feasibility')+"  Property did not pass Buyer's feasibility study (Contract, Section 2b)",{...ind,after:30}),
-      p(box(r==='title')+'  Seller could not provide clear title (Contract, Section 2c)',{...ind,after:30}),
+      p(box(r==='feasibility')+"  Property did not pass Buyer's inspection within the inspection period (Contract, Section 11)",{...ind,after:30}),
+      p(box(r==='title')+'  Seller could not provide good and marketable title',{...ind,after:30}),
       p(box(r==='mutual')+'  Mutual agreement of Buyer and Seller',{...ind,after:30}),
       p([box(r==='other')+'  Other: ',u(r==='other'?c.other:null,44)],{...ind,after:60}),
       p([b('3.\t'),'Earnest Money in the amount of ',um(deal.emd,10),' held by the closing agent shall be (check one):'],{after:40}),
@@ -704,24 +713,24 @@ function buildDocs(deal,which){const {Document,Packer,Paragraph,TextRun,Alignmen
       p([b('8.\t'),'Additional Terms:'],{after:40}),
       ...(extra.length?extra.map((t,i)=>p(t,{...ind,after:i===extra.length-1?200:40})):[0,1].map(i=>p('_'.repeat(74),{...ind,after:i===1?200:40}))),
       ...sig('SELLER'),...sig('SELLER'),...sig('BUYER: Dominion Land Group')];
-    out.push(['Cancellation of Contract',doc('Cancellation of Purchase and Sale Contract',cc)])}
+    out.push(['Cancellation of Contract',doc('Cancellation of Purchase Agreement',cc)])}
   if(which.notice){S=19;LINE=252;const n=deal.notice||{};const r=n.reason||'';const ind={indent:{left:720}};
     const nc=[
       p(['Date of Notice: ',u(n.date,15)],{after:120}),
       p(['To Seller(s): ',u(sellers,44)],{after:120}),
-      p(['Buyer, Dominion Land Group, gives notice that it is terminating the Purchase and Sale Contract dated ',u(deal.contract_date,15),' (the "Contract") for the following described real estate:'],{after:120}),
+      p(['Buyer, Dominion Land Group, gives notice that it is terminating the Purchase Agreement dated ',u(deal.contract_date,15),' (the "Contract") for the following described real estate:'],{after:120}),
       p([b('Address: '),u(deal.property_address,71)],{after:100}),
       p([b('Parcel ID: '),u(deal.apn,69)],{after:120}),
       p([b('1.\t'),'Buyer terminates the Contract under the following section (check one):'],{after:40}),
-      p(box(r==='feasibility')+"  Property did not pass Buyer's feasibility study (Contract, Section 2b)",{...ind,after:30}),
-      p(box(r==='title')+'  Seller could not provide clear title (Contract, Section 2c)',{...ind,after:30}),
-      p(box(r==='nostudy')+'  Seller did not allow a feasibility study (Contract, Section 2c)',{...ind,after:60}),
-      p([b('2.\t'),'This notice is given within the feasibility study period of ',u(deal.feasibility_days,6),' days stated in the Contract.']),
-      p([b('3.\t'),'Under the Contract, Buyer is released from any further obligation, and the Earnest Money of ',um(deal.emd,10),' held by the closing agent located at ',u(deal.closing_agent,30),' shall be returned to Buyer.']),
+      p(box(r==='feasibility')+"  Property did not pass Buyer's inspection within the inspection period (Contract, Section 11)",{...ind,after:30}),
+      p(box(r==='title')+'  Seller could not provide good and marketable title',{...ind,after:30}),
+      p(box(r==='nostudy')+'  Seller did not make the Property accessible for inspection',{...ind,after:60}),
+      p([b('2.\t'),'This written notice is given within the ',u(deal.dd_days||deal.feasibility_days,4),' business day inspection period stated in the Contract (Section 11).']),
+      ...(deal.emd&&Number(deal.emd)>0?[p([b('3.\t'),'Under the Contract, Buyer is released from any further obligation, and the Earnest Money of ',um(deal.emd,10),' held by the closing agent located at ',u(deal.closing_agent,30),' shall be returned to Buyer.'])]:[p([b('3.\t'),'Under the Contract, Buyer and Seller are released from any further obligation.'])]),
       p([b('4.\t'),'Seller is free to sell the property to any other party.'],{after:200}),
       ...sig('BUYER: Dominion Land Group'),
       p('Copy sent to closing agent on _______________ by ☐ Email  ☐ Mail  ☐ Hand delivery',{after:0})];
-    out.push(['Notice of Termination',doc('Notice of Termination of Purchase and Sale Contract',nc)])}
+    out.push(['Notice of Termination',doc('Notice of Termination of Purchase Agreement',nc)])}
   return out}
 async function contractsFor(id,only){const {data:d}=await sb.from('deals').select('*, leads(full_name,mail_address,mail_city,mail_state,mail_zip), properties(apn,address,city,state,zip,county), buyers(name,represents)').eq('id',id).single();
   const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
@@ -742,11 +751,11 @@ async function contractsFor(id,only){const {data:d}=await sb.from('deals').selec
     ${f('assignee','Assignee (buyer)',d.buyers?.represents||d.buyers?.name||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('fee','Assignment fee $',d.assignment_price&&d.purchase_price?d.assignment_price-d.purchase_price:'','number')}${f('adep','Assignee deposit $','','number')}</div>
     ${f('depto','Deposit delivered to',d.attorney||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('depdue','Deposit due by','')}${f('closeby','Close on or before',d.closing_date?fmtDate(d.closing_date):'')}</div>${f('exam','Examination period ends','')}</div>
    <div id="kx_cancel" style="display:${on('cancel')?'':'none'}"><h4 style="margin:14px 0 4px">Cancellation</h4>${f('cdate','Cancellation date',today)}
-    <label class="f">Reason</label><select id="k_creason"><option value="feasibility">Did not pass feasibility (2b)</option><option value="title">No clear title (2c)</option><option value="mutual">Mutual agreement</option><option value="other">Other</option></select>${f('cother','If other, reason','')}
-    <label class="f">Earnest money</label><select id="k_cemd"><option value="buyer">Returned to Buyer</option><option value="seller">Released to Seller</option><option value="none">No Earnest Money was deposited</option></select>
+    <label class="f">Reason</label><select id="k_creason"><option value="feasibility">Did not pass inspection (Section 11)</option><option value="title">No clear title</option><option value="mutual">Mutual agreement</option><option value="other">Other</option></select>${f('cother','If other, reason','')}
+    <label class="f">Earnest money</label><select id="k_cemd"><option value="none">No Earnest Money was deposited</option><option value="buyer">Returned to Buyer</option><option value="seller">Released to Seller</option></select>
     ${f('crel','Record release within (days)','')}<label class="f">Additional Terms (cancellation)</label><textarea id="k_cterms" style="min-height:50px"></textarea></div>
    <div id="kx_notice" style="display:${on('notice')?'':'none'}"><h4 style="margin:14px 0 4px">Notice of Termination</h4>${f('ndate','Date of notice',today)}
-    <label class="f">Section</label><select id="k_nreason"><option value="feasibility">Did not pass feasibility (2b)</option><option value="title">No clear title (2c)</option><option value="nostudy">Seller did not allow feasibility study (2c)</option></select></div>
+    <label class="f">Section</label><select id="k_nreason"><option value="feasibility">Did not pass inspection (Section 11)</option><option value="title">No clear title</option><option value="nostudy">Seller did not allow access for inspection</option></select></div>
    <br><button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">${only?'Create '+DOCN[only]:'Create documents'}</button><div id="k_msg" class="small" style="margin-top:8px"></div></div>`)}
 async function makeContracts(id){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?undefined:Number(g(k));
   const which={psa:$('w_psa').checked,house:$('w_house').checked,asg:$('w_asg').checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};if(!Object.values(which).some(Boolean))return toast('Pick at least one document');
@@ -761,7 +770,9 @@ async function makeContracts(id){const g=k=>$('k_'+k)?.value?.trim()||'';const n
       window._lastDocs=(window._lastDocs||[]);window._lastDocs.push([name,blob]);
       const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {error}=await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
       if(!error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`${name} (${new Date().toLocaleDateString()})`,storage_path:path,source:'hq'})}
-    const made=window._lastDocs.slice(-docs.length);window._lastDocs=[];toast('Saved to this deal');const [n0,b0]=made[0];showDocx(b0,n0,URL.createObjectURL(b0))}
+    if(which.psa||which.house){await dealMilestone(id,'offer');const cs=STAGES.find(x=>x.board==='seller'&&/contract sent|offer/i.test(x.name));const {data:cur}=await sb.from('deals').select('board,stage_id').eq('id',id).single();
+      if(cs&&cur?.board==='seller'&&cur.stage_id!==cs.id)await sb.from('deals').update({stage_id:cs.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id)}
+    const made=window._lastDocs.slice(-docs.length);window._lastDocs=[];toast(which.psa||which.house?'Saved to this deal · offer recorded, moved to Contract Sent':'Saved to this deal');const [n0,b0]=made[0];showDocx(b0,n0,URL.createObjectURL(b0))}
   catch(e){$('k_msg').textContent='Could not create: '+e.message}finally{btn.disabled=false;btn.textContent='Create documents'}}
 
 // ---------- inboxes ----------
