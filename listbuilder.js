@@ -15,6 +15,7 @@ LB.RULES = {
   costPerPiece: 0.55,     // postage + print per letter
   rampSize: 500, rampUntil: '2026-10-26', // first two weekly lists are 500 while the new filters prove out
   countyCapPct: 0.30,     // no county gets more than 30% of a list
+  maxSlopePct: 10,       // average ground slope across the lot (NC 3-ft LiDAR); infill builders grade to ~2%
   minLandValue: 15000,    // county land value floor (lots with no value on file are kept)
   template: 'DLG Neutral Builder Letter.docx',
   targetStages: [10, 11, 12, 13, 14, 15, 16], // under contract / escrow + closed
@@ -117,6 +118,26 @@ async function tileSewer(k) { // NC public sewer service areas (state map, 2004)
     try { const j = await getJSON(u, undefined, 2); return (j.features || []).map(f => f.geometry.rings); } catch (e) { return null; } })();
   sewerCache.set(k, p); return p;
 }
+// ---- slope from NC statewide LiDAR ground elevation (3 ft grid) ----
+const DEM = 'https://services.nconemap.gov/secure/rest/services/Elevation/DEM03/ImageServer/getSamples';
+function gridPoints(rings) { const ring = mainRing(rings); let mnx = 1e9, mny = 1e9, mxx = -1e9, mxy = -1e9; ring.forEach(([x, y]) => { if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; });
+  const pts = []; for (let i = 1; i <= 5; i++) for (let j = 1; j <= 5; j++) { const pt = [mnx + (mxx - mnx) * i / 6, mny + (mxy - mny) * j / 6]; if (inRing(pt, ring)) pts.push(pt); }
+  if (pts.length < 4) { pts.push(centroid(rings)); ring.filter((_, i) => i % Math.max(1, Math.floor(ring.length / 6)) === 0).forEach(p => pts.push([(p[0] * 3 + centroid(rings)[0]) / 4, (p[1] * 3 + centroid(rings)[1]) / 4])); }
+  return pts.slice(0, 25); }
+function planeSlope(pts, z, lat0) { const T = proj(lat0); const P = pts.map(T); const n = P.length; if (n < 3) return null;
+  const mx = P.reduce((a, p) => a + p[0], 0) / n, my = P.reduce((a, p) => a + p[1], 0) / n, mz = z.reduce((a, v) => a + v, 0) / n;
+  let sxx = 0, syy = 0, sxy = 0, sxz = 0, syz = 0; for (let i = 0; i < n; i++) { const dx = P[i][0] - mx, dy = P[i][1] - my, dz = z[i] - mz; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; sxz += dx * dz; syz += dy * dz; }
+  const det = sxx * syy - sxy * sxy; if (Math.abs(det) < 1e-9) return null; const a = (sxz * syy - syz * sxy) / det, b = (syz * sxx - sxz * sxy) / det;
+  return { pct: Math.round(100 * Math.hypot(a, b) * 10) / 10, relief: Math.round(Math.max(...z) - Math.min(...z)) }; }
+LB.slopes = async function (cands) { // fills c.slope for NC lots, 15 lots per request, 4 requests at a time
+  const nc = cands.filter(c => c.r.state === 'NC' && c.slope === undefined); const groups = []; for (let i = 0; i < nc.length; i += 15) groups.push(nc.slice(i, i + 15));
+  const one = async g => { const all = [], own = []; g.forEach((c, k) => { const pts = gridPoints(c.rings); c._pts = pts; pts.forEach(p => { all.push(p); own.push(k); }); });
+    try { const body = new URLSearchParams({ geometry: JSON.stringify({ points: all, spatialReference: { wkid: 4326 } }), geometryType: 'esriGeometryMultipoint', returnFirstValueOnly: 'true', f: 'json' });
+      const j = await getJSON(DEM, { method: 'POST', body }, 2); const z = new Array(all.length).fill(null); (j.samples || []).forEach(sm => { const v = parseFloat(sm.value); if (isFinite(v) && v > -100) z[sm.locationId] = v; });
+      g.forEach((c, k) => { const idx = own.map((o, i) => o === k ? i : -1).filter(i => i >= 0 && z[i] !== null); c.slope = idx.length >= 3 ? planeSlope(idx.map(i => all[i]), idx.map(i => z[i]), c.c[1]) : null; });
+    } catch (e) { g.forEach(c => { c.slope = null; }); } };
+  for (let i = 0; i < groups.length; i += 4) await Promise.all(groups.slice(i, i + 4).map(one));
+};
 LB.frontage = function (rings, roads) {
   const ring = mainRing(rings), T = proj(ring[0][1]);
   let mnx = 1e9, mny = 1e9, mxx = -1e9, mxy = -1e9; ring.forEach(([x, y]) => { if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; });
@@ -243,11 +264,13 @@ LB.run = async function (opt = {}) {
     const cap = Math.max(1, Math.ceil(R.size * R.countyCapPct));
     for (let b = 0; b < pass1.length && final.length < R.size; b += 600) {
       st.phase = 'checking DLG HQ'; const batch = pass1.slice(b, b + 600); const worked = await workedSet(batch, log);
+      st.phase = 'checking slope'; await LB.slopes(batch.filter(c => !worked.get(String(c.r.apn) + '|' + c.r.county.toLowerCase())));
       st.phase = 'checking roads and flood';
       for (const c of batch) { if (final.length >= R.size) break;
         const w = worked.get(String(c.r.apn) + '|' + c.r.county.toLowerCase()) || (c.r.apn2 && worked.get(String(c.r.apn2) + '|' + c.r.county.toLowerCase()));
         if (w) { cutAdd(w.startsWith('tagged') ? 'tagged in DLG HQ (DD or negative)' : (w.startsWith('mailed') || w.startsWith('resting')) ? w : 'already worked in DLG HQ'); continue; }
         if (multiCounty && (perCounty.get(c.r.county) || 0) >= cap) { st.held++; continue; } // county already has its 30%
+        if (c.slope && c.slope.pct > R.maxSlopePct) { cutAdd('too steep (over ' + R.maxSlopePct + '% slope)'); continue; }
         i++; const k = tileKey(c.c[0], c.c[1]); st.tile = k; const t0 = Date.now(); const [roads, flood] = await Promise.all([tileRoads(k), tileFlood(k)]); st.lastTileMs = Date.now() - t0; st.checked = i;
         if (flood === null) { cutAdd('flood map unavailable (skipped to be safe)'); continue; }
         if (flood.length && floodShare(c.rings, flood) >= 0.25) { cutAdd('in a FEMA flood zone'); continue; }
@@ -279,7 +302,7 @@ LB.toCampaign = async function (name, opt = {}) {
   const byKey = new Map(st.final.map(c => [String(c.r.apn) + '|' + c.r.county.toLowerCase(), c]));
   for (let from = 0; ; from += 1000) { const { data } = await sb.from('campaign_records').select('property_id,properties(id,apn,county,fields)').eq('campaign_id', camp.id).range(from, from + 999); if (!data || !data.length) break;
     for (let i = 0; i < data.length; i += 25) await Promise.all(data.slice(i, i + 25).map(x => { const p = x.properties; if (!p) return; const c = byKey.get(String(p.apn) + '|' + String(p.county || '').toLowerCase()); if (!c) return;
-      return sb.from('properties').update({ fips: c.r.fips || null, fields: { ...(p.fields || {}), buildable: { checked: new Date().toISOString().slice(0, 10), avg_width_ft: c.sh.avgWidth, length_ft: c.sh.length, road_frontage_ft: c.front, flood: 'not in SFHA', sewer: c.sewer, land_value: c.r.landval || null, source: LB.source(c.r.state, c.r.county).name } } }).eq('id', p.id); }));
+      return sb.from('properties').update({ fips: c.r.fips || null, fields: { ...(p.fields || {}), buildable: { checked: new Date().toISOString().slice(0, 10), avg_width_ft: c.sh.avgWidth, length_ft: c.sh.length, road_frontage_ft: c.front, flood: 'not in SFHA', sewer: c.sewer, slope_pct: c.slope ? c.slope.pct : null, relief_ft: c.slope ? c.slope.relief : null, land_value: c.r.landval || null, source: LB.source(c.r.state, c.r.county).name } } }).eq('id', p.id); }));
     if (data.length < 1000) break; }
   const skipped = res.reduce((a, d) => a + d.skipped_dnm + d.skipped_not_interested + d.skipped_recent, 0);
   st.campaign = camp.id; st.report = LB.report(st, rec, skipped); st.phase = 'done';
@@ -299,12 +322,14 @@ LB.forBuyer = async function (buyerId, size = 250) {
   const name = 'Buy Box List – ' + (b.company || b.name) + ' – ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return LB.toCampaign(name, opt);
 };
+const R_MAX = () => LB.RULES.maxSlopePct;
 LB.report = function (st, rec, skipped) {
   const cutN = Object.values(st.cut).reduce((a, b) => a + b, 0) + (skipped || 0);
   const lines = Object.entries(st.cut).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v.toLocaleString()} ${k}`);
   if (skipped) lines.push(`${skipped} removed at import (do-not-mail or said no)`);
   const sewer = (st.final || []).filter(c => c.sewer === 'likely public sewer').length;
+  const sl = (st.final || []).map(c => c.slope && c.slope.pct).filter(v => v != null); const flat = sl.filter(v => v <= 5).length;
   const counties = Object.entries(st.byCounty || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ');
-  return `${rec.toLocaleString()} records picked from ${Number(st.pool || 0).toLocaleString()} vacant lots. ${cutN.toLocaleString()} lots cut before mailing (they would have cost about ${(cutN * 0.55).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} at $0.55): ${lines.join('; ')}.` + (counties ? ` By county: ${counties}.` : '') + (st.held ? ` ${st.held.toLocaleString()} good lots held back by the 30% county cap.` : '') + ` ${sewer} of ${rec} look to be inside a public sewer area (2004 state map).` + (st.missing && st.missing.length ? ` Pull county data for: ${st.missing.join(', ')}.` : '');
+  return `${rec.toLocaleString()} records picked from ${Number(st.pool || 0).toLocaleString()} vacant lots. ${cutN.toLocaleString()} lots cut before mailing (they would have cost about ${(cutN * 0.55).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} at $0.55): ${lines.join('; ')}.` + (counties ? ` By county: ${counties}.` : '') + (st.held ? ` ${st.held.toLocaleString()} good lots held back by the 30% county cap.` : '') + ` ${sewer} of ${rec} look to be inside a public sewer area (2004 state map).` + (sl.length ? ` Slope: ${flat} of ${sl.length} checked are 5% or flatter, all are ${R_MAX()}% or less.` : '') + (st.missing && st.missing.length ? ` Pull county data for: ${st.missing.join(', ')}.` : '');
 };
 })();
