@@ -754,7 +754,7 @@ async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem')
   $('msgs').scrollTop=1e9;drawCPanel(t,l);
   if((msgs||[]).some(m=>m.direction==='in'&&!m.is_read)){await sb.from('messages').update({is_read:true}).eq('thread_id',tid).eq('direction','in').eq('is_read',false);refreshBadges();loadThreads()}}
 async function drawCPanel(t,l){const {data:deals}=l.id?await sb.from('deals').select('id,board,stage_id,property_label,value,status').eq('lead_id',l.id).order('id',{ascending:false}):{data:[]};
-  const _ph=l.id&&l.source==='quo';
+  const _ph=l.id&&(['quo','pebble-thread'].includes(l.source)||!l.full_name);
   $('cpanel').innerHTML=`<div class="card" style="margin:0 0 12px"><div style="display:flex;justify-content:space-between"><b>Contact</b>${l.id?`<a href="#" onclick="openLead(${l.id});return false" class="small">Open</a>`:''}</div>
     <label class="f">${_ph||!l.id?'Select existing contact':'Linked to the wrong person? Pick the right contact'}</label>
     <div style="position:relative"><input id="cp_link" placeholder="Search name, phone, address or APN" autocomplete="off" oninput="cpLinkSearch(${t.id})"><div id="cp_linkres" class="linkres"></div></div>
@@ -795,7 +795,7 @@ async function linkThread(tid,newId){const {data:t}=await sb.from('threads').sel
   const now=new Date().toISOString(),upd={updated_at:now},ph=t.phone||old?.phone;
   // save the caller's number on the contact
   if(ph&&![n.phone,n.phone2,n.phone3].some(x=>x&&p10(x)===p10(ph))){if(!n.phone)upd.phone=ph;else if(!n.phone2)upd.phone2=ph;else if(!n.phone3)upd.phone3=ph}
-  const placeholder=old&&old.source==='quo';
+  const placeholder=old&&(['quo','pebble-thread'].includes(old.source)||!old.full_name);
   if(placeholder){if(!n.email&&old.email)upd.email=old.email;
     if(old.notes&&old.notes!==n.notes)upd.notes=[n.notes,old.notes].filter(Boolean).join('\n');
     const tg=[...(n.tags||[])];(old.tags||[]).forEach(x=>{if(!tg.includes(x))tg.push(x)});upd.tags=tg;
