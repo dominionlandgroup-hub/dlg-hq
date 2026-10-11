@@ -19,7 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="listbuilder.js?v=11"></script>
+<script src="listbuilder.js?v=12"></script>
 <style>.tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.tagchip{display:inline-flex;align-items:center;gap:4px;background:#efe7fb;color:#4b2a7b;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;font-weight:600}.tagchip.sm{padding:2px 8px;font-size:11px}.tagchip button{border:0;background:none;color:#4b2a7b;cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.tagadd{border:1px dashed #b9a6d6;background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#4b2a7b}.linkres{position:absolute;left:0;right:0;z-index:20;background:var(--card,#fff);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:8px;max-height:300px;overflow:auto}.linkres .pitem{padding:8px 10px;border-bottom:1px solid var(--line,#eee);cursor:pointer}.linkres .pitem:hover{background:#f5f1fb}
 
 :root{color-scheme:light;--bg:#f7f6fa;--card:#fff;--ink:#231b30;--muted:#6e6880;--line:#e7e3ee;--brand:#5C2977;--brand2:#7a3f9c;--accent:#D5A940;--gold:#D5A940;--gold-d:#a7822a;--red:#b23b3b;--chip:#f2ecf7;--side:#ffffff;--hot:#d9480f}
@@ -912,9 +912,9 @@ function weeklyList(opt={}){const R=LB.RULES;openDrawer(head('Build weekly list'
 async function weeklyGo(){const btn=$('wl_go');btn.disabled=true;btn.textContent='Working… keep this tab open';
   const opt={size:+$('wl_n').value||1000,minAcres:+$('wl_a').value,maxAcres:+$('wl_b').value,minAvgWidthFt:+$('wl_w').value};
   const tick=setInterval(()=>{const s=LB.status;if(s&&$('wl_out'))$('wl_out').textContent=`Step: ${s.phase}${s.picked?' · '+s.picked.toLocaleString()+' picked':''}${s.loaded?' · '+s.loaded+' loaded':''}\n`+s.log.slice(-6).join('\n')},1000);
-  try{await LB.run(opt);const name='Weekly List – '+new Date($('wl_d').value+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  try{await LB.run(opt);const name=LB.listName('weekly',LB.status.final.length,$('wl_d').value);
     LB.status.phase='loading into DLG HQ';const r=await LB.toCampaign(name,{drop:$('wl_d').value});clearInterval(tick);
-    $('wl_out').innerHTML=`<b>Done.</b> ${esc(LB.status.report)}<br><br><button class="btn" onclick="closeDrawer();startMailing(${r.campaign})">Review &amp; Start Mailing</button> <button class="btn ghost" onclick="closeDrawer();go('campaigns')">See campaigns</button>`;toast('Weekly list ready')}
+    $('wl_out').innerHTML=`<b>Done.</b> ${esc(LB.status.report)}<br><br><button class="btn" onclick="closeDrawer();startMailing(${r.campaign})">Review &amp; Start Mailing</button> <button class="btn ghost" onclick="LB.pebbleCSV(${r.campaign}).then(n=>toast(n+' records saved for Pebble'))">Download for Pebble</button> <button class="btn ghost" onclick="closeDrawer();go('campaigns')">See campaigns</button>`;toast('Weekly list ready')}
   catch(e){clearInterval(tick);$('wl_out').textContent='Stopped: '+e.message+'\n'+(LB.status?.log||[]).slice(-6).join('\n');btn.disabled=false;btn.textContent='Try again'}}
 async function vCampaigns(){
   $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn ghost" onclick="weeklyList()">🧭 Build weekly list</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;

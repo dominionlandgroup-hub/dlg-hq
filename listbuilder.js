@@ -62,6 +62,7 @@ LB.names = function (r) {
 };
 const GOV = /\b(COUNTY OF|COUNTY\b.*\b(BOARD|COMMISSION)|CITY OF|TOWN OF|VILLAGE OF|STATE OF|UNITED STATES|USA\b|U S A|DEPT|DEPARTMENT|BOARD OF EDUCATION|SCHOOL|AUTHORITY|COMMISSION|HOMEOWNERS|HOME OWNERS|HOA\b|PROPERTY OWNERS|OWNERS ASS|ASSOCIATION|ASSN|POA\b|DUKE ENERGY|PROGRESS ENERGY|DOMINION ENERGY|ELECTRIC|MEMBERSHIP CORP|EMC\b|UTILIT|RAILROAD|RAILWAY|WATER (AND|&) SEWER|SANITARY DISTRICT|TELEPHONE|NCDOT|SCDOT|DEPARTMENT OF TRANSPORTATION|HOUSING AUTHORITY|CEMETERY|LAND TRUST|CONSERVANCY|NATURE CONSERVANCY)\b/i;
 const BUILDER = /\b(BUILDERS?|BUILDING|CONSTRUCTION|HOMES|HOMEBUILDERS?|DEVELOPMENT|DEVELOPERS?|DEVELOP|COMMUNITIES|RESIDENTIAL|REALTY|LAND CO|LAND COMPANY|LAND GROUP|LAND HOLDINGS|LOTS|SUBDIVISION|NVR|PULTE|LENNAR|D R HORTON|DR HORTON|MERITAGE|TAYLOR MORRISON|TRUE HOMES|MATTAMY|EASTWOOD|CENTURY COMMUNITIES|DREAM FINDERS|SMITH DOUGLAS|STANLEY MARTIN|DAN RYAN|MUNGO|ADAMS HOMES|LGI)\b/i;
+const CHURCH = /\b(CHURCH|MINISTR|FELLOWSHIP|TEMPLE|TABERNACLE|CONGREGATION|BAPTIST|METHODIST|PRESBYTERIAN|EPISCOPAL|LUTHERAN|PENTECOSTAL|HOLINESS|A M E|AME ZION|MISSIONARY|DIOCESE|PARISH|CATHOLIC)\b/i;
 const REDFLAG = /EASEMENT|DRIVEWAY|DRIVE WAY|R\/W\b|RIGHT[- ]OF[- ]WAY|\bROW\b|COMMON AREA|COMMON PROP|COMMON OPEN|OPEN SPACE|BUFFER|\bSTRIP\b|REMNANT|DRAINAGE|DETENTION|RETENTION|\bPOND\b|UTILITY|CEMETERY|LANDLOCK|LAND LOCK|NO ACCESS|UNBUILDABLE|NON[- ]BUILDABLE|NOT BUILDABLE|SLIVER|\bGAP\b|AMENITY|RECREATION AREA|CONSERVATION|WETLAND|SEWER|PUMP STATION|LIFT STATION|TOWER SITE|CELL TOWER|SUBSTATION/i;
 // tags/status in DLG HQ that mean: do not mail
 const NEGTAG = /due diligence|\bdd\b|run claude dd|dd done|not sell|overpriced|paid too much|listed|bad lot|\bsold\b|\bdnc\b|do not (mail|call|contact)|opted|opt out|not interested|not_interested|stop|wrong (owner|person)|deceased|hostile/i;
@@ -292,7 +293,8 @@ LB.run = async function (opt = {}) {
       if (c.dist < 0.03) { cutAdd('your own deal lot'); continue; }
       if (BUILDER.test(r.owner || '')) { cutAdd('builder / developer owner'); continue; }
       if (buyerNames.has(normOwner(r.owner))) { cutAdd('one of your buyers'); continue; }
-      if ((ownerCount.get(normOwner(r.owner)) || 0) >= 4) { cutAdd('owns 4+ lots nearby (developer inventory)'); continue; }
+      if (CHURCH.test(r.owner || '')) { c.church = true; if (/^mecklenburg$/i.test(r.county)) c.dist = 0; } // church lots: Mecklenburg ones go to the front
+      if (!c.church && (ownerCount.get(normOwner(r.owner)) || 0) >= 4) { cutAdd('owns 4+ lots nearby (developer inventory)'); continue; }
       if (!nm || !r.mail || !r.mcity || !r.mstate || !r.mzip) { cutAdd('no mailing address'); continue; }
       if (r.built) { cutAdd('has a building'); continue; }
       if (R.minLandValue && r.landval > 0 && r.landval < R.minLandValue) { cutAdd('land value under $' + R.minLandValue.toLocaleString()); continue; }
@@ -361,6 +363,22 @@ LB.toCampaign = async function (name, opt = {}) {
   await sb.from('activity').insert({ kind: 'note', body: 'Weekly list built: ' + st.report });
   return { campaign: camp.id, records: rec, skipped };
 };
+// ---- unique list names ----
+LB.listName = function (kind, size, drop, who) { const d = new Date((drop || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day);
+  const wk = Math.ceil(((t - new Date(Date.UTC(t.getUTCFullYear(), 0, 1))) / 864e5 + 1) / 7); const code = `${t.getUTCFullYear()}-W${String(wk).padStart(2, '0')}`;
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return kind === 'buybox' ? `BB ${code} · ${who} · ${size} lots · mail ${date}` : `WL ${code} · Builder Lots · ${size} · mail ${date}`; };
+// ---- Pebble import file (same records and offer codes as DLG HQ) ----
+LB.pebbleCSV = async function (campaignId) { const all = [];
+  for (let o = 0; ; o += 1000) { const { data } = await sb.from('campaign_records').select('offer_code,leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip),properties(apn,address,city,state,zip,county,fips,acres)').eq('campaign_id', campaignId).range(o, o + 999); all.push(...(data || [])); if (!data || data.length < 1000) break; }
+  const { data: c } = await sb.from('campaigns').select('name').eq('id', campaignId).single();
+  const rows = all.map(r => { const l = r.leads || {}, p = r.properties || {}; return { 'Owner Name': l.full_name || '', 'First Name': l.first_name || '', 'Last Name': l.last_name || '', 'Mailing Address': l.mail_address || '', 'Mailing City': l.mail_city || '', 'Mailing State': l.mail_state || '', 'Mailing Zip': l.mail_zip || '',
+    'Property Address': p.address || '', 'Property City': /^\d{5}$/.test(p.city || '') ? '' : (p.city || ''), 'Property State': p.state || '', 'Property Zip': p.zip || '', 'County': p.county || '', 'FIPS': p.fips || '', 'APN': p.apn || '', 'Acres': p.acres != null ? String(+(+p.acres).toFixed(2)) : '', 'Offer Code': r.offer_code || '' }; });
+  const esc_ = v => /[",\n]/.test(v) ? '"' + String(v).replace(/"/g, '""') + '"' : v; const cols = Object.keys(rows[0] || { 'Owner Name': '' });
+  const csv = [cols.join(','), ...rows.map(r => cols.map(k => esc_(r[k])).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = (c?.name || 'list').replace(/[^\w .-]+/g, '') + ' - Pebble import.csv'; document.body.appendChild(a); a.click(); a.remove();
+  return rows.length; };
 // ---- list for one builder's buy box (runs when a new buy box comes in) ----
 LB.forBuyer = async function (buyerId, size = 250) {
   const { data: b, error } = await sb.from('buyers').select('*').eq('id', buyerId).single(); if (error) throw error;
@@ -371,7 +389,7 @@ LB.forBuyer = async function (buyerId, size = 250) {
   const opt = { size, noRamp: true, noCountyCap: true, targets: { pts: [], counties, missing } };
   if (b.min_acres) opt.minAcres = +b.min_acres; if (b.max_acres) opt.maxAcres = +b.max_acres;
   await LB.run(opt);
-  const name = 'Buy Box List – ' + (b.company || b.name) + ' – ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const name = LB.listName('buybox', LB.status.final.length, null, b.company || b.name);
   return LB.toCampaign(name, opt);
 };
 const R_MAX = () => LB.RULES.maxSlopePct;
@@ -381,7 +399,8 @@ LB.report = function (st, rec, skipped) {
   if (skipped) lines.push(`${skipped} removed at import (do-not-mail or said no)`);
   const sewer = (st.final || []).filter(c => c.sewer === 'likely public sewer').length;
   const sl = (st.final || []).map(c => c.slope && c.slope.pct).filter(v => v != null); const flat = sl.filter(v => v <= 5).length;
+  const churches = (st.final || []).filter(c => c.church).length;
   const counties = Object.entries(st.byCounty || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ');
-  return `${rec.toLocaleString()} records picked from ${Number(st.pool || 0).toLocaleString()} vacant lots. ${cutN.toLocaleString()} lots cut before mailing (they would have cost about ${(cutN * 0.55).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} at $0.55): ${lines.join('; ')}.` + (counties ? ` By county: ${counties}.` : '') + (st.held ? ` ${st.held.toLocaleString()} good lots held back by the 30% county cap.` : '') + ` ${sewer} of ${rec} look to be inside a public sewer area (2004 state map).` + (sl.length ? ` Slope: ${flat} of ${sl.length} checked are 5% or flatter, all are ${R_MAX()}% or less.` : '') + (st.missing && st.missing.length ? ` Pull county data for: ${st.missing.join(', ')}.` : '');
+  return `${rec.toLocaleString()} records picked from ${Number(st.pool || 0).toLocaleString()} vacant lots. ${cutN.toLocaleString()} lots cut before mailing (they would have cost about ${(cutN * 0.55).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} at $0.55): ${lines.join('; ')}.` + (counties ? ` By county: ${counties}.` : '') + (st.held ? ` ${st.held.toLocaleString()} good lots held back by the 30% county cap.` : '') + (churches ? ` ${churches} church-owned lots.` : '') + ` ${sewer} of ${rec} look to be inside a public sewer area (2004 state map).` + (sl.length ? ` Slope: ${flat} of ${sl.length} checked are 5% or flatter, all are ${R_MAX()}% or less.` : '') + (st.missing && st.missing.length ? ` Pull county data for: ${st.missing.join(', ')}.` : '');
 };
 })();
