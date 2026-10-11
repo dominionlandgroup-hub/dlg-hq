@@ -13,7 +13,7 @@ LB.RULES = {
   recentDays: 90,         // skip anyone mailed in the last 90 days
   maxTouchesPerYear: 3,   // 3 letters in 12 months, then they rest until a year has passed
   costPerPiece: 0.55,     // postage + print per letter
-  rampSize: 500, rampUntil: '2026-10-26', // first two weekly lists are 500 while the new filters prove out
+  rampSize: 500, rampUntil: '2026-10-01', // ramp finished: full 1,000 a week (Damien, Oct 11)
   countyCapPct: 0.30,     // no county gets more than 30% of a list
   churchShare: 0.10,      // church-owned lots: Mecklenburg only, at most 10% of a list
   marketShare: 0.40,      // water & sewer markets get 2 of every 5 picks (Mecklenburg church lots first)
