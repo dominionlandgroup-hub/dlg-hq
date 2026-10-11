@@ -13,7 +13,7 @@ LB.RULES = {
   recentDays: 90,         // skip anyone mailed in the last 90 days
   template: 'DLG Neutral Builder Letter.docx',
   targetStages: [10, 11, 12, 13, 14, 15, 16], // under contract / escrow + closed
-  skipCounties: ['Oconee, SC'],               // Laura deal: not a market to mail
+  skipCounties: ['Oconee, SC', 'Charleston, SC', 'Lee, FL'], // not mailing these (Damien, Oct 2026)
 };
 // ---- county parcel sources ----
 const NC = { oid: 'objectid', name: 'NC statewide parcels', url: 'https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1',
@@ -134,7 +134,7 @@ LB.targets = async function () {
     if (p.lat && p.lng) pts.push({ lat: p.lat, lng: p.lng, county: p.county, state: p.state, why: d.why });
     else counties.set(key, { county: p.county, state: p.state, why: d.why + ' (no map point)' }); });
   const { data: buyers } = await sb.from('buyers').select('id,name,company,counties,zips,min_acres,max_acres').limit(2000);
-  (buyers || []).forEach(b => (b.counties || []).forEach(c => { const st = /^(york|lancaster|chester|charleston|berkeley|dorchester|horry|greenville|spartanburg)$/i.test(c) ? 'SC' : 'NC';
+  (buyers || []).forEach(b => (b.counties || []).forEach(c => { const st0 = /^(york|lancaster|chester|charleston|berkeley|dorchester|horry|greenville|spartanburg)$/i.test(c) ? 'SC' : 'NC'; if (LB.RULES.skipCounties.some(x => x.toLowerCase() === (c + ', ' + st0).toLowerCase())) return; const st = /^(york|lancaster|chester|charleston|berkeley|dorchester|horry|greenville|spartanburg)$/i.test(c) ? 'SC' : 'NC';
     if (!LB.source(st, c)) { missing.add(`${c} County, ${st}`); return; }
     const key = st + '|' + c; if (!counties.has(key)) counties.set(key, { county: c, state: st, why: 'buy box: ' + (b.company || b.name) }); }));
   return { pts, counties: [...counties.values()], missing: [...missing] };
