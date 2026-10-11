@@ -10,7 +10,8 @@ LB.RULES = {
   minAvgWidthFt: 50,      // every closed deal is 50 ft+ on average
   minCompact: 0.25,       // below this the parcel is a sliver
   minFrontageFt: 25,      // must touch a public road
-  recentDays: 90,         // skip anyone mailed in the last 90 days
+  recentDays: 90,
+  costPerPiece: 0.55,     // postage + print per letter         // skip anyone mailed in the last 90 days
   template: 'DLG Neutral Builder Letter.docx',
   targetStages: [10, 11, 12, 13, 14, 15, 16], // under contract / escrow + closed
   skipCounties: ['Oconee, SC', 'Charleston, SC', 'Lee, FL'], // not mailing these (Damien, Oct 2026)
@@ -250,6 +251,7 @@ LB.toCampaign = async function (name, opt = {}) {
   let rec = 0; const res = [];
   for (let i = 0; i < rows.length; i += 100) { const { data, error } = await sb.rpc('import_campaign_list', { cid: camp.id, rows: rows.slice(i, i + 100), src: 'county', tag: 'Weekly List', skip_dnm: true, skip_ni: true, skip_days: R.recentDays }); if (error) throw error; res.push(data); rec += data.records; st.loaded = rec; }
   await sb.rpc('finish_campaign_import', { cid: camp.id });
+  await sb.from('campaigns').update({ records: rec, cost: +(rec * (R.costPerPiece || 0.55)).toFixed(2) }).eq('id', camp.id);
   // stamp FIPS, check results and the buildable tag on each property
   const byKey = new Map(st.final.map(c => [String(c.r.apn) + '|' + c.r.county.toLowerCase(), c]));
   for (let from = 0; ; from += 1000) { const { data } = await sb.from('campaign_records').select('property_id,properties(id,apn,county,fields)').eq('campaign_id', camp.id).range(from, from + 999); if (!data || !data.length) break;
