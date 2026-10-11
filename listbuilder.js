@@ -10,8 +10,12 @@ LB.RULES = {
   minAvgWidthFt: 50,      // every closed deal is 50 ft+ on average
   minCompact: 0.25,       // below this the parcel is a sliver
   minFrontageFt: 25,      // must touch a public road
-  recentDays: 90,
-  costPerPiece: 0.55,     // postage + print per letter         // skip anyone mailed in the last 90 days
+  recentDays: 90,         // skip anyone mailed in the last 90 days
+  maxTouchesPerYear: 3,   // 3 letters in 12 months, then they rest until a year has passed
+  costPerPiece: 0.55,     // postage + print per letter
+  rampSize: 500, rampUntil: '2026-10-26', // first two weekly lists are 500 while the new filters prove out
+  countyCapPct: 0.30,     // no county gets more than 30% of a list
+  minLandValue: 15000,    // county land value floor (lots with no value on file are kept)
   template: 'DLG Neutral Builder Letter.docx',
   targetStages: [10, 11, 12, 13, 14, 15, 16], // under contract / escrow + closed
   skipCounties: ['Oconee, SC', 'Charleston, SC', 'Lee, FL'], // not mailing these (Damien, Oct 2026)
@@ -21,13 +25,13 @@ const NC = { oid: 'objectid', name: 'NC statewide parcels', url: 'https://servic
   fields: 'parno,altparno,ownname,ownfrst,ownlast,mailadd,munit,mcity,mstate,mzip,siteadd,scity,szip,gisacres,improvval,struct,landval,parusedesc,legdecfull,cntyname,stcntyfips',
   countyWhere: c => `cntyname='${c.replace(/'/g, "''")}'`,
   vacantWhere: (a, b) => `(improvval=0 OR improvval IS NULL) AND (struct IS NULL OR struct<>'Y') AND gisacres>=${a} AND gisacres<=${b}`,
-  map: a => ({ apn: a.parno, apn2: a.altparno, owner: a.ownname, first: a.ownfrst, last: a.ownlast, mail: [a.mailadd, a.munit].filter(Boolean).join(' '), mcity: a.mcity, mstate: a.mstate, mzip: a.mzip,
+  map: a => ({ landval: a.landval, apn: a.parno, apn2: a.altparno, owner: a.ownname, first: a.ownfrst, last: a.ownlast, mail: [a.mailadd, a.munit].filter(Boolean).join(' '), mcity: a.mcity, mstate: a.mstate, mzip: a.mzip,
     site: a.siteadd, scity: a.scity, szip: a.szip, acres: a.gisacres, built: (a.improvval || 0) > 0 || a.struct === 'Y', use: a.parusedesc, legal: a.legdecfull, county: titleCase(a.cntyname || ''), state: 'NC', fips: a.stcntyfips }) };
 const YORK = { oid: 'OBJECTID', name: 'York County SC parcels', url: 'https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0',
-  fields: 'ParcelID,Owner1,Owner2,MailAddr1,MailAddr2,MailCity,MailState,MailZip,PropertyAddress,GISSizeAC,deededacres,AprBldgVal,BuildingCount,ImprovedStatus,LandUseDesc,LegalDescription',
+  fields: 'ParcelID,AprLandVal,Owner1,Owner2,MailAddr1,MailAddr2,MailCity,MailState,MailZip,PropertyAddress,GISSizeAC,deededacres,AprBldgVal,BuildingCount,ImprovedStatus,LandUseDesc,LegalDescription',
   countyWhere: () => '1=1',
   vacantWhere: (a, b) => `(AprBldgVal=0 OR AprBldgVal IS NULL) AND (BuildingCount=0 OR BuildingCount IS NULL) AND GISSizeAC>=${a} AND GISSizeAC<=${b}`,
-  map: a => ({ apn: a.ParcelID, owner: [a.Owner1, a.Owner2].filter(Boolean).join(' & '), mail: [a.MailAddr1, a.MailAddr2].filter(Boolean).join(' '), mcity: a.MailCity, mstate: a.MailState, mzip: a.MailZip,
+  map: a => ({ landval: a.AprLandVal, apn: a.ParcelID, owner: [a.Owner1, a.Owner2].filter(Boolean).join(' & '), mail: [a.MailAddr1, a.MailAddr2].filter(Boolean).join(' '), mcity: a.MailCity, mstate: a.MailState, mzip: a.MailZip,
     site: a.PropertyAddress, acres: a.GISSizeAC || a.deededacres, built: (a.AprBldgVal || 0) > 0 || (a.BuildingCount || 0) > 0, use: a.LandUseDesc, legal: a.LegalDescription, county: 'York', state: 'SC', fips: '45091' }) };
 LB._tileRoads = (...a) => tileRoads(...a); LB._tileFlood = (...a) => tileFlood(...a);
 LB.source = (state, county) => state === 'NC' ? NC : (state === 'SC' && /^york$/i.test(county || '')) ? YORK : null;
@@ -105,6 +109,14 @@ async function tileFlood(k) {
     try { const j = await getJSON(u); return (j.features || []).map(f => f.geometry.rings); } catch (e) { return null; } })();
   floodCache.set(k, p); return p;
 }
+const sewerCache = new Map();
+async function tileSewer(k) { // NC public sewer service areas (state map, 2004): a hint, not a filter
+  if (sewerCache.has(k)) return sewerCache.get(k);
+  const p = (async () => { const [tx, ty] = k.split(':').map(Number), w = tx * TILE, s = ty * TILE;
+    const u = `https://services.nconemap.gov/secure/rest/services/NC1Map_Water_Sewer_2004/MapServer/2/query?geometry=${w},${s},${w + TILE},${s + TILE}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=sssyname&returnGeometry=true&outSR=4326&geometryPrecision=5&f=json`;
+    try { const j = await getJSON(u, undefined, 2); return (j.features || []).map(f => f.geometry.rings); } catch (e) { return null; } })();
+  sewerCache.set(k, p); return p;
+}
 LB.frontage = function (rings, roads) {
   const ring = mainRing(rings), T = proj(ring[0][1]);
   let mnx = 1e9, mny = 1e9, mxx = -1e9, mxy = -1e9; ring.forEach(([x, y]) => { if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; });
@@ -162,10 +174,14 @@ async function workedSet(cands, log) {
     const { data: props } = await sb.from('properties').select('id,apn,county,tags,property_owners(lead_id,leads(id,status,tags,do_not_mail,not_interested_at))').in('apn', chunk);
     const pids = (props || []).map(p => p.id);
     const recent = new Set();
-    if (pids.length) { const { data: rec } = await sb.from('campaign_records').select('property_id,campaigns(drop_date,created_at)').in('property_id', pids);
-      (rec || []).forEach(r => { const d = r.campaigns?.drop_date || (r.campaigns?.created_at || '').slice(0, 10); if (d && d >= since) recent.add(r.property_id); }); }
+    const yearAgo = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10), touches = new Map();
+    if (pids.length) { const { data: rec } = await sb.from('campaign_records').select('property_id,campaigns(drop_date,created_at,mail_status)').in('property_id', pids);
+      (rec || []).forEach(r => { if (!r.campaigns || r.campaigns.mail_status === 'not_sent') return; // only letters that actually went out
+        const d = r.campaigns.drop_date || (r.campaigns.created_at || '').slice(0, 10); if (d && d >= since) recent.add(r.property_id);
+        if (d && d >= yearAgo) touches.set(r.property_id, (touches.get(r.property_id) || 0) + 1); }); }
     (props || []).forEach(p => {
       const why = recent.has(p.id) ? `mailed in the last ${LB.RULES.recentDays} days`
+        : (touches.get(p.id) || 0) >= LB.RULES.maxTouchesPerYear ? 'resting: mailed ' + LB.RULES.maxTouchesPerYear + ' times this year'
         : (p.tags || []).some(t => NEGTAG.test(t)) ? 'tagged on the property: ' + p.tags.find(t => NEGTAG.test(t))
         : (p.property_owners || []).map(o => o.leads).filter(Boolean).map(l => l.do_not_mail ? 'do not mail' : (l.tags || []).find(t => NEGTAG.test(t)) ? 'tagged: ' + (l.tags || []).find(t => NEGTAG.test(t)) : !['record', null, undefined].includes(l.status) ? 'already worked (' + String(l.status).replace('_', ' ') + ')' : null).find(Boolean);
       if (why) bad.set(String(p.apn) + '|' + String(p.county || '').toLowerCase(), why); });
@@ -175,7 +191,9 @@ async function workedSet(cands, log) {
 
 // ---- main ----
 LB.run = async function (opt = {}) {
-  const R = { ...LB.RULES, ...opt }, st = LB.status = { phase: 'starting', log: [], cut: {}, picked: 0, started: new Date().toISOString() };
+  const R = { ...LB.RULES, ...opt };
+  if (!opt.noRamp && R.rampUntil && new Date() < new Date(R.rampUntil + 'T00:00:00') && R.size > R.rampSize) R.size = R.rampSize;
+  const st = LB.status = { phase: 'starting', log: [], cut: {}, held: 0, picked: 0, size: R.size, started: new Date().toISOString() };
   const log = m => { st.log.push(new Date().toLocaleTimeString() + '  ' + m); console.log('[LB]', m); };
   const cutAdd = (why) => { st.cut[why] = (st.cut[why] || 0) + 1; };
   try {
@@ -191,7 +209,7 @@ LB.run = async function (opt = {}) {
         const fs = await pullArea(src, src.vacantWhere(R.minAcres, R.maxAcres), { geometry: `${p.lng},${p.lat}`, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', distance: ring, units: 'esriSRUnit_StatuteMile' }, 6000, log);
         fs.forEach(f => addFeat(src, f, p.why)); }
       log(`Within ${ring} miles of closed deals: ${cands.length.toLocaleString()} vacant lots in the size range.`);
-      if (cands.length >= R.size * 4) break;
+      if (cands.length >= R.size * 8) break;
     }
     for (const c of T.counties) { if (cands.length >= R.size * 8) break; const src = LB.source(c.state, c.county);
       const fs = await pullArea(src, src.countyWhere(c.county) + ' AND ' + src.vacantWhere(R.minAcres, R.maxAcres), null, 3000, log); fs.forEach(f => addFeat(src, f, c.why));
@@ -211,6 +229,7 @@ LB.run = async function (opt = {}) {
       if ((ownerCount.get(normOwner(r.owner)) || 0) >= 4) { cutAdd('owns 4+ lots nearby (developer inventory)'); continue; }
       if (!nm || !r.mail || !r.mcity || !r.mstate || !r.mzip) { cutAdd('no mailing address'); continue; }
       if (r.built) { cutAdd('has a building'); continue; }
+      if (R.minLandValue && r.landval > 0 && r.landval < R.minLandValue) { cutAdd('land value under $' + R.minLandValue.toLocaleString()); continue; }
       if (GOV.test(r.owner || '')) { cutAdd('government / HOA / utility owner'); continue; }
       const flag = (String(r.legal || '') + ' ' + String(r.use || '')).match(REDFLAG); if (flag) { cutAdd('red flag in records: ' + flag[0].toLowerCase()); continue; }
       const sh = LB.shape(c.rings); c.sh = sh; const ac = sh.sqft / 43560;
@@ -220,22 +239,26 @@ LB.run = async function (opt = {}) {
       c.nm = nm; pass1.push(c); }
     log(`${pass1.length.toLocaleString()} lots passed size, width, shape, owner and red-flag checks.`);
     // DLG HQ check + roads + flood, closest lots first, in batches (only checks as many as it needs)
-    const final = []; let i = 0;
+    const final = [], perCounty = new Map(), multiCounty = !opt.noCountyCap && new Set(pass1.map(c => c.r.county)).size > 1; let i = 0;
+    const cap = Math.max(1, Math.ceil(R.size * R.countyCapPct));
     for (let b = 0; b < pass1.length && final.length < R.size; b += 600) {
       st.phase = 'checking DLG HQ'; const batch = pass1.slice(b, b + 600); const worked = await workedSet(batch, log);
       st.phase = 'checking roads and flood';
       for (const c of batch) { if (final.length >= R.size) break;
         const w = worked.get(String(c.r.apn) + '|' + c.r.county.toLowerCase()) || (c.r.apn2 && worked.get(String(c.r.apn2) + '|' + c.r.county.toLowerCase()));
-        if (w) { cutAdd(w.startsWith('tagged') ? 'tagged in DLG HQ (DD or negative)' : w.startsWith('mailed') ? w : 'already worked in DLG HQ'); continue; }
+        if (w) { cutAdd(w.startsWith('tagged') ? 'tagged in DLG HQ (DD or negative)' : (w.startsWith('mailed') || w.startsWith('resting')) ? w : 'already worked in DLG HQ'); continue; }
+        if (multiCounty && (perCounty.get(c.r.county) || 0) >= cap) { st.held++; continue; } // county already has its 30%
         i++; const k = tileKey(c.c[0], c.c[1]); st.tile = k; const t0 = Date.now(); const [roads, flood] = await Promise.all([tileRoads(k), tileFlood(k)]); st.lastTileMs = Date.now() - t0; st.checked = i;
         if (flood === null) { cutAdd('flood map unavailable (skipped to be safe)'); continue; }
         if (flood.length && floodShare(c.rings, flood) >= 0.25) { cutAdd('in a FEMA flood zone'); continue; }
         if (roads === null) { cutAdd('road map unavailable (skipped to be safe)'); continue; }
         const fr = LB.frontage(c.rings, roads); c.front = fr;
         if (fr < R.minFrontageFt) { cutAdd('no road frontage'); continue; }
+        if (c.r.state === 'NC') { const sw = await tileSewer(k); c.sewer = sw === null ? 'unknown' : sw.some(fr => inPoly(c.c, fr)) ? 'likely public sewer' : 'likely septic'; } else c.sewer = 'unknown';
+        perCounty.set(c.r.county, (perCounty.get(c.r.county) || 0) + 1);
         final.push(c); st.picked = final.length; if (i % 100 === 0) log(`Checked ${i} lots for road and flood, ${final.length} picked.`); }
     }
-    st.final = final;
+    st.final = final; st.byCounty = Object.fromEntries(perCounty);
     log(`Picked ${final.length.toLocaleString()} lots.` + (final.length < R.size ? ` Short of ${R.size}: widen the area or connect more county data.` : ''));
     return st;
   } catch (e) { st.error = e.message; log('Stopped: ' + e.message); throw e; } finally { st.phase = st.error ? 'error' : 'checked'; }
@@ -249,14 +272,14 @@ LB.toCampaign = async function (name, opt = {}) {
   const rows = st.final.map(c => { const r = c.r, n = c.nm; return { full_name: n.owner, first_name: n.first || null, last_name: n.last || null, mail_address: titleCase(String(r.mail).replace(/\s+\d{5}(-\d{4})?$/, '')), mail_city: titleCase(r.mcity), mail_state: String(r.mstate || '').toUpperCase(), mail_zip: String(r.mzip || '').slice(0, 10),
     apn: String(r.apn), address: r.site ? titleCase(r.site) : null, city: r.scity ? titleCase(r.scity) : null, state: r.state, zip: r.szip || null, county: r.county, acres: +(c.sh.sqft / 43560).toFixed(3), lat: c.c[1], lng: c.c[0] }; });
   let rec = 0; const res = [];
-  for (let i = 0; i < rows.length; i += 100) { const { data, error } = await sb.rpc('import_campaign_list', { cid: camp.id, rows: rows.slice(i, i + 100), src: 'county', tag: 'Weekly List', skip_dnm: true, skip_ni: true, skip_days: R.recentDays }); if (error) throw error; res.push(data); rec += data.records; st.loaded = rec; }
+  for (let i = 0; i < rows.length; i += 100) { const { data, error } = await sb.rpc('import_campaign_list', { cid: camp.id, rows: rows.slice(i, i + 100), src: 'county', tag: 'Weekly List', skip_dnm: true, skip_ni: true, skip_days: 0 }); if (error) throw error; res.push(data); rec += data.records; st.loaded = rec; }
   await sb.rpc('finish_campaign_import', { cid: camp.id });
   await sb.from('campaigns').update({ records: rec, cost: +(rec * (R.costPerPiece || 0.55)).toFixed(2) }).eq('id', camp.id);
   // stamp FIPS, check results and the buildable tag on each property
   const byKey = new Map(st.final.map(c => [String(c.r.apn) + '|' + c.r.county.toLowerCase(), c]));
   for (let from = 0; ; from += 1000) { const { data } = await sb.from('campaign_records').select('property_id,properties(id,apn,county,fields)').eq('campaign_id', camp.id).range(from, from + 999); if (!data || !data.length) break;
     for (let i = 0; i < data.length; i += 25) await Promise.all(data.slice(i, i + 25).map(x => { const p = x.properties; if (!p) return; const c = byKey.get(String(p.apn) + '|' + String(p.county || '').toLowerCase()); if (!c) return;
-      return sb.from('properties').update({ fips: c.r.fips || null, fields: { ...(p.fields || {}), buildable: { checked: new Date().toISOString().slice(0, 10), avg_width_ft: c.sh.avgWidth, length_ft: c.sh.length, road_frontage_ft: c.front, flood: 'not in SFHA', source: LB.source(c.r.state, c.r.county).name } } }).eq('id', p.id); }));
+      return sb.from('properties').update({ fips: c.r.fips || null, fields: { ...(p.fields || {}), buildable: { checked: new Date().toISOString().slice(0, 10), avg_width_ft: c.sh.avgWidth, length_ft: c.sh.length, road_frontage_ft: c.front, flood: 'not in SFHA', sewer: c.sewer, land_value: c.r.landval || null, source: LB.source(c.r.state, c.r.county).name } } }).eq('id', p.id); }));
     if (data.length < 1000) break; }
   const skipped = res.reduce((a, d) => a + d.skipped_dnm + d.skipped_not_interested + d.skipped_recent, 0);
   st.campaign = camp.id; st.report = LB.report(st, rec, skipped); st.phase = 'done';
@@ -270,7 +293,7 @@ LB.forBuyer = async function (buyerId, size = 250) {
   const counties = [], missing = [];
   (b.counties || []).forEach(c => { const st = SC.test(c) ? 'SC' : 'NC'; if (LB.source(st, c)) counties.push({ county: c, state: st, why: 'buy box: ' + (b.company || b.name) }); else missing.push(`${c} County, ${st}`); });
   if (!counties.length) throw new Error('No county data connected for this buy box' + (missing.length ? ': ' + missing.join(', ') : ''));
-  const opt = { size, targets: { pts: [], counties, missing } };
+  const opt = { size, noRamp: true, noCountyCap: true, targets: { pts: [], counties, missing } };
   if (b.min_acres) opt.minAcres = +b.min_acres; if (b.max_acres) opt.maxAcres = +b.max_acres;
   await LB.run(opt);
   const name = 'Buy Box List – ' + (b.company || b.name) + ' – ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -279,7 +302,9 @@ LB.forBuyer = async function (buyerId, size = 250) {
 LB.report = function (st, rec, skipped) {
   const cutN = Object.values(st.cut).reduce((a, b) => a + b, 0) + (skipped || 0);
   const lines = Object.entries(st.cut).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v.toLocaleString()} ${k}`);
-  if (skipped) lines.push(`${skipped} removed at import (do-not-mail, said no, or mailed recently)`);
-  return `${rec.toLocaleString()} records picked from ${Number(st.pool || 0).toLocaleString()} vacant lots. ${cutN.toLocaleString()} lots cut before mailing (they would have cost about ${(cutN * 0.55).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} at $0.55): ${lines.join('; ')}.` + (st.missing && st.missing.length ? ` Pull county data for: ${st.missing.join(', ')}.` : '');
+  if (skipped) lines.push(`${skipped} removed at import (do-not-mail or said no)`);
+  const sewer = (st.final || []).filter(c => c.sewer === 'likely public sewer').length;
+  const counties = Object.entries(st.byCounty || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ');
+  return `${rec.toLocaleString()} records picked from ${Number(st.pool || 0).toLocaleString()} vacant lots. ${cutN.toLocaleString()} lots cut before mailing (they would have cost about ${(cutN * 0.55).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} at $0.55): ${lines.join('; ')}.` + (counties ? ` By county: ${counties}.` : '') + (st.held ? ` ${st.held.toLocaleString()} good lots held back by the 30% county cap.` : '') + ` ${sewer} of ${rec} look to be inside a public sewer area (2004 state map).` + (st.missing && st.missing.length ? ` Pull county data for: ${st.missing.join(', ')}.` : '');
 };
 })();
