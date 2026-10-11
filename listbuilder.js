@@ -27,7 +27,9 @@ LB.RULES = {
     { county: 'Lincoln', state: 'NC', zips: ['28037', '28092'] },                          // Denver, Lincolnton
     { county: 'Rowan', state: 'NC', zips: ['28144', '28146', '28147'] },                   // Salisbury
   ],    // county land value floor (lots with no value on file are kept)
-  template: 'DLG Neutral Builder Letter.docx',
+  template: 'DLG Letter 1 - Blessings.docx',
+  // split test: every list is cut into random halves (even by county), one campaign per letter
+  letters: [{ label: 'Letter 1', template: 'DLG Letter 1 - Blessings.docx' }, { label: 'Letter 2', template: 'DLG Letter 2 - Blessings.docx' }],
   targetStages: [10, 11, 12, 13, 14, 15, 16], // under contract / escrow + closed
   skipCounties: ['Oconee, SC', 'Charleston, SC', 'Lee, FL'], // not mailing these (Damien, Oct 2026)
 };
@@ -349,26 +351,41 @@ LB.run = async function (opt = {}) {
 };
 
 // ---- load into a DLG HQ campaign ----
-LB.toCampaign = async function (name, opt = {}) {
-  const st = LB.status, R = { ...LB.RULES, ...opt }; if (!st || !st.final) throw new Error('Run the list first');
+async function loadCampaign(name, final, opt = {}) {
+  const st = LB.status, R = { ...LB.RULES, ...opt };
   const drop = opt.drop || (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d.toISOString().slice(0, 10); })();
   const { data: camp, error } = await sb.from('campaigns').insert({ name, channel: 'mail', drop_date: drop, template: R.template, source: 'hq' }).select().single(); if (error) throw error;
-  const rows = st.final.map(c => { const r = c.r, n = c.nm; return { full_name: n.owner, first_name: n.first || null, last_name: n.last || null, mail_address: titleCase(String(r.mail).replace(/\s+\d{5}(-\d{4})?$/, '')), mail_city: titleCase(r.mcity), mail_state: String(r.mstate || '').toUpperCase(), mail_zip: String(r.mzip || '').slice(0, 10),
+  const rows = final.map(c => { const r = c.r, n = c.nm; return { full_name: n.owner, first_name: n.first || null, last_name: n.last || null, mail_address: titleCase(String(r.mail).replace(/\s+\d{5}(-\d{4})?$/, '')), mail_city: titleCase(r.mcity), mail_state: String(r.mstate || '').toUpperCase(), mail_zip: String(r.mzip || '').slice(0, 10),
     apn: String(r.apn), address: r.site ? titleCase(r.site) : null, city: r.scity ? titleCase(r.scity) : null, state: r.state, zip: r.szip || null, county: r.county, acres: +(c.sh.sqft / 43560).toFixed(3), lat: c.c[1], lng: c.c[0] }; });
   let rec = 0; const res = [];
   for (let i = 0; i < rows.length; i += 100) { const { data, error } = await sb.rpc('import_campaign_list', { cid: camp.id, rows: rows.slice(i, i + 100), src: 'county', tag: 'Weekly List', skip_dnm: true, skip_ni: true, skip_days: 0 }); if (error) throw error; res.push(data); rec += data.records; st.loaded = rec; }
   await sb.rpc('finish_campaign_import', { cid: camp.id });
   await sb.from('campaigns').update({ records: rec, cost: +(rec * (R.costPerPiece || 0.55)).toFixed(2) }).eq('id', camp.id);
   // stamp FIPS, check results and the buildable tag on each property
-  const byKey = new Map(st.final.map(c => [String(c.r.apn) + '|' + c.r.county.toLowerCase(), c]));
+  const byKey = new Map(final.map(c => [String(c.r.apn) + '|' + c.r.county.toLowerCase(), c]));
   for (let from = 0; ; from += 1000) { const { data } = await sb.from('campaign_records').select('property_id,properties(id,apn,county,fields)').eq('campaign_id', camp.id).range(from, from + 999); if (!data || !data.length) break;
     for (let i = 0; i < data.length; i += 25) await Promise.all(data.slice(i, i + 25).map(x => { const p = x.properties; if (!p) return; const c = byKey.get(String(p.apn) + '|' + String(p.county || '').toLowerCase()); if (!c) return;
       return sb.from('properties').update({ fips: c.r.fips || null, fields: { ...(p.fields || {}), buildable: { checked: new Date().toISOString().slice(0, 10), avg_width_ft: c.sh.avgWidth, length_ft: c.sh.length, road_frontage_ft: c.front, flood: 'not in SFHA', sewer: c.sewer, slope_pct: c.slope ? c.slope.pct : null, relief_ft: c.slope ? c.slope.relief : null, land_value: c.r.landval || null, source: LB.source(c.r.state, c.r.county).name } } }).eq('id', p.id); }));
     if (data.length < 1000) break; }
   const skipped = res.reduce((a, d) => a + d.skipped_dnm + d.skipped_not_interested + d.skipped_recent, 0);
-  st.campaign = camp.id; st.report = LB.report(st, rec, skipped); st.phase = 'done';
-  await sb.from('activity').insert({ kind: 'note', body: 'Weekly list built: ' + st.report });
-  return { campaign: camp.id, records: rec, skipped };
+  return { campaign: camp.id, name, records: rec, skipped };
+}
+LB.toCampaign = async function (name, opt = {}) {
+  const st = LB.status, R = { ...LB.RULES, ...opt }; if (!st || !st.final) throw new Error('Run the list first');
+  const drop = opt.drop || (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d.toISOString().slice(0, 10); })();
+  const L = (!opt.single && R.letters && R.letters.length > 1) ? R.letters : [{ label: '', template: opt.template || R.template }];
+  // random halves, even by county
+  const groups = new Map(); st.final.forEach(c => { const g = groups.get(c.r.county) || []; g.push(c); groups.set(c.r.county, g); });
+  const parts = L.map(() => []); let turn = 0;
+  for (const g of groups.values()) { for (let i = g.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [g[i], g[j]] = [g[j], g[i]]; } g.forEach(c => { parts[turn % L.length].push(c); turn++; }); }
+  const base = opt.kind === 'buybox' ? null : true; const out = [];
+  for (let i = 0; i < L.length; i++) { st.phase = 'loading into DLG HQ' + (L[i].label ? ' (' + L[i].label + ')' : '');
+    const nm = (name && !base ? name : LB.listName(opt.kind || 'weekly', parts[i].length, drop, opt.who)) + (L[i].label ? ' · ' + L[i].label : '');
+    out.push(await loadCampaign(nm, parts[i], { ...opt, drop, template: L[i].template })); }
+  const rec = out.reduce((a, x) => a + x.records, 0), skipped = out.reduce((a, x) => a + x.skipped, 0);
+  st.campaign = out[0].campaign; st.campaigns = out; st.report = LB.report(st, rec, skipped) + (out.length > 1 ? ' Split test: ' + out.map(x => `${x.name} (${x.records})`).join(' and ') + '.' : ''); st.phase = 'done';
+  await sb.from('activity').insert({ kind: 'note', body: 'List built: ' + st.report });
+  return { campaign: out[0].campaign, campaigns: out, records: rec, skipped };
 };
 // ---- unique list names ----
 LB.listName = function (kind, size, drop, who) { const d = new Date((drop || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
@@ -396,8 +413,7 @@ LB.forBuyer = async function (buyerId, size = 250) {
   const opt = { size, noRamp: true, noCountyCap: true, targets: { pts: [], counties, missing } };
   if (b.min_acres) opt.minAcres = +b.min_acres; if (b.max_acres) opt.maxAcres = +b.max_acres;
   await LB.run(opt);
-  const name = LB.listName('buybox', LB.status.final.length, null, b.company || b.name);
-  return LB.toCampaign(name, opt);
+  return LB.toCampaign(null, { ...opt, kind: 'buybox', who: b.company || b.name });
 };
 const R_MAX = () => LB.RULES.maxSlopePct;
 LB.report = function (st, rec, skipped) {
