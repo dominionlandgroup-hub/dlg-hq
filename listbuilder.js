@@ -259,6 +259,19 @@ LB.toCampaign = async function (name, opt = {}) {
   await sb.from('activity').insert({ kind: 'note', body: 'Weekly list built: ' + st.report });
   return { campaign: camp.id, records: rec, skipped };
 };
+// ---- list for one builder's buy box (runs when a new buy box comes in) ----
+LB.forBuyer = async function (buyerId, size = 250) {
+  const { data: b, error } = await sb.from('buyers').select('*').eq('id', buyerId).single(); if (error) throw error;
+  const SC = /^(york|lancaster|chester|charleston|berkeley|dorchester|horry|greenville|spartanburg|oconee|pickens|anderson)$/i;
+  const counties = [], missing = [];
+  (b.counties || []).forEach(c => { const st = SC.test(c) ? 'SC' : 'NC'; if (LB.source(st, c)) counties.push({ county: c, state: st, why: 'buy box: ' + (b.company || b.name) }); else missing.push(`${c} County, ${st}`); });
+  if (!counties.length) throw new Error('No county data connected for this buy box' + (missing.length ? ': ' + missing.join(', ') : ''));
+  const opt = { size, targets: { pts: [], counties, missing } };
+  if (b.min_acres) opt.minAcres = +b.min_acres; if (b.max_acres) opt.maxAcres = +b.max_acres;
+  await LB.run(opt);
+  const name = 'Buy Box List – ' + (b.company || b.name) + ' – ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return LB.toCampaign(name, opt);
+};
 LB.report = function (st, rec, skipped) {
   const cutN = Object.values(st.cut).reduce((a, b) => a + b, 0) + (skipped || 0);
   const lines = Object.entries(st.cut).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v.toLocaleString()} ${k}`);
