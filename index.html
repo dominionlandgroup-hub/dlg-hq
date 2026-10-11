@@ -1300,7 +1300,7 @@ async function vTestimonials(){
   const st=(l,v)=>`<div><div class="small muted">${l}</div><div style="font-size:22px;font-weight:700">${v}</div></div>`;
   const row=d=>{const l=d.leads||{};const t=(by[d.id]||[]);const rec=t.find(x=>x.received_at),req=t.find(x=>x.requested_at);
     const stat=rec?`<span class="chip" style="background:#e6f4ec;color:#1a7a48">Received${rec.ok_to_publish?' · OK to publish':''}</span>`:req?`<span class="chip">Asked ${fmtDate(req.requested_at)}</span>`:'<span class="chip" style="background:#fbf4e2;color:var(--gold-d)">Not asked yet</span>';
-    return `<tr><td><b>${esc(l.full_name||'—')}</b><div class="small muted">${esc((propPhrase(d.properties)||{}).t||'')}</div></td><td class="small">${l.phone?esc(l.phone):`<a href="#" onclick="addContactInfo(${l.id||0});return false">+ Add phone</a>`}<br>${l.email?esc(l.email):`<a href="#" onclick="addContactInfo(${l.id||0},1);return false" class="muted">+ Add email</a>`}</td><td>${stat}</td>
+    return `<tr><td><b>${esc(l.full_name||'—')}</b><div class="small muted">${esc((propPhrase(d.properties)||{}).t||'')}</div></td><td class="small">${l.phone?`${esc(l.phone)} <a href="#" class="small" title="Change phone" onclick="addContactInfo(${l.id||0},0,'${esc(l.phone)}');return false">edit</a>`:`<a href="#" onclick="addContactInfo(${l.id||0});return false">+ Add phone</a>`}<br>${l.email&&!/@example\.com$/i.test(l.email)?`${esc(l.email)} <a href="#" class="small" title="Change email" onclick="addContactInfo(${l.id||0},1,'${esc(l.email)}');return false">edit</a>`:`<a href="#" onclick="addContactInfo(${l.id||0},1);return false" class="muted">+ Add email</a>`}</td><td>${stat}</td>
       <td style="white-space:nowrap"><button class="btn sm" onclick="askTestimonial(${d.id})">Ask by text or email</button> <button class="btn ghost sm" onclick="addTestimonial(${d.id})">Add received</button></td></tr>`};
   $('view').innerHTML=`<div class="card"><div class="pstats" style="grid-template-columns:repeat(4,1fr)">${st('Closed deals',(deals||[]).length)}${st('Asked',asked)}${st('Received',got)}${st('OK to publish',pub)}</div>
     <p class="small muted" style="margin-bottom:0">When a deal is marked Closed, “Ask for a testimonial” lands on your Tasks. Nothing is sent until you press Send.</p></div>
@@ -1319,7 +1319,7 @@ async function askTestimonial(dealId){const {data:d}=await sb.from('deals').sele
    <div class="row" style="margin-top:8px"><button class="btn" ${l.phone?'':'disabled'} onclick="sendTestimonialText(${d.id},${l.id||0})">Send text</button></div>
    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
    <label class="f">Email${l.email?' to '+esc(l.email):' (no email on file)'}</label><input id="ts_subj" value="${esc(fillTpl(em?.subject||'',l,pp))}"><textarea id="ts_em" style="min-height:200px;margin-top:6px">${esc(fillTpl(em?.body,l,pp))}</textarea>
-   <div class="row" style="margin-top:8px"><button class="btn" ${l.email?'':'disabled'} onclick="emailTestimonial(${d.id},${l.id||0},'${esc(l.email||'')}')">Send email</button></div>
+   <div class="row" style="margin-top:8px"><button class="btn" ${l.email&&!/@example\.com$/i.test(l.email)?'':'disabled'} onclick="emailTestimonial(${d.id},${l.id||0},'${esc(l.email||'')}')">Send email</button></div>
    <p class="small muted">Sends from your seller Gmail (damien@dominionlandgroup.land) and shows in the Seller Inbox.</p></div>`)}
 async function markAsked(dealId,leadId){const {data:ex}=await sb.from('testimonials').select('id').eq('deal_id',dealId).is('received_at',null).limit(1);
   if(ex&&ex[0])await sb.from('testimonials').update({requested_at:new Date().toISOString()}).eq('id',ex[0].id);
@@ -1332,7 +1332,7 @@ async function emailTestimonial(dealId,leadId,to){const body=$('ts_em').value.tr
   await sb.from('threads').update({email:to}).eq('id',tid).is('email',null);
   const {data,error}=await sb.functions.invoke('gmail/send',{body:{thread_id:tid,subject:$('ts_subj').value.trim(),body}});const err=error?(await error.context?.json?.().catch(()=>null))?.error||error.message:data?.error;
   if(err)return toast('Not sent: '+err);await markAsked(dealId,leadId);toast('Email queued, it goes out within 5 minutes');closeDrawer();if(CUR==='testimonials')vTestimonials()}
-async function addContactInfo(id,em){if(!id)return;const v=prompt(em?'Email address':'Phone number');if(!v)return;const {error}=await sb.from('leads').update(em?{email:v.trim()}:{phone:v.trim()}).eq('id',id);if(error)return toast(error.message);toast('Saved');vTestimonials()}
+async function addContactInfo(id,em,cur){if(!id)return;const v=prompt(em?'Email address':'Phone number',cur||'');if(!v||v.trim()===(cur||''))return;const {error}=await sb.from('leads').update(em?{email:v.trim()}:{phone:v.trim()}).eq('id',id);if(error)return toast(error.message);toast('Saved');vTestimonials()}
 async function addTestimonial(dealId){const {data:d}=await sb.from('deals').select('id,lead_id,property_label,leads(full_name,mail_city,mail_state)').eq('id',dealId).single();const l=d.leads||{};
   openDrawer(head('Add testimonial')+`<div class="card"><label class="f">Name (as it should appear)</label><input id="tm_name" value="${esc(l.full_name||'')}">
    <label class="f">Location</label><input id="tm_loc" value="${esc([l.mail_city,l.mail_state].filter(Boolean).join(', '))}">
