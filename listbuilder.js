@@ -16,7 +16,15 @@ LB.RULES = {
   rampSize: 500, rampUntil: '2026-10-26', // first two weekly lists are 500 while the new filters prove out
   countyCapPct: 0.30,     // no county gets more than 30% of a list
   maxSlopePct: 10,       // average ground slope across the lot (NC 3-ft LiDAR); infill builders grade to ~2%
-  minLandValue: 15000,    // county land value floor (lots with no value on file are kept)
+  minLandValue: 15000,
+  // water & sewer markets (Damien, Oct 2026): pulled every week; only lots inside a public sewer area are mailed here
+  sewerMarkets: [
+    { county: 'Mecklenburg', state: 'NC' },
+    { county: 'Gaston', state: 'NC', zips: ['28052', '28054', '28056', '28120'] }, // Gastonia + Mount Holly
+    { county: 'Iredell', state: 'NC' },
+    { county: 'Lincoln', state: 'NC' },
+    { county: 'Rowan', state: 'NC' },
+  ],    // county land value floor (lots with no value on file are kept)
   template: 'DLG Neutral Builder Letter.docx',
   targetStages: [10, 11, 12, 13, 14, 15, 16], // under contract / escrow + closed
   skipCounties: ['Oconee, SC', 'Charleston, SC', 'Lee, FL'], // not mailing these (Damien, Oct 2026)
@@ -174,6 +182,8 @@ LB.targets = async function () {
   return { pts, counties: [...counties.values()], missing: [...missing] };
 };
 
+// ---- ZIP code outlines (US Census ZCTA) ----
+async function zipRings(zip) { try { const j = await getJSON(`https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/PUMA_TAD_TAZ_UGA_ZCTA/MapServer/1/query?where=ZCTA5%3D'${zip}'&outFields=ZCTA5&returnGeometry=true&outSR=4326&geometryPrecision=5&f=json`); const f = (j.features || [])[0]; return f ? f.geometry.rings : null; } catch (e) { return null; } }
 // ---- pull parcels from the county ----
 async function pullArea(src, where, geo, cap, log) {
   const out = []; let off = 0;
@@ -235,6 +245,21 @@ LB.run = async function (opt = {}) {
     for (const c of T.counties) { if (cands.length >= R.size * 8) break; const src = LB.source(c.state, c.county);
       const fs = await pullArea(src, src.countyWhere(c.county) + ' AND ' + src.vacantWhere(R.minAcres, R.maxAcres), null, 3000, log); fs.forEach(f => addFeat(src, f, c.why));
       log(`${c.county} County ${c.state} (${c.why}): ${fs.length.toLocaleString()} lots pulled.`); }
+    // water & sewer markets: always pulled; ranked alongside the closest ring so they get their share
+    const marketKey = (c, st) => (st + '|' + c).toLowerCase(); st.markets = {};
+    for (const m of (opt.targets ? [] : R.sewerMarkets)) { if (R.skipCounties.some(x => x.toLowerCase() === (m.county + ', ' + m.state).toLowerCase())) continue; const src = LB.source(m.state, m.county); if (!src) continue;
+      let n = 0; const before = cands.length;
+      if (m.zips && m.zips.length) {
+        for (const z of m.zips) { const zr = await zipRings(z); if (!zr) { log('Could not load ZIP ' + z); continue; }
+          let mnx = 1e9, mny = 1e9, mxx = -1e9, mxy = -1e9; zr.flat().forEach(([x, y]) => { if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; });
+          const fs = await pullArea(src, src.countyWhere(m.county) + ' AND ' + src.vacantWhere(R.minAcres, R.maxAcres), { geometry: `${mnx},${mny},${mxx},${mxy}`, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects' }, 4000, log);
+          fs.forEach(f => { if (inPoly(centroid(f.geometry.rings), zr)) addFeat(src, f, 'water & sewer market (' + z + ')'); }); }
+      } else { const fs = await pullArea(src, src.countyWhere(m.county) + ' AND ' + src.vacantWhere(R.minAcres, R.maxAcres), null, 6000, log); fs.forEach(f => addFeat(src, f, 'water & sewer market')); }
+      for (let i = before; i < cands.length; i++) { cands[i].sewerMarket = true; cands[i].dist = Math.min(cands[i].dist, 1.5); }
+      // lots already pulled from deal rings in a sewer market are held to the sewer rule too
+      cands.forEach(c => { if (marketKey(c.r.county, c.r.state) === marketKey(m.county, m.state) && (!m.zips || c.sewerMarket)) c.sewerMarket = true; });
+      n = cands.length - before; st.markets[m.county + (m.zips ? ' (' + m.zips.join(', ') + ')' : '')] = n; log(`${m.county} County water & sewer market: ${n.toLocaleString()} lots pulled.`); }
+    // Gaston outside the listed ZIPs: only mail it if it came from a deal ring (not a sewer-market pull)
     cands.sort((a, b) => a.dist - b.dist);
     st.pool = cands.length;
     // fast checks first
@@ -278,6 +303,7 @@ LB.run = async function (opt = {}) {
         const fr = LB.frontage(c.rings, roads); c.front = fr;
         if (fr < R.minFrontageFt) { cutAdd('no road frontage'); continue; }
         if (c.r.state === 'NC') { const sw = await tileSewer(k); c.sewer = sw === null ? 'unknown' : sw.some(fr => inPoly(c.c, fr)) ? 'likely public sewer' : 'likely septic'; } else c.sewer = 'unknown';
+        if (c.sewerMarket && c.sewer !== 'likely public sewer') { cutAdd('no public sewer (water & sewer market)'); continue; }
         perCounty.set(c.r.county, (perCounty.get(c.r.county) || 0) + 1);
         final.push(c); st.picked = final.length; if (i % 100 === 0) log(`Checked ${i} lots for road and flood, ${final.length} picked.`); }
     }
