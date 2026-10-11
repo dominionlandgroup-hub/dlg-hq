@@ -20,10 +20,10 @@ LB.RULES = {
   // water & sewer markets (Damien, Oct 2026): pulled every week; only lots inside a public sewer area are mailed here
   sewerMarkets: [
     { county: 'Mecklenburg', state: 'NC' },
-    { county: 'Gaston', state: 'NC', zips: ['28052', '28054', '28056', '28120'] }, // Gastonia + Mount Holly
-    { county: 'Iredell', state: 'NC' },
-    { county: 'Lincoln', state: 'NC' },
-    { county: 'Rowan', state: 'NC' },
+    { county: 'Gaston', state: 'NC', zips: ['28052', '28054', '28056', '28120', '28098'] }, // Gastonia, Mount Holly, Lowell
+    { county: 'Iredell', state: 'NC', zips: ['28625', '28677', '28115', '28117'] },         // Statesville, Mooresville
+    { county: 'Lincoln', state: 'NC', zips: ['28037', '28092'] },                          // Denver, Lincolnton
+    { county: 'Rowan', state: 'NC', zips: ['28144', '28146', '28147'] },                   // Salisbury
   ],    // county land value floor (lots with no value on file are kept)
   template: 'DLG Neutral Builder Letter.docx',
   targetStages: [10, 11, 12, 13, 14, 15, 16], // under contract / escrow + closed
