@@ -220,6 +220,26 @@ async function workedSet(cands, log) {
   return bad;
 }
 
+// ---- owner-level checks (by mailing address), so one owner's "no" or recent letter covers all their lots ----
+const normAddr = (a, z) => String(a || '').toUpperCase().replace(/[^A-Z0-9]/g, '') + String(z || '').replace(/\D/g, '').slice(0, 5);
+LB.ownerBlocks = async function (days, log) {
+  const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10), yearAgo = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
+  const block = new Map(); const touches = new Map();
+  // 1) letters that went to the mail house: last 90 days = skip; 3+ in 12 months = resting
+  const { data: camps } = await sb.from('campaigns').select('id,mail_status,drop_date').gte('drop_date', yearAgo).neq('mail_status', 'not_sent').limit(1000);
+  for (const c of camps || []) for (let o = 0; ; o += 1000) { const { data } = await sb.from('campaign_records').select('leads(mail_address,mail_zip)').eq('campaign_id', c.id).range(o, o + 999);
+    (data || []).forEach(x => { const k = normAddr(x.leads?.mail_address, x.leads?.mail_zip); if (k.length <= 8) return; touches.set(k, (touches.get(k) || 0) + 1); if (c.drop_date >= since && !block.has(k)) block.set(k, 'same owner mailed in the last ' + days + ' days'); });
+    if (!data || data.length < 1000) break; }
+  touches.forEach((n, k) => { if (n >= LB.RULES.maxTouchesPerYear && !block.has(k)) block.set(k, 'resting: owner mailed ' + LB.RULES.maxTouchesPerYear + ' times this year'); });
+  // 2) contacts who responded, said no, are in due diligence, or are do-not-mail
+  const add = (l, why) => { const k = normAddr(l.mail_address, l.mail_zip); if (k.length > 8 && !block.has(k)) block.set(k, why); };
+  for (let o = 0; ; o += 1000) { const { data } = await sb.from('leads').select('mail_address,mail_zip,status').neq('status', 'record').range(o, o + 999); (data || []).forEach(l => add(l, 'owner already worked in DLG HQ')); if (!data || data.length < 1000) break; }
+  for (let o = 0; ; o += 1000) { const { data } = await sb.from('leads').select('mail_address,mail_zip').eq('do_not_mail', true).range(o, o + 999); (data || []).forEach(l => add(l, 'owner is do-not-mail')); if (!data || data.length < 1000) break; }
+  for (let o = 0; ; o += 1000) { const { data } = await sb.from('leads').select('mail_address,mail_zip,tags').not('tags', 'eq', '{}').range(o, o + 999); (data || []).forEach(l => { if ((l.tags || []).some(t => NEGTAG.test(t))) add(l, 'owner tagged in DLG HQ (DD or negative)'); }); if (!data || data.length < 1000) break; }
+  log && log(`${block.size.toLocaleString()} owners blocked by mailing address (recent letters, resting, responded, tagged or do-not-mail).`);
+  return block;
+};
+LB.suppressedApns = async function () { const set = new Set(); for (let o = 0; ; o += 1000) { const { data } = await sb.from('suppression').select('apn').not('apn', 'is', null).range(o, o + 999); (data || []).forEach(x => set.add(String(x.apn))); if (!data || data.length < 1000) break; } return set; };
 // ---- main ----
 LB.run = async function (opt = {}) {
   const R = { ...LB.RULES, ...opt };
@@ -285,6 +305,7 @@ LB.run = async function (opt = {}) {
       c.nm = nm; pass1.push(c); }
     log(`${pass1.length.toLocaleString()} lots passed size, width, shape, owner and red-flag checks.`);
     // DLG HQ check + roads + flood, closest lots first, in batches (only checks as many as it needs)
+    st.phase = 'checking owners'; const ownerBlock = await LB.ownerBlocks(R.recentDays, log); const supp = await LB.suppressedApns();
     const final = [], perCounty = new Map(), multiCounty = !opt.noCountyCap && new Set(pass1.map(c => c.r.county)).size > 1; let i = 0;
     const cap = Math.max(1, Math.ceil(R.size * R.countyCapPct));
     for (let b = 0; b < pass1.length && final.length < R.size; b += 600) {
@@ -294,6 +315,8 @@ LB.run = async function (opt = {}) {
       for (const c of batch) { if (final.length >= R.size) break;
         const w = worked.get(String(c.r.apn) + '|' + c.r.county.toLowerCase()) || (c.r.apn2 && worked.get(String(c.r.apn2) + '|' + c.r.county.toLowerCase()));
         if (w) { cutAdd(w.startsWith('tagged') ? 'tagged in DLG HQ (DD or negative)' : (w.startsWith('mailed') || w.startsWith('resting')) ? w : 'already worked in DLG HQ'); continue; }
+        if (supp.has(String(c.r.apn)) || (c.r.apn2 && supp.has(String(c.r.apn2)))) { cutAdd('on the suppression list'); continue; }
+        const ob = ownerBlock.get(normAddr(c.r.mail, c.r.mzip)); if (ob) { cutAdd(ob.startsWith('owner tagged') ? 'tagged in DLG HQ (DD or negative)' : ob); continue; }
         if (multiCounty && (perCounty.get(c.r.county) || 0) >= cap) { st.held++; continue; } // county already has its 30%
         if (c.slope && c.slope.pct > R.maxSlopePct) { cutAdd('too steep (over ' + R.maxSlopePct + '% slope)'); continue; }
         i++; const k = tileKey(c.c[0], c.c[1]); st.tile = k; const t0 = Date.now(); const [roads, flood] = await Promise.all([tileRoads(k), tileFlood(k)]); st.lastTileMs = Date.now() - t0; st.checked = i;
