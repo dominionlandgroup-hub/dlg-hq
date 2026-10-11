@@ -88,10 +88,12 @@ function overpass(q) {
 }
 async function tileRoads(k) {
   if (roadCache.has(k)) return roadCache.get(k);
+  // US Census TIGER roads: public roads only (primary, secondary, local, frontage roads); private drives, alleys and trails excluded
   const p = (async () => { const [tx, ty] = k.split(':').map(Number), pad = 0.002, w = tx * TILE - pad, s = ty * TILE - pad, e = (tx + 1) * TILE + pad, n = (ty + 1) * TILE + pad;
-    const q = `[out:json][timeout:25];way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|road)(_link)?$"]["service"!~"driveway|parking_aisle|drive-through"]["access"!~"^(private|no)$"](${s.toFixed(5)},${w.toFixed(5)},${n.toFixed(5)},${e.toFixed(5)});out skel geom;`;
-    const j = await overpass(q); if (!j) return null;
-    return j.elements.filter(x => x.geometry).map(x => x.geometry.map(p => [p.lon, p.lat])); })();
+    const base = 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Transportation/MapServer/';
+    const q = `/query?geometry=${w},${s},${e},${n}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&where=MTFCC+IN+('S1100','S1200','S1400','S1640')&outFields=MTFCC&returnGeometry=true&outSR=4326&geometryPrecision=6&f=json`;
+    try { const js = await Promise.all([2, 6, 8].map(l => getJSON(base + l + q)));
+      return js.flatMap(j => (j.features || []).flatMap(f => (f.geometry && f.geometry.paths) || [])); } catch (e) { return null; } })();
   roadCache.set(k, p); return p;
 }
 async function tileFlood(k) {
