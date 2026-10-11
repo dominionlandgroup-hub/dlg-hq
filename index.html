@@ -19,7 +19,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<style>
+<style>.tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.tagchip{display:inline-flex;align-items:center;gap:4px;background:#efe7fb;color:#4b2a7b;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;font-weight:600}.tagchip.sm{padding:2px 8px;font-size:11px}.tagchip button{border:0;background:none;color:#4b2a7b;cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.tagadd{border:1px dashed #b9a6d6;background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#4b2a7b}.linkres{position:absolute;left:0;right:0;z-index:20;background:var(--card,#fff);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:8px;max-height:300px;overflow:auto}.linkres .pitem{padding:8px 10px;border-bottom:1px solid var(--line,#eee);cursor:pointer}.linkres .pitem:hover{background:#f5f1fb}
+
 :root{color-scheme:light;--bg:#f7f6fa;--card:#fff;--ink:#231b30;--muted:#6e6880;--line:#e7e3ee;--brand:#5C2977;--brand2:#7a3f9c;--accent:#D5A940;--gold:#D5A940;--gold-d:#a7822a;--red:#b23b3b;--chip:#f2ecf7;--side:#ffffff;--hot:#d9480f}
 *{box-sizing:border-box}html,body{height:100%}
 body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
@@ -753,7 +754,12 @@ async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem')
   $('msgs').scrollTop=1e9;drawCPanel(t,l);
   if((msgs||[]).some(m=>m.direction==='in'&&!m.is_read)){await sb.from('messages').update({is_read:true}).eq('thread_id',tid).eq('direction','in').eq('is_read',false);refreshBadges();loadThreads()}}
 async function drawCPanel(t,l){const {data:deals}=l.id?await sb.from('deals').select('id,board,stage_id,property_label,value,status').eq('lead_id',l.id).order('id',{ascending:false}):{data:[]};
+  const _ph=l.id&&l.source==='quo';
   $('cpanel').innerHTML=`<div class="card" style="margin:0 0 12px"><div style="display:flex;justify-content:space-between"><b>Contact</b>${l.id?`<a href="#" onclick="openLead(${l.id});return false" class="small">Open</a>`:''}</div>
+    <label class="f">${_ph||!l.id?'Select existing contact':'Linked to the wrong person? Pick the right contact'}</label>
+    <div style="position:relative"><input id="cp_link" placeholder="Search name, phone, address or APN" autocomplete="off" oninput="cpLinkSearch(${t.id})"><div id="cp_linkres" class="linkres"></div></div>
+    <div class="small muted" style="margin-top:4px">Picking a contact moves this conversation, its calls and any deal onto them, and saves ${esc(t.phone||'this number')} to their phone numbers.</div>
+    <label class="f">Tags</label><div id="tags_${l.id||0}">${tagsEditor(l)}</div>
     <label class="f">Full Name (Required) <span style="float:right"><input type="checkbox" id="cp_dnm" style="width:auto" ${l.do_not_mail?'checked':''}> Do Not Mail</span></label><input id="cp_name" value="${esc(l.full_name||'')}">
     <label class="f">Contact Category</label><select id="cp_cat"><option value="">None</option>${['seller','buyer','real_estate_agent','builder','attorney','other'].map(c=>`<option ${l.category===c?'selected':''} value="${c}">${c.replace(/_/g,' ')}</option>`).join('')}</select>
     <label class="f">Email</label><input id="cp_email" value="${esc(l.email||'')}"><label class="f">Phone - Primary</label><input id="cp_phone" value="${esc(l.phone||t.phone||'')}">
@@ -767,6 +773,44 @@ async function saveCPanel(tid,lid){const parts=$('cp_addr').value.split(',').map
   if(!r.full_name)return toast('Full name is required');
   if(lid){const {error}=await sb.from('leads').update(r).eq('id',lid);if(error)return toast(error.message)}else{const {data,error}=await sb.from('leads').insert({...r,source:'hq',status:'new',inbox:IST2.box}).select().single();if(error)return toast(error.message);await sb.from('threads').update({lead_id:data.id}).eq('id',tid)}
   toast('Contact saved');openThreadT(tid);loadThreads()}
+const TAG_QUICK=['Due Diligence','Called In','Hot','Follow Up','Not Selling'];
+function tagsEditor(l){if(!l||!l.id)return '<div class="small muted">Save the contact first, then add tags.</div>';const tg=l.tags||[];
+  return `<div class="tagrow">${tg.map(x=>`<span class="tagchip">${esc(x)}<button title="Remove tag" onclick="tagRemove(${l.id},'${esc(x).replace(/'/g,"\\'")}')">×</button></span>`).join('')||'<span class="small muted">No tags yet.</span>'}</div>
+   <div class="tagrow">${TAG_QUICK.filter(q=>!tg.some(x=>x.toLowerCase()===q.toLowerCase())).map(q=>`<button class="tagadd" onclick="tagAdd(${l.id},'${q}')">+ ${q}</button>`).join('')}</div>
+   <div class="row" style="margin-top:6px"><input id="tagin_${l.id}" placeholder="Other tag" onkeydown="if(event.key==='Enter'){tagAdd(${l.id},this.value)}"><button class="btn ghost" style="flex:0" onclick="tagAdd(${l.id},$('tagin_${l.id}').value)">Add</button></div>`}
+async function tagSet(id,fn){const {data:l,error:e1}=await sb.from('leads').select('id,tags').eq('id',id).single();if(e1)return toast(e1.message);
+  const tags=fn(l.tags||[]);const {error}=await sb.from('leads').update({tags,updated_at:new Date().toISOString()}).eq('id',id);if(error)return toast(error.message);
+  l.tags=tags;document.querySelectorAll('#tags_'+id).forEach(el=>el.innerHTML=tagsEditor(l));return tags}
+async function tagAdd(id,v){v=String(v||'').trim();if(!v)return;await tagSet(id,t=>t.some(x=>x.toLowerCase()===v.toLowerCase())?t:[...t,v]);
+  await sb.from('activity').insert({lead_id:id,kind:'tag',body:'Tagged: '+v});toast('Tagged '+v)}
+async function tagRemove(id,v){await tagSet(id,t=>t.filter(x=>x!==v));toast('Removed '+v)}
+let _cpT;function cpLinkSearch(tid){clearTimeout(_cpT);_cpT=setTimeout(async()=>{const q=$('cp_link').value.trim();const box=$('cp_linkres');if(q.length<2){box.innerHTML='';return}
+  const {data}=await sb.rpc('search_leads',{q,lim:10});
+  box.innerHTML=(data||[]).map(c=>`<div class="pitem" onclick="linkThread(${tid},${c.id})"><b>${esc(leadName(c))}</b><div class="small muted">${esc([c.phone,c.prop_address||c.apn,c.county].filter(Boolean).join(' · ')||'no phone or address')}</div></div>`).join('')||'<div class="pitem muted small">No match. Fill in the form below to save them as a new contact.</div>'},250)}
+const p10=x=>String(x||'').replace(/\D/g,'').slice(-10);
+async function linkThread(tid,newId){const {data:t}=await sb.from('threads').select('*, leads(*)').eq('id',tid).single();const old=t.leads;
+  if(old&&old.id===newId){$('cp_linkres').innerHTML='';return toast('Already linked to this contact')}
+  const {data:n,error:e0}=await sb.from('leads').select('*').eq('id',newId).single();if(e0)return toast(e0.message);
+  if(!confirm(`Link this conversation to ${leadName(n)}?`))return;
+  const now=new Date().toISOString(),upd={updated_at:now},ph=t.phone||old?.phone;
+  // save the caller's number on the contact
+  if(ph&&![n.phone,n.phone2,n.phone3].some(x=>x&&p10(x)===p10(ph))){if(!n.phone)upd.phone=ph;else if(!n.phone2)upd.phone2=ph;else if(!n.phone3)upd.phone3=ph}
+  const placeholder=old&&old.source==='quo';
+  if(placeholder){if(!n.email&&old.email)upd.email=old.email;
+    if(old.notes&&old.notes!==n.notes)upd.notes=[n.notes,old.notes].filter(Boolean).join('\n');
+    const tg=[...(n.tags||[])];(old.tags||[]).forEach(x=>{if(!tg.includes(x))tg.push(x)});upd.tags=tg;
+    if(['record','new'].includes(n.status)&&old.status&&!['record','new'].includes(old.status))upd.status=old.status}
+  const {error:e1}=await sb.from('leads').update(upd).eq('id',newId);if(e1)return toast(e1.message);
+  const tids=placeholder?((await sb.from('threads').select('id').eq('lead_id',old.id)).data||[]).map(x=>x.id):[tid];if(!tids.includes(tid))tids.push(tid);
+  await sb.from('threads').update({lead_id:newId,title:n.full_name||t.title}).in('id',tids);
+  await sb.from('messages').update({lead_id:newId}).in('thread_id',tids);
+  if(placeholder){await sb.from('deals').update({lead_id:newId}).eq('lead_id',old.id);await sb.from('activity').update({lead_id:newId}).eq('lead_id',old.id);
+    await sb.from('followup_enrollments').update({lead_id:newId}).eq('lead_id',old.id);
+    // retire the blank caller record so future calls from this number go to the real contact
+    await sb.from('leads').update({phone:null,phone2:null,phone3:null,status:'dead',notes:'Merged into contact #'+newId+(old.notes?'\n'+old.notes:''),updated_at:now}).eq('id',old.id)}
+  await sb.from('deals').update({lead_id:newId}).is('lead_id',null).eq('source','inbox').eq('property_label',t.title);
+  await sb.from('activity').insert({lead_id:newId,kind:'note',body:`Linked conversation ${t.phone||''} to this contact`});
+  toast('Linked to '+leadName(n));openThreadT(tid);loadThreads()}
 async function threadFlag(tid,k,v){await sb.from('threads').update({[k]:v}).eq('id',tid);
   if(k==='archived'&&v){IST2.tid=null;$('convo').innerHTML=`<div style="padding:24px"><b>Conversation archived.</b> It's hidden from the inbox but nothing was deleted.<br><br><button class="btn" onclick="threadFlag(${tid},'archived',false)">↩ Undo</button> <button class="btn ghost" onclick="IST2.status='archived';drawSeg();loadThreads()">See archived</button></div>`;$('cpanel').innerHTML='';loadThreads();return}
   if(k==='archived'&&!v){toast('Back in the inbox');if(IST2.status==='archived'){IST2.status='inbox';drawSeg()}loadThreads();openThreadT(tid);return}
@@ -1090,12 +1134,14 @@ async function saveNewProperty(){const v=i=>$(i).value||null;const {data,error}=
 // ---------- contacts ----------
 async function vContacts(){
   $('actions').innerHTML=`<button class="btn" onclick="newLead()">+ Add Contact</button>`;
-  $('view').innerHTML=`<div class="card" style="padding:10px"><input id="q" placeholder="Search name, phone, address, APN or offer code" style="font-size:15px"></div><div class="small muted" id="qi" style="margin:0 4px 8px"></div><div class="card" style="padding:0;overflow-x:auto"><table id="res"></table></div>`;
-  let t;$('q').oninput=e=>{clearTimeout(t);t=setTimeout(()=>searchLeads(e.target.value.trim()),250)};searchLeads('');
+  $('view').innerHTML=`<div class="card" style="padding:10px;display:flex;gap:8px"><input id="q" placeholder="Search name, phone, address, APN or offer code" style="font-size:15px;flex:1"><input id="qtag" list="qtaglist" placeholder="Filter by tag" style="max-width:190px"><datalist id="qtaglist">${TAG_QUICK.map(x=>`<option value="${x}">`).join('')}</datalist></div><div class="small muted" id="qi" style="margin:0 4px 8px"></div><div class="card" style="padding:0;overflow-x:auto"><table id="res"></table></div>`;
+  let t;const run=()=>{clearTimeout(t);t=setTimeout(()=>searchLeads($('q').value.trim()),250)};$('q').oninput=run;$('qtag').oninput=run;searchLeads('');
 }
-async function searchLeads(q){const {data,error}=await sb.rpc('search_leads',{q,lim:100});if(error){$('qi').textContent=error.message;return}
-  $('qi').textContent=q?`${data.length}${data.length===100?'+':''} matches`:'Most recently updated';
-  $('res').innerHTML=`<tr><th>Name</th><th>Phone</th><th>Property</th><th>Offer code</th><th>Status</th></tr>`+data.map(l=>`<tr class="click" onclick="openLead(${l.id})"><td><b>${esc(leadName(l))}</b><div class="small muted">${esc([l.mail_address,l.mail_city,l.mail_state].filter(Boolean).join(', '))}</div></td><td>${esc(l.phone||'')}</td><td>${esc(l.prop_address||l.apn||'')}<div class="small muted">${esc(l.county||'')}</div></td><td>${esc(l.offer_code||'')}</td><td><span class="pill">${esc(l.status.replace('_',' '))}</span></td></tr>`).join('')}
+async function searchLeads(q){const tag=($('qtag')?.value||'').trim();let data,error;
+  if(tag){let qq=sb.from('leads').select('*').contains('tags',[tag]).order('updated_at',{ascending:false}).limit(100);({data,error}=await qq);if(!error&&q){const s=q.toLowerCase();data=data.filter(l=>JSON.stringify([l.full_name,l.phone,l.phone2,l.prop_address,l.apn,l.offer_code]).toLowerCase().includes(s))}}
+  else ({data,error}=await sb.rpc('search_leads',{q,lim:100}));if(error){$('qi').textContent=error.message;return}
+  $('qi').textContent=tag?`${data.length}${data.length===100?'+':''} tagged "${tag}"`:q?`${data.length}${data.length===100?'+':''} matches`:'Most recently updated';
+  $('res').innerHTML=`<tr><th>Name</th><th>Phone</th><th>Property</th><th>Offer code</th><th>Status</th></tr>`+data.map(l=>`<tr class="click" onclick="openLead(${l.id})"><td><b>${esc(leadName(l))}</b><div class="small muted">${esc([l.mail_address,l.mail_city,l.mail_state].filter(Boolean).join(', '))}</div>${(l.tags||[]).filter(x=>x!=='GHL').length?`<div class="tagrow">${l.tags.filter(x=>x!=='GHL').slice(0,4).map(x=>`<span class="tagchip sm">${esc(x)}</span>`).join('')}</div>`:''}</td><td>${esc(l.phone||'')}</td><td>${esc(l.prop_address||l.apn||'')}<div class="small muted">${esc(l.county||'')}</div></td><td>${esc(l.offer_code||'')}</td><td><span class="pill">${esc(l.status.replace('_',' '))}</span></td></tr>`).join('')}
 const STATUSES=['record','new','contacted','interested','offer','under_contract','assigned','closed','dead','not_selling'];
 async function openLead(id){
   const [{data:l},{data:cr},{data:act},{data:own}]=await Promise.all([sb.from('leads').select('*').eq('id',id).single(),
@@ -1107,6 +1153,7 @@ async function openLead(id){
    <div>Mailing</div><div>${esc([l.mail_address,l.mail_city,l.mail_state,l.mail_zip].filter(Boolean).join(', ')||'—')}</div><div>Offer code</div><div>${esc(l.offer_code||'—')}</div><div>Source</div><div>${esc([l.source,l.lead_source].filter(Boolean).join(' / ')||'—')}</div><div>Category</div><div>${esc(l.category||'—')}</div></div>
    <div class="row" style="margin-top:12px"><select onchange="setStatus(${l.id},this.value)">${STATUSES.map(s=>`<option ${s===l.status?'selected':''} value="${s}">${s.replace('_',' ')}</option>`).join('')}</select>
    <button class="btn ghost" style="flex:0" onclick="dealFromLead(${l.id},'seller')">+ Seller deal</button><button class="btn ghost" style="flex:0" onclick="dealFromLead(${l.id},'buyer')">+ Buyer deal</button></div></div>
+  <div class="card"><b>Tags</b><div id="tags_${l.id}" style="margin-top:6px">${tagsEditor(l)}</div></div>
   <div class="card"><b>Properties</b>${(own||[]).map(o=>`<div style="margin-top:6px"><a href="#" onclick="openProperty(${o.properties.id});return false">APN ${esc(o.properties.apn||'—')}</a> · ${esc([o.properties.address,o.properties.city].filter(Boolean).join(', '))} <span class="small muted">${esc(o.properties.county||'')}</span></div>`).join('')||(l.prop_address||l.apn?`<div style="margin-top:6px">${esc(l.prop_address||'')} ${l.apn?'APN '+esc(l.apn):''}</div>`:'<div class="muted small">None linked.</div>')}</div>
   ${(fam||[]).length||(lc||[]).length?`<div class="card"><b>Same person, other records</b><div class="small muted">Same mailing address and name, from Pebble, GHL or other lists.</div>${(lc||[]).length?`<div style="margin-top:6px">Offer codes: ${[...new Set(lc.map(x=>x.code))].map(c=>`<b>${esc(c)}</b>`).join(', ')}</div>`:''}${(fam||[]).map(f=>`<div style="border-top:1px solid var(--line);padding:6px 0;margin-top:6px"><a href="#" onclick="openLead(${f.id});return false">${esc(f.full_name||'')}</a> <span class="small muted">${esc(f.source||'')}</span><div class="small">${esc([f.phone,f.phone2,f.phone3,f.email].filter(Boolean).join(' · ')||'no phone or email')}${(f.codes||[]).length?' · codes '+esc(f.codes.join(', ')):''}</div></div>`).join('')}</div>`:''}
   <div class="card"><b>Mail history</b>${(cr||[]).length?`<table>${cr.map(r=>`<tr><td>${esc(r.campaigns?.name||'')}</td><td><b>${esc(r.offer_code||'')}</b></td><td>${esc(r.sent_at||r.campaigns?.drop_date||'')}</td></tr>`).join('')}</table>`:'<div class="muted small">No campaign records.</div>'}</div>
