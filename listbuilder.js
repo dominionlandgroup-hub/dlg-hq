@@ -12,6 +12,8 @@ LB.RULES = {
   minFrontageFt: 25,      // must touch a public road
   recentDays: 90,         // skip anyone mailed in the last 90 days
   template: 'DLG Neutral Builder Letter.docx',
+  targetStages: [10, 11, 12, 13, 14, 15, 16], // under contract / escrow + closed
+  skipCounties: ['Oconee, SC'],               // Laura deal: not a market to mail
 };
 // ---- county parcel sources ----
 const NC = { oid: 'objectid', name: 'NC statewide parcels', url: 'https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1',
@@ -65,7 +67,7 @@ function inRing(pt, ring) { let c = false; for (let i = 0, j = ring.length - 1; 
 function inPoly(pt, rings) { let c = false; for (const r of rings) if (inRing(pt, r)) c = !c; return c; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function getJSON(url, opt, tries = 3) {
-  for (let i = 0; i < tries; i++) { try { const r = await fetch(url, opt); const t = await r.text(); if (t[0] === '{' || t[0] === '[') { const j = JSON.parse(t); if (!j.error) return j; if (i === tries - 1) throw new Error(j.error.message || 'error'); } else if (i === tries - 1) throw new Error('HTTP ' + r.status); } catch (e) { if (i === tries - 1) throw e; } await sleep(1500 * (i + 1)); }
+  for (let i = 0; i < tries; i++) { try { const r = await fetch(url, { ...(opt || {}), signal: AbortSignal.timeout(45000) }); const t = await r.text(); if (t[0] === '{' || t[0] === '[') { const j = JSON.parse(t); if (!j.error) return j; if (i === tries - 1) throw new Error(j.error.message || 'error'); } else if (i === tries - 1) throw new Error('HTTP ' + r.status); } catch (e) { if (i === tries - 1) throw e; } await sleep(1500 * (i + 1)); }
 }
 const miles = (a, b) => { const R = 3958.8, dLa = (b[0] - a[0]) * Math.PI / 180, dLo = (b[1] - a[1]) * Math.PI / 180, s = Math.sin(dLa / 2) ** 2 + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(s)); };
 
@@ -78,15 +80,15 @@ function overpass(q) {
   const run = async () => {
     const hosts = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
     for (let a = 0; a < 6; a++) { const host = hosts[a % hosts.length];
-      try { const r = await fetch(host + '?data=' + encodeURIComponent(q)); const t = await r.text(); if (t[0] === '{') { await sleep(400); return JSON.parse(t); } } catch (e) {}
-      await sleep(2500 * (a + 1)); }
+      try { const r = await fetch(host + '?data=' + encodeURIComponent(q), { signal: AbortSignal.timeout(30000) }); const t = await r.text(); if (t[0] === '{') { await sleep(300); return JSON.parse(t); } } catch (e) {}
+      await sleep(2000 * (a + 1)); }
     return null; };
   const p = opQueue.then(run); opQueue = p.catch(() => null); return p;
 }
 async function tileRoads(k) {
   if (roadCache.has(k)) return roadCache.get(k);
   const p = (async () => { const [tx, ty] = k.split(':').map(Number), pad = 0.003, w = tx * TILE - pad, s = ty * TILE - pad, e = (tx + 1) * TILE + pad, n = (ty + 1) * TILE + pad;
-    const q = `[out:json][timeout:90];way["highway"](${s.toFixed(5)},${w.toFixed(5)},${n.toFixed(5)},${e.toFixed(5)});out geom;`;
+    const q = `[out:json][timeout:25];way["highway"](${s.toFixed(5)},${w.toFixed(5)},${n.toFixed(5)},${e.toFixed(5)});out geom;`;
     const j = await overpass(q); if (!j) return null;
     const bad = /footway|path|cycleway|steps|pedestrian|bridleway|proposed|construction|track|corridor|platform|abandoned|raceway/;
     return j.elements.filter(x => x.geometry && !bad.test(x.tags.highway) && !/driveway|parking_aisle|drive-through/.test(x.tags.service || '') && x.tags.access !== 'private').map(x => x.geometry.map(p => [p.lon, p.lat])); })();
@@ -118,12 +120,16 @@ function floodShare(rings, flood) {
 
 // ---- targets: closed deals + buy boxes ----
 LB.targets = async function () {
-  const { data: deals } = await sb.from('deals').select('id,property_label,properties(lat,lng,county,state)').eq('stage_id', 16).limit(1000);
+  // closed deals plus everything under contract / in escrow (New Inventory through Take Down)
+  const { data: deals } = await sb.from('deals').select('id,stage_id,status,property_label,properties(lat,lng,county,state)').in('stage_id', LB.RULES.targetStages).limit(2000);
   const pts = [], missing = new Set(), counties = new Map();
   (deals || []).forEach(d => { const p = d.properties || {}; if (!p.state || !p.county) return; const key = p.state + '|' + p.county;
+    if (d.stage_id !== 16 && ['lost', 'dead'].includes(d.status)) return;
+    if (LB.RULES.skipCounties.some(c => c.toLowerCase() === (p.county + ', ' + p.state).toLowerCase())) return;
+    d.why = d.stage_id === 16 ? 'closed deal' : 'under contract / escrow';
     if (!LB.source(p.state, p.county)) { missing.add(`${p.county} County, ${p.state}`); return; }
-    if (p.lat && p.lng) pts.push({ lat: p.lat, lng: p.lng, county: p.county, state: p.state, why: 'closed deal' });
-    else counties.set(key, { county: p.county, state: p.state, why: 'closed deal (no map point)' }); });
+    if (p.lat && p.lng) pts.push({ lat: p.lat, lng: p.lng, county: p.county, state: p.state, why: d.why });
+    else counties.set(key, { county: p.county, state: p.state, why: d.why + ' (no map point)' }); });
   const { data: buyers } = await sb.from('buyers').select('id,name,company,counties,zips,min_acres,max_acres').limit(2000);
   (buyers || []).forEach(b => (b.counties || []).forEach(c => { const st = /^(york|lancaster|chester|charleston|berkeley|dorchester|horry|greenville|spartanburg)$/i.test(c) ? 'SC' : 'NC';
     if (!LB.source(st, c)) { missing.add(`${c} County, ${st}`); return; }
