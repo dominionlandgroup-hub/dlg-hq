@@ -263,6 +263,15 @@ LB.houseCheck = async function (c) {
     if (/mecklenburg/i.test(c.r.county) && pts.some(p => p.effective && p.effective >= Date.now() - 3 * 365 * 864e5)) return 'new address in the last 3 years (likely a new house)';
     if (c.r.site && mail && streetKey(c.r.site) === mail) return 'owner lives on the lot (house)';
     return null; } catch (e) { return c.r.site && mail && streetKey(c.r.site) === mail ? 'owner lives on the lot (house)' : null; } };
+
+// ---- church campus check: a church lot right next to the church's own building is their parking / campus (won't sell, can't build) ----
+const CHURCHY = /church|baptist|methodist|presbyterian|ministr|temple|chapel|tabernacle|cathedral|diocese|congregation|worship|fellowship|assembly of god|episcopal|lutheran|catholic/i;
+LB.churchCheck = async function (c) {
+  if (c.r.state !== 'NC' || !CHURCHY.test(c.r.owner || '')) return null;
+  try { const body = new URLSearchParams({ geometry: JSON.stringify({ rings: c.rings, spatialReference: { wkid: 4326 } }), geometryType: 'esriGeometryPolygon', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', distance: '60', units: 'esriSRUnit_Meter',
+      where: `ownname='${String(c.r.owner).replace(/'/g, "''")}' AND improvval>0`, outFields: 'parno,improvval', returnGeometry: 'false', f: 'json' });
+    const j = await (await fetch(NC.url + '/query', { method: 'POST', body })).json();
+    return (j.features || []).some(f => String(f.attributes.parno) !== String(c.r.apn)) ? 'church parking / next to their own building' : null; } catch (e) { return null; } };
 // ---- main ----
 LB.run = async function (opt = {}) {
   const R = { ...LB.RULES, ...opt };
@@ -362,6 +371,7 @@ LB.run = async function (opt = {}) {
         if (c.r.state === 'NC') { const sw = await tileSewer(k); c.sewer = sw === null ? 'unknown' : sw.some(fr => inPoly(c.c, fr)) ? 'likely public sewer' : 'likely septic'; } else c.sewer = 'unknown';
         if (c.sewerMarket && c.sewer !== 'likely public sewer') { cutAdd('no public sewer (water & sewer market)'); continue; }
         const hc = await LB.houseCheck(c); if (hc) { cutAdd(hc); continue; }
+        const cc = await LB.churchCheck(c); if (cc) { cutAdd(cc); continue; }
         perCounty.set(c.r.county, (perCounty.get(c.r.county) || 0) + 1);
         pickedOwners.add(ok_); if (c.church) churchN++;
         final.push(c); st.picked = final.length; if (i % 100 === 0) log(`Checked ${i} lots for road and flood, ${final.length} picked.`); }
