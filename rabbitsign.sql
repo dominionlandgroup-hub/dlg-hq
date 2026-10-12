@@ -5,3 +5,4 @@ alter table public.deals add column if not exists rs_signed_at timestamptz;
 alter table public.deals add column if not exists rs_signers jsonb;
 create index if not exists deals_rs_folder_idx on public.deals(rs_folder_id);
 alter table public.deals add column if not exists extra_property_ids bigint[];
+alter table public.deal_files add column if not exists deleted_at timestamptz;
