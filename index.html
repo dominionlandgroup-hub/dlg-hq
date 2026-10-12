@@ -745,7 +745,8 @@ function buildDocs(deal,which){const {Document,Packer,Paragraph,TextRun,Alignmen
 async function contractsFor(id,only,send){const {data:d}=await sb.from('deals').select('*, leads(full_name,mail_address,mail_city,mail_state,mail_zip), properties(apn,address,city,state,zip,county), buyers(name,represents)').eq('id',id).single();
   const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   const xp=(d.extra_property_ids||[]).length?((await sb.from('properties').select('apn,address,city,county').in('id',d.extra_property_ids)).data||[]):[];
-  const addr1=[d.properties?.address,d.properties?.city,d.properties?.state,d.properties?.zip].filter(Boolean).join(', ')||d.property_label||'';
+  const P0=d.properties||{};let pa=P0.address||'',pc=P0.city||'',pz=P0.zip||'';if(/^\d{5}/.test(pc)){pz=pz||pc;pc=''}
+  const addr1=(/,/.test(pa)?[pa,pz&&!pa.includes(pz)?pz:''].filter(Boolean).join(' '):[pa,pc,P0.state,pz].filter(Boolean).join(', '))||d.property_label||'';
   const addr=addr1+(xp.length?', together with '+xp.map(x=>(x.address&&/^\d/.test(x.address)?x.address+' ':'')+'Parcel '+(x.apn||'')).join(' and ')+(d.properties?.county?', '+d.properties.county+' County':''):'');
   if(xp.length&&d.properties)d.properties.apn=[d.properties.apn,...xp.map(x=>x.apn)].filter(Boolean).join(' and ');
   const f=(id2,label,val,type='text',ph='')=>`<div><label class="f">${label}</label><input id="k_${id2}" type="${type}" value="${esc(val??'')}" placeholder="${esc(ph)}"></div>`;
