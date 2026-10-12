@@ -540,14 +540,17 @@ function gcalLink(title,due,who){const d=String(due).slice(0,10).replace(/-/g,''
   return 'https://calendar.google.com/calendar/u/0/r/eventedit?text='+encodeURIComponent(title)+'&dates='+d+'/'+e+'&details='+encodeURIComponent((who?who+' · ':'')+'From DLG HQ')}
 async function loadDealFiles(id){const {data}=await sb.from('deal_files').select('*').eq('deal_id',id).order('created_at',{ascending:false});
   const el=$('d_files');if(!el)return;if(!data||!data.length){el.innerHTML='<span class="muted">No files yet.</span>';return}
-  el.innerHTML=data.map(f=>`<div class="frow"><span class="fic">${/\.docx?$/i.test(f.storage_path||'')?'W':/\.pdf$/i.test(f.storage_path||'')?'PDF':'▤'}</span><a href="#" onclick="viewDealFile('${esc(f.storage_path||'')}','${esc(f.name)}');return false">${esc(f.name)}</a><span class="muted" style="margin-left:auto">${new Date(f.created_at).toLocaleDateString()}</span></div>`).join('')}
+  el.innerHTML=data.map(f=>`<div class="frow"><span class="fic">${/\.docx?$/i.test(f.storage_path||'')?'W':/\.pdf$/i.test(f.storage_path||'')?'PDF':'▤'}</span><a href="#" onclick="viewDealFile('${esc(f.storage_path||'')}','${esc(f.name)}');return false">${esc(f.name)}</a><span class="muted" style="margin-left:auto;white-space:nowrap">${new Date(f.created_at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}</span></div>`).join('')}
 async function openDealFile(path){if(!path)return toast('File is on your Desktop in DLG Contracts');const {data,error}=await sb.storage.from('deal-files').createSignedUrl(path,3600);if(error)return toast(error.message);window.open(data.signedUrl,'_blank')}
 async function docxPreviewLib(){if(window._docxPrev)return;const ld=u=>new Promise((r,j)=>{const x=document.createElement('script');x.src=u;x.onload=r;x.onerror=()=>j(new Error('Could not load the viewer'));document.head.appendChild(x)});
   if(!window.JSZip)await ld('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');const keep=window.docx;await ld('https://cdn.jsdelivr.net/npm/docx-preview@0.3.2/dist/docx-preview.min.js');window._docxPrev=window.docx;if(keep)window.docx=keep}
 async function showDocx(blob,title,dl){const back=window._dl?.id;
   $('panel').innerHTML=`<div class="dhead"><h2 style="margin:0">${esc(title)}</h2><div class="row" style="flex:0 0 auto;gap:8px">${dl?`<a class="btn ghost" href="${dl}" download="${esc(title)}.docx">Download</a>`:''}${back?`<button class="btn ghost" onclick="openDeal(${back})">← Back to deal</button>`:''}<button class="btn ghost" onclick="closeDrawer()">Close</button></div></div><div id="docv" class="docv">Opening…</div>`;
   try{await docxPreviewLib();$('docv').innerHTML='';await window._docxPrev.renderAsync(blob,$('docv'),null,{inWrapper:true,ignoreWidth:false})}catch(e){$('docv').textContent='Could not show it here: '+e.message}}
+function showPdf(url,title){const back=window._dl?.id;
+  $('panel').innerHTML=`<div class="dhead"><h2 style="margin:0">${esc(title)}</h2><div class="row" style="flex:0 0 auto;gap:8px"><a class="btn ghost" href="${url}" download="${esc(title)}.pdf" target="_blank">Download</a>${back?`<button class="btn ghost" onclick="openDeal(${back})">← Back to deal</button>`:''}<button class="btn ghost" onclick="closeDrawer()">Close</button></div></div><iframe src="${url}" style="width:100%;height:calc(100vh - 120px);border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`}
 async function viewDealFile(path,name){if(!path)return toast('File is on your Desktop in DLG Contracts');const {data,error}=await sb.storage.from('deal-files').createSignedUrl(path,3600);if(error)return toast(error.message);
+  if(/\.pdf$/i.test(path))return showPdf(data.signedUrl,name);
   if(!/\.docx$/i.test(path))return window.open(data.signedUrl,'_blank');const blob=await (await fetch(data.signedUrl)).blob();showDocx(blob,name,data.signedUrl)}
 async function uploadDealFiles(dealId,propId){const fs=$('d_up').files;if(!fs.length)return toast('Pick a file first');
   for(const f of fs){const path=`${dealId}/${Date.now()}-${f.name.replace(/[^\w.\- ]+/g,'_')}`;const {error}=await sb.storage.from('deal-files').upload(path,f);if(error){toast(error.message);return}
@@ -770,13 +773,14 @@ function kDeal(){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?
 async function makeContracts(id){const {deal,which}=kDeal();if(!Object.values(which).some(Boolean))return toast('Pick at least one document');
   const btn=$('k_go');btn.disabled=true;btn.textContent='Creating…';
   try{await docxLib();const docs=buildDocs(deal,which);const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
-    for(const [name,d] of docs){const blob=await _docxLib.Packer.toBlob(d);const fname=`${name} - ${slug}.docx`;
-      window._lastDocs=(window._lastDocs||[]);window._lastDocs.push([name,blob]);
-      const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {error}=await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-      if(!error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`${name} (${new Date().toLocaleDateString()})`,storage_path:path,source:'hq'})}
+    const KIND={'Land Purchase Agreement':'psa','House Purchase and Sale Agreement':'house','Assignment of Contract':'asg','Cancellation of Contract':'cancel','Notice of Termination':'notice'};
+    for(const [name] of docs){const k=KIND[name]||Object.keys(which).find(x=>which[x]);const {bytes}=await contractPdf(deal,k);const blob=new Blob([bytes],{type:'application/pdf'});const fname=`${name} - ${slug}.pdf`;
+      const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {error}=await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/pdf'});
+      window._lastDocs=(window._lastDocs||[]);window._lastDocs.push([name,blob,error?null:path]);
+      if(!error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`${name} - ${slug}`,storage_path:path,source:'hq'})}
     if(which.psa||which.house){await dealMilestone(id,'offer');const cs=STAGES.find(x=>x.board==='seller'&&/contract sent|offer/i.test(x.name));const {data:cur}=await sb.from('deals').select('board,stage_id').eq('id',id).single();
       if(cs&&cur?.board==='seller'&&cur.stage_id!==cs.id)await sb.from('deals').update({stage_id:cs.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id)}
-    const made=window._lastDocs.slice(-docs.length);window._lastDocs=[];toast(which.psa||which.house?'Saved to this deal · offer recorded, moved to Contract Sent':'Saved to this deal');const [n0,b0]=made[0];showDocx(b0,n0,URL.createObjectURL(b0))}
+    const made=window._lastDocs.slice(-docs.length);window._lastDocs=[];toast(which.psa||which.house?'Saved to this deal · offer recorded, moved to Contract Sent':'Saved to this deal');const [n0,b0]=made[0];showPdf(URL.createObjectURL(b0),n0)}
   catch(e){$('k_msg').textContent='Could not create: '+e.message}finally{btn.disabled=false;btn.textContent='Create documents'}}
 
 // ---------- RabbitSign e-signature ----------
