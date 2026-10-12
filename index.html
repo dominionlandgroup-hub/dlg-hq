@@ -508,6 +508,7 @@ async function openDealForm(d){
    <div class="card"><div class="row" style="align-items:center"><h3 class="sec" style="margin:0;flex:1">Property</h3><a href="#" class="small" onclick="addPropertyFor(${d.lead_id||'null'},${d.id});return false">${p?'Change property':'+ Link property'}</a></div>${p?`<div><a href="#" onclick="openProperty(${p.id});return false"><b>APN ${esc(p.apn||'—')}</b></a></div><div>${esc([p.address,p.city,p.state,p.zip].filter(Boolean).join(', ')||d.property_label||'')}</div><div class="small muted">${esc([p.county,p.county_state].filter(Boolean).join(', '))}${p.acres?' · '+(+p.acres).toFixed(2)+' acres':''}</div>`:`<div>${esc(d.property_label||'')}</div><div class="muted small">No parcel linked.</div>`}</div>
    <div class="card"><h3 class="sec" style="margin-top:0">Contracts &amp; documents</h3>
      <div class="docbtns">${[['psa','Land Purchase Agreement'],['house','House Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,t])=>`<button class="btn ghost" onclick="contractsFor(${d.id},'${k}')">+ ${t}</button>`).join('')}</div>
+     ${d.rs_folder_id?`<div class="small" style="margin-top:10px;padding:8px;border:1px solid var(--line);border-radius:8px">✍ <b>RabbitSign:</b> ${esc(rsStatusText(d))} <a href="#" onclick="rsRefresh(${d.id});return false">Refresh</a>${d.rs_status!=='signed'?` · <a href="#" onclick="rsRefresh(${d.id},true);return false">Send reminder</a>`:''}</div>`:''}
      <div id="d_files" class="small" style="margin-top:10px">Loading…</div>
      <div class="row" style="margin-top:10px"><input type="file" id="d_up" multiple><button class="btn ghost" style="flex:0" onclick="uploadDealFiles(${d.id},${d.property_id||'null'})">Upload</button></div></div>`:''}
    </div><div>
@@ -756,14 +757,17 @@ async function contractsFor(id,only){const {data:d}=await sb.from('deals').selec
     ${f('crel','Record release within (days)','')}<label class="f">Additional Terms (cancellation)</label><textarea id="k_cterms" style="min-height:50px"></textarea></div>
    <div id="kx_notice" style="display:${on('notice')?'':'none'}"><h4 style="margin:14px 0 4px">Notice of Termination</h4>${f('ndate','Date of notice',today)}
     <label class="f">Section</label><select id="k_nreason"><option value="feasibility">Did not pass inspection (Section 11)</option><option value="title">No clear title</option><option value="nostudy">Seller did not allow access for inspection</option></select></div>
-   <br><button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">${only?'Create '+DOCN[only]:'Create documents'}</button><div id="k_msg" class="small" style="margin-top:8px"></div></div>`)}
-async function makeContracts(id){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?undefined:Number(g(k));
-  const which={psa:$('w_psa').checked,house:$('w_house').checked,asg:$('w_asg').checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};if(!Object.values(which).some(Boolean))return toast('Pick at least one document');
+   <br><button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">${only?'Create '+DOCN[only]:'Create documents'}</button>
+   ${!only||only==='psa'||only==='house'?`<button class="btn ghost" onclick="rsSendDialog(${id})" style="width:100%;margin-top:8px">✍ Send for e-signature (RabbitSign)</button>`:''}<div id="k_msg" class="small" style="margin-top:8px"></div></div>`)}
+function kDeal(){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?undefined:Number(g(k));
+  const which={psa:$('w_psa').checked,house:$('w_house').checked,asg:$('w_asg').checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};
   const deal={contract_date:g('contract_date'),sellers:g('sellers').split(/\s+and\s+/i).filter(Boolean),property_address:g('address'),apn:g('apn'),legal_description:g('legal'),purchase_price:num('price'),emd:num('emd'),
     feasibility_days:g('feas'),dd_days:g('feas'),close_date:g('closedate'),state:g('state'),county:g('county'),seller_lines:[...g('sellers').split(/\s+and\s+/i).filter(Boolean),...(g('sellermail')?[g('sellermail')]:[])],closing_agent:g('agent'),additional_terms:$('k_terms').value,
     assignment:{assignee:g('assignee'),assignment_fee:num('fee'),deposit:num('adep'),deposit_to:g('depto'),deposit_due:g('depdue'),close_by:g('closeby'),exam_ends:g('exam')},
     cancel:{date:g('cdate'),reason:$('k_creason')?.value,other:g('cother'),emd_to:$('k_cemd')?.value,release_days:g('crel'),additional_terms:$('k_cterms')?.value||''},
     notice:{date:g('ndate'),reason:$('k_nreason')?.value}};
+  return {deal,which}}
+async function makeContracts(id){const {deal,which}=kDeal();if(!Object.values(which).some(Boolean))return toast('Pick at least one document');
   const btn=$('k_go');btn.disabled=true;btn.textContent='Creating…';
   try{await docxLib();const docs=buildDocs(deal,which);const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
     for(const [name,d] of docs){const blob=await _docxLib.Packer.toBlob(d);const fname=`${name} - ${slug}.docx`;
@@ -774,6 +778,82 @@ async function makeContracts(id){const g=k=>$('k_'+k)?.value?.trim()||'';const n
       if(cs&&cur?.board==='seller'&&cur.stage_id!==cs.id)await sb.from('deals').update({stage_id:cs.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id)}
     const made=window._lastDocs.slice(-docs.length);window._lastDocs=[];toast(which.psa||which.house?'Saved to this deal · offer recorded, moved to Contract Sent':'Saved to this deal');const [n0,b0]=made[0];showDocx(b0,n0,URL.createObjectURL(b0))}
   catch(e){$('k_msg').textContent='Could not create: '+e.message}finally{btn.disabled=false;btn.textContent='Create documents'}}
+
+// ---------- RabbitSign e-signature ----------
+let _pdfLibP=null;function pdfLibLoad(){return _pdfLibP||(_pdfLibP=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';sc.onload=()=>res(window.PDFLib);sc.onerror=()=>{_pdfLibP=null;rej(new Error('Could not load the PDF builder'))};document.head.appendChild(sc)}))}
+// Lays out the exact same contract buildDocs() writes (same wording), as a PDF, and returns where each signature/date line is.
+async function contractPdf(deal,kind){const PL=await pdfLibLoad();
+  const rec={Document:function(o){this.o=o},Paragraph:function(o){this.o=o},TextRun:function(o){this.o=o},AlignmentType:{CENTER:'center',RIGHT:'right',LEFT:'left',JUSTIFIED:'both'},TabStopType:{LEFT:'left',RIGHT:'right',CENTER:'center'},Packer:{}};
+  const keep=_docxLib;_docxLib=rec;let docs;try{docs=buildDocs(deal,{[kind]:true})}finally{_docxLib=keep}
+  const docObj=docs[0][1].o.sections[0];const pg=docObj.properties.page;const W=pg.size.width/20,H=pg.size.height/20,m=pg.margin;const ML=m.left/20,MR=W-m.right/20,MT=m.top/20,MB=H-m.bottom/20;
+  const pdf=await PL.PDFDocument.create();const fR=await pdf.embedFont(PL.StandardFonts.Helvetica),fB=await pdf.embedFont(PL.StandardFonts.HelveticaBold);
+  const clean=t=>String(t).replace(/[☐]/g,'[ ]').replace(/[☒]/g,'[X]').replace(/[\u2028\u2029]/g,' ');
+  let page=pdf.addPage([W,H]),pi=0,y=MT;const sigs=[];const paras=docObj.children.map(x=>x.o);
+  const newPage=()=>{page=pdf.addPage([W,H]);pi++;y=MT};
+  paras.forEach((po,idx)=>{const runs=(po.children||[]).map(r=>r.o);const sz=((runs.find(r=>r.size)||{}).size||19)/2;const lh=sz*1.17*((po.spacing?.line||240)/240);
+    const ind=po.indent||{};const left=ML+(ind.left||0)/20;const first=left-(ind.hanging||0)/20;const tab=(po.tabStops||[])[0];const tabX=tab?ML+tab.position/20:left;
+    // words with style
+    const toks=[];runs.forEach(r=>{const f=r.bold?fB:fR;const z=(r.size||19)/2;String(clean(r.text||'')).split(/(\t| )/).forEach(w=>{if(w!=='')toks.push({w,f,z,u:!!r.underline})})});
+    const lines=[];let cur=[],x=first,lineStart=first;
+    const flush=()=>{lines.push({items:cur,start:lineStart,end:x});cur=[];x=left;lineStart=left};
+    for(const t of toks){if(t.w==='\t'){x=Math.max(x+2,tabX);continue}const wd=t.f.widthOfTextAtSize(t.w,t.z);
+      if(t.w!==' '&&x+wd>MR&&cur.some(c=>c.w!==' ')){flush();}
+      if(t.w===' '&&!cur.length&&lines.length)continue;cur.push({...t,x,wd});x+=wd}
+    flush();
+    const ptext=toks.map(t=>t.w).join('');if(/^_{15,}/.test(ptext.trim())&&y+lh+45>MB)newPage();
+    for(const L of lines){if(y+lh>MB)newPage();const base=y+sz;let off=0;
+      if(po.alignment==='center'){const used=L.end-L.start;off=(MR-ML-used)/2-(L.start-ML)}
+      for(const it of L.items){if(it.w===' ')continue;page.drawText(it.w,{x:it.x+off,y:H-base,size:it.z,font:it.f});if(it.u)page.drawLine({start:{x:it.x+off,y:H-base-1.5},end:{x:it.x+off+it.wd,y:H-base-1.5},thickness:0.5})}
+      if(/_{15,}/.test(ptext)&&/date/i.test(ptext)&&(/^_{15,}/.test(ptext.trim())||/^\s*(SELLER|BUYER)/i.test(ptext))){const first=L.items.find(i=>/_{10,}/.test(i.w));const dl=L.items.filter(i=>/_{8,}/.test(i.w)).pop();
+        const label=(ptext.match(/^\s*([A-Za-z() ]+):/)||[])[1]||'';const nextTxt=(paras[idx+1]?.children||[]).map(r=>r.o.text||'').join('').trim();
+        sigs.push({page:pi,label:label.trim(),name:/^_/.test(ptext.trim())?nextTxt:'',sx:(first?.x||ML)+off,sw:first?.wd||180,dx:(dl&&dl!==first?dl.x:(first?.x||ML)+200)+off,dw:dl&&dl!==first?dl.wd:90,base,pageH:H})}
+      y+=lh}
+    if(!lines.length||!toks.length)y+=lh;y+=(po.spacing?.after||0)/20});
+  return {bytes:await pdf.save(),sigs,pageH:H}}
+// Which signature line belongs to whom: Land agreement = name under the line; House agreement = SELLER(S)/BUYER(S) labels, in order.
+function rsAssign(sigs,sellers){const out={buyer:null,sellers:[]};let si=0;
+  for(const g of sigs){const isBuyer=/dominion|buyer/i.test(g.name+' '+g.label)&&!/seller/i.test(g.label);if(isBuyer){if(!out.buyer)out.buyer=g}else if(si<Math.max(1,sellers.length)){out.sellers.push(g);si++}}
+  return out}
+const RS_FIELD=(g,type)=>type==='SIGNATURE'?{type,page:g.page,x:g.sx,y:g.base-15,w:Math.min(g.sw,200),h:17}:{type:'LOCAL_DATE',page:g.page,x:g.dx,y:g.base-13,w:Math.max(g.dw,60),h:14};
+function rsStatusText(d){const st=d.rs_status||'sent';const who=(d.rs_signers||[]).map(s=>`${s.name||s.email}: ${String(s.status||'').toLowerCase()}`).join(' · ');
+  return (st==='signed'?'Signed by everyone'+(d.rs_signed_at?' on '+new Date(d.rs_signed_at).toLocaleDateString():'')+' — signed copy is in the files below':'Sent '+(d.rs_sent_at?new Date(d.rs_sent_at).toLocaleDateString():'')+' · waiting for signatures')+(who?' ('+who+')':'')}
+async function rsSendDialog(id){const {deal,which}=kDeal();const kind=which.house&&!which.psa?'house':'psa';
+  const {data:d}=await sb.from('deals').select('lead_id,rs_folder_id,rs_status, leads(email,full_name)').eq('id',id).single();
+  if(d?.rs_folder_id&&d.rs_status!=='signed'&&!confirm('This deal was already sent through RabbitSign. Send a new one anyway?'))return;
+  const sellers=deal.sellers.length?deal.sellers:[d?.leads?.full_name||'Seller'];let me={name:'Damien Dupee',email:'dominionlandgroup@gmail.com'};try{me=JSON.parse(localStorage.getItem('rs_me'))||me}catch(e){}
+  const addr=deal.property_address||'';
+  $('k_msg').innerHTML=`<div class="card" style="margin-top:10px"><h4 style="margin:0 0 6px">Send ${kind==='house'?'House':'Land'} Purchase Agreement for e-signature</h4>
+    <div class="small muted" style="margin-bottom:8px">You sign first. When you've signed, RabbitSign emails the seller. When everyone has signed, the signed copy is saved to this deal and it's marked under contract.</div>
+    <label class="f">Title (shows in the email)</label><input id="rs_title" value="${esc(addr||'Purchase Agreement')}">
+    <label class="f">Message</label><input id="rs_msg" value="Please review and approve.">
+    <h4 style="margin:10px 0 4px">1. You</h4><div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">Name</label><input id="rs_me_name" value="${esc(me.name)}"></div><div><label class="f">Email</label><input id="rs_me_email" value="${esc(me.email)}"></div></div>
+    ${sellers.map((n,i)=>`<h4 style="margin:10px 0 4px">${i+2}. Seller${sellers.length>1?' '+(i+1):''}</h4><div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">Name</label><input id="rs_s${i}_name" value="${esc(n)}"></div><div><label class="f">Email</label><input id="rs_s${i}_email" value="${esc(i===0?(d?.leads?.email||''):'')}" placeholder="seller@email.com"></div></div>`).join('')}
+    <button class="btn" id="rs_go" style="width:100%;margin-top:10px" onclick="rsSend(${id},'${kind}',${sellers.length},${d?.lead_id||'null'})">Send for signature</button><div id="rs_out" class="small" style="margin-top:6px"></div></div>`;
+  $('rs_title').scrollIntoView({behavior:'smooth',block:'center'})}
+async function rsSend(id,kind,n,leadId){const {deal}=kDeal();const v=k=>($(k)?.value||'').trim();const em=x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
+  const me={name:v('rs_me_name'),email:v('rs_me_email').toLowerCase()};const sellers=[...Array(n)].map((_,i)=>({name:v(`rs_s${i}_name`),email:v(`rs_s${i}_email`).toLowerCase()}));
+  if(!em(me.email))return toast('Enter your email');if(sellers.some(s=>!em(s.email)))return toast("Enter the seller's email");
+  if(sellers.some(s=>s.email===me.email))return toast("The seller's email can't be the same as yours");
+  const btn=$('rs_go');btn.disabled=true;btn.textContent='Building the PDF…';
+  try{try{localStorage.setItem('rs_me',JSON.stringify(me))}catch(e){}
+    if(leadId&&sellers[0].email)await sb.from('leads').update({email:sellers[0].email}).eq('id',leadId).is('email',null);
+    await docxLib();const {bytes,sigs}=await contractPdf(deal,kind);const a=rsAssign(sigs,sellers);
+    if(!a.buyer||a.sellers.length<sellers.length)throw new Error('Could not find the signature lines in the contract');
+    const signers=[{...me,order:1,fields:[RS_FIELD(a.buyer,'SIGNATURE'),RS_FIELD(a.buyer,'LOCAL_DATE')]},...sellers.map((s,i)=>({...s,order:2,fields:[RS_FIELD(a.sellers[i],'SIGNATURE'),RS_FIELD(a.sellers[i],'LOCAL_DATE')]}))];
+    let bin='';const u8=new Uint8Array(bytes);for(let i=0;i<u8.length;i+=32768)bin+=String.fromCharCode.apply(null,u8.subarray(i,i+32768));
+    const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const fname=`${kind==='house'?'House':'Land'} Purchase Agreement - ${slug}.pdf`;
+    btn.textContent='Sending…';const {data,error}=await sb.functions.invoke('rabbitsign/send',{body:{deal_id:id,pdf_base64:btoa(bin),file_name:fname,title:v('rs_title'),summary:v('rs_msg'),signers}});
+    if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}if(data?.error)throw new Error(data.error);
+    const blob=new Blob([bytes],{type:'application/pdf'});const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;
+    const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
+    if(!(await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/pdf'})).error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`Sent for signature - ${fname.replace(/\.pdf$/,'')} (${new Date().toLocaleDateString()})`,storage_path:path,source:'rabbitsign'});
+    const cs=STAGES.find(x=>x.board==='seller'&&/contract sent|offer/i.test(x.name));const {data:cur}=await sb.from('deals').select('board,stage_id').eq('id',id).single();
+    if(cs&&cur?.board==='seller'&&cur.stage_id!==cs.id)await sb.from('deals').update({stage_id:cs.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id);
+    $('rs_out').innerHTML=`✅ Sent. Check <b>${esc(me.email)}</b> — RabbitSign emails you first to sign${data.ordered?'':' (the seller may get theirs at the same time)'}. Moved to Contract Sent.`;toast('Sent through RabbitSign')}
+  catch(e){$('rs_out').textContent='Not sent: '+e.message}finally{btn.disabled=false;btn.textContent='Send for signature'}}
+async function rsRefresh(id,remind){toast(remind?'Sending reminder…':'Checking RabbitSign…');const {data,error}=await sb.functions.invoke('rabbitsign/status',{body:{deal_id:id,remind:!!remind}});
+  if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}return toast(m)}if(data?.error)return toast(data.error);
+  toast(data.allSigned?'Signed by everyone — signed copy saved to this deal':remind?'Reminder sent':'Still waiting on signatures');openDeal(id)}
 
 // ---------- inboxes ----------
 // ---------- inboxes (modeled on Pebble: list · conversation · contact/deal panel) ----------
