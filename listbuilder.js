@@ -10,6 +10,7 @@ LB.RULES = {
   minAvgWidthFt: 50,      // every closed deal is 50 ft+ on average
   minCompact: 0.25,       // below this the parcel is a sliver
   minFrontageFt: 25,      // must touch a public road
+  minYearsOwned: 5,       // skip owners who bought in the last 5 years (they rarely sell and are often about to build)
   recentDays: 90,         // skip anyone mailed in the last 90 days
   maxTouchesPerYear: 3,   // 3 letters in 12 months, then they rest until a year has passed
   costPerPiece: 0.55,     // postage + print per letter
@@ -35,16 +36,16 @@ LB.RULES = {
 };
 // ---- county parcel sources ----
 const NC = { oid: 'objectid', name: 'NC statewide parcels', url: 'https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1',
-  fields: 'parno,altparno,ownname,ownfrst,ownlast,mailadd,munit,mcity,mstate,mzip,siteadd,scity,szip,gisacres,improvval,struct,landval,parusedesc,legdecfull,cntyname,stcntyfips',
+  fields: 'saledate,parno,altparno,ownname,ownfrst,ownlast,mailadd,munit,mcity,mstate,mzip,siteadd,scity,szip,gisacres,improvval,struct,landval,parusedesc,legdecfull,cntyname,stcntyfips',
   countyWhere: c => `cntyname='${c.replace(/'/g, "''")}'`,
   vacantWhere: (a, b) => `(improvval=0 OR improvval IS NULL) AND (struct IS NULL OR struct<>'Y') AND gisacres>=${a} AND gisacres<=${b}`,
-  map: a => ({ landval: a.landval, apn: a.parno, apn2: a.altparno, owner: a.ownname, first: a.ownfrst, last: a.ownlast, mail: [a.mailadd, a.munit].filter(Boolean).join(' '), mcity: a.mcity, mstate: a.mstate, mzip: a.mzip,
+  map: a => ({ saleDate: a.saledate || null, landval: a.landval, apn: a.parno, apn2: a.altparno, owner: a.ownname, first: a.ownfrst, last: a.ownlast, mail: [a.mailadd, a.munit].filter(Boolean).join(' '), mcity: a.mcity, mstate: a.mstate, mzip: a.mzip,
     site: a.siteadd, scity: a.scity, szip: a.szip, acres: a.gisacres, built: (a.improvval || 0) > 0 || a.struct === 'Y', use: a.parusedesc, legal: a.legdecfull, county: titleCase(a.cntyname || ''), state: 'NC', fips: a.stcntyfips }) };
 const YORK = { oid: 'OBJECTID', name: 'York County SC parcels', url: 'https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0',
-  fields: 'ParcelID,AprLandVal,Owner1,Owner2,MailAddr1,MailAddr2,MailCity,MailState,MailZip,PropertyAddress,GISSizeAC,deededacres,AprBldgVal,BuildingCount,ImprovedStatus,LandUseDesc,LegalDescription',
+  fields: 'DateSold,ParcelID,AprLandVal,Owner1,Owner2,MailAddr1,MailAddr2,MailCity,MailState,MailZip,PropertyAddress,GISSizeAC,deededacres,AprBldgVal,BuildingCount,ImprovedStatus,LandUseDesc,LegalDescription',
   countyWhere: () => '1=1',
   vacantWhere: (a, b) => `(AprBldgVal=0 OR AprBldgVal IS NULL) AND (BuildingCount=0 OR BuildingCount IS NULL) AND GISSizeAC>=${a} AND GISSizeAC<=${b}`,
-  map: a => ({ landval: a.AprLandVal, apn: a.ParcelID, owner: [a.Owner1, a.Owner2].filter(Boolean).join(' & '), mail: [a.MailAddr1, a.MailAddr2].filter(Boolean).join(' '), mcity: a.MailCity, mstate: a.MailState, mzip: a.MailZip,
+  map: a => ({ saleDate: a.DateSold || null, landval: a.AprLandVal, apn: a.ParcelID, owner: [a.Owner1, a.Owner2].filter(Boolean).join(' & '), mail: [a.MailAddr1, a.MailAddr2].filter(Boolean).join(' '), mcity: a.MailCity, mstate: a.MailState, mzip: a.MailZip,
     site: a.PropertyAddress, acres: a.GISSizeAC || a.deededacres, built: (a.AprBldgVal || 0) > 0 || (a.BuildingCount || 0) > 0, use: a.LandUseDesc, legal: a.LegalDescription, county: 'York', state: 'SC', fips: '45091' }) };
 LB._tileRoads = (...a) => tileRoads(...a); LB._tileFlood = (...a) => tileFlood(...a);
 LB.source = (state, county) => state === 'NC' ? NC : (state === 'SC' && /^york$/i.test(county || '')) ? YORK : null;
@@ -323,6 +324,7 @@ LB.run = async function (opt = {}) {
     for (const c of cands) { const r = c.r, nm = LB.names(r);
       if (c.dist < 0.03) { cutAdd('your own deal lot'); continue; }
       if (BUILDER.test(r.owner || '')) { cutAdd('builder / developer owner'); continue; }
+      if (r.saleDate && R.minYearsOwned && r.saleDate > Date.now() - R.minYearsOwned * 365.25 * 864e5) { cutAdd('bought in the last ' + R.minYearsOwned + ' years'); continue; }
       if (BIGBUYER.test(r.owner || '')) { cutAdd('buys land, never sells (e.g. Elevation Church)'); continue; }
       if (buyerNames.has(normOwner(r.owner))) { cutAdd('one of your buyers'); continue; }
       if (CHURCH.test(r.owner || '')) { if (!/^mecklenburg$/i.test(r.county)) { cutAdd('church lot outside Mecklenburg'); continue; } c.church = true; c.dist = 0; } // Mecklenburg church lots go to the front
