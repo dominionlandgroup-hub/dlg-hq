@@ -69,6 +69,7 @@ const BUILDER = /\b(BUILDERS?|BUILDING|CONSTRUCTION|HOMES|HOMEBUILDERS?|DEVELOPM
 const CHURCH = /\b(CHURCH(?! (ST|STREET|RD|ROAD|AVE|LN|DR)\b)|MINISTR|FELLOWSHIP|TABERNACLE|CONGREGATION|BAPTIST|METHODIST|PRESBYTERIAN|EPISCOPAL|LUTHERAN|PENTECOSTAL|HOLINESS|AME ZION|DIOCESE|CATHOLIC|HOUSE OF PRAYER)/i;
 const REDFLAG = /EASEMENT|DRIVEWAY|DRIVE WAY|R\/W\b|RIGHT[- ]OF[- ]WAY|\bROW\b|COMMON AREA|COMMON PROP|COMMON OPEN|OPEN SPACE|BUFFER|\bSTRIP\b|REMNANT|DRAINAGE|DETENTION|RETENTION|\bPOND\b|UTILITY|CEMETERY|LANDLOCK|LAND LOCK|NO ACCESS|UNBUILDABLE|NON[- ]BUILDABLE|NOT BUILDABLE|SLIVER|\bGAP\b|AMENITY|RECREATION AREA|CONSERVATION|WETLAND|SEWER|PUMP STATION|LIFT STATION|TOWER SITE|CELL TOWER|SUBSTATION/i;
 // tags/status in DLG HQ that mean: do not mail
+const BIGBUYER = /elevation church/i; // owners who buy land, never sell
 const NEGTAG = /due diligence|\bdd\b|run claude dd|dd done|not sell|overpriced|paid too much|listed|bad lot|\bsold\b|\bdnc\b|do not (mail|call|contact)|opted|opt out|not interested|not_interested|stop|wrong (owner|person)|deceased|hostile/i;
 
 const F = 3.28084;
@@ -246,6 +247,22 @@ LB.ownerBlocks = async function (days, log) {
 };
 LB.apnKey = a => String(a || '').toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/^0+/, '');
 LB.suppressedApns = async function () { const set = new Set(); for (let o = 0; ; o += 1000) { const { data } = await sb.from('suppression').select('apn').not('apn', 'is', null).range(o, o + 999); (data || []).forEach(x => { set.add(String(x.apn)); set.add(LB.apnKey(x.apn)); }); if (!data || data.length < 1000) break; } return set; };
+
+// ---- house check: the county is slow to record new houses (a new home shows as a $0-building lot) ----
+// NC: the state 911 address map. If an address on the lot is the owner's mailing address, they live there -> house.
+// Mecklenburg also: an address assigned to the lot in the last 3 years usually means a new house.
+// SC (no state address map here): owner's mailing address = the lot's street address -> house.
+const ADDR_NC = 'https://services.nconemap.gov/secure/rest/services/AddressNC/NC1Map_Addresses/FeatureServer/0/query';
+const streetKey = s => String(s || '').toUpperCase().replace(/\s+\d{5}(-\d{4})?$/, '').replace(/[^A-Z0-9 ]/g, '').replace(/\b(STREET|ST|ROAD|RD|DRIVE|DR|LANE|LN|COURT|CT|AVENUE|AVE|AV|CIRCLE|CIR|CR|PLACE|PL|TERRACE|TER|TRAIL|TRL|WAY|BLVD|BOULEVARD|HWY|PKWY|SE|SW|NE|NW|N|S|E|W)\b/g, '').replace(/\s+/g, ' ').trim();
+LB.houseCheck = async function (c) {
+  const mail = streetKey(c.r.mail);
+  if (c.r.state !== 'NC') return c.r.site && mail && streetKey(c.r.site) === mail ? 'owner lives on the lot (house)' : null;
+  try { const body = new URLSearchParams({ geometry: JSON.stringify({ rings: c.rings, spatialReference: { wkid: 4326 } }), geometryType: 'esriGeometryPolygon', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', outFields: 'st_address,effective', returnGeometry: 'false', f: 'json' });
+    const j = await (await fetch(ADDR_NC, { method: 'POST', body })).json(); const pts = (j.features || []).map(f => f.attributes);
+    if (mail && pts.some(p => streetKey(p.st_address) === mail)) return 'owner lives on the lot (house)';
+    if (/mecklenburg/i.test(c.r.county) && pts.some(p => p.effective && p.effective >= Date.now() - 3 * 365 * 864e5)) return 'new address in the last 3 years (likely a new house)';
+    if (c.r.site && mail && streetKey(c.r.site) === mail) return 'owner lives on the lot (house)';
+    return null; } catch (e) { return c.r.site && mail && streetKey(c.r.site) === mail ? 'owner lives on the lot (house)' : null; } };
 // ---- main ----
 LB.run = async function (opt = {}) {
   const R = { ...LB.RULES, ...opt };
@@ -297,6 +314,7 @@ LB.run = async function (opt = {}) {
     for (const c of cands) { const r = c.r, nm = LB.names(r);
       if (c.dist < 0.03) { cutAdd('your own deal lot'); continue; }
       if (BUILDER.test(r.owner || '')) { cutAdd('builder / developer owner'); continue; }
+      if (BIGBUYER.test(r.owner || '')) { cutAdd('buys land, never sells (e.g. Elevation Church)'); continue; }
       if (buyerNames.has(normOwner(r.owner))) { cutAdd('one of your buyers'); continue; }
       if (CHURCH.test(r.owner || '')) { if (!/^mecklenburg$/i.test(r.county)) { cutAdd('church lot outside Mecklenburg'); continue; } c.church = true; c.dist = 0; } // Mecklenburg church lots go to the front
       if (!c.church && (ownerCount.get(normOwner(r.owner)) || 0) >= 4) { cutAdd('owns 4+ lots nearby (developer inventory)'); continue; }
@@ -343,6 +361,7 @@ LB.run = async function (opt = {}) {
         if (fr < R.minFrontageFt) { cutAdd('no road frontage'); continue; }
         if (c.r.state === 'NC') { const sw = await tileSewer(k); c.sewer = sw === null ? 'unknown' : sw.some(fr => inPoly(c.c, fr)) ? 'likely public sewer' : 'likely septic'; } else c.sewer = 'unknown';
         if (c.sewerMarket && c.sewer !== 'likely public sewer') { cutAdd('no public sewer (water & sewer market)'); continue; }
+        const hc = await LB.houseCheck(c); if (hc) { cutAdd(hc); continue; }
         perCounty.set(c.r.county, (perCounty.get(c.r.county) || 0) + 1);
         pickedOwners.add(ok_); if (c.church) churchN++;
         final.push(c); st.picked = final.length; if (i % 100 === 0) log(`Checked ${i} lots for road and flood, ${final.length} picked.`); }
