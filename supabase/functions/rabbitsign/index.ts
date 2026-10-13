@@ -2,7 +2,7 @@
 //  POST /rabbitsign/send     Send a contract PDF for e-signature (signed-in user only)
 //  POST /rabbitsign/status   Refresh a deal's signing status; when everyone signed, save the signed PDF to the deal (signed-in user only)
 //  Assignments (doc_kind "asg") are tracked in their own columns (as_*) so they never overwrite the purchase agreement.
-//  When an assignment is signed by everyone: signed copy saved to the deal, deal moved to Buyer Deals > Escrow,
+//  When an assignment is signed by everyone: signed copy saved to the deal, deal moved to Buyer Deals > Escrow (or "Assigned to Buyer - No EMD"), fee on the card,
 //  assignment price + buyer filled in, lead marked "assigned".
 //  POST /rabbitsign          RabbitSign webhook (someone signed). Never trusts the body: re-reads the folder from RabbitSign.
 // Secrets (Supabase > Edge Functions > Secrets): RABBITSIGN_KEY_ID, RABBITSIGN_KEY_SECRET
@@ -108,18 +108,20 @@ async function saveSigned(dealId: number, propertyId: number | null, downloadUrl
   return saved;
 }
 
-// Assignment fully signed: Buyer Deals > Escrow, assignment price and buyer filled in, lead marked assigned.
+// Assignment fully signed: Buyer Deals > Escrow (or "Assigned to Buyer - No EMD"), fee on the card, assignment price and buyer filled in, lead marked assigned.
 async function assigned(dealId: number) {
   const { data: d } = await sb.from("deals").select("purchase_price,assignment_price,buyer_id,lead_id,as_meta,board,stage_id").eq("id", dealId).single();
   if (!d) return;
   const m = d.as_meta || {};
   const upd: Record<string, unknown> = { updated_at: new Date().toISOString(), status: "open" };
   const fee = Number(m.fee);
+  if (Number.isFinite(fee)) upd.value = fee; // Buyer Deals cards show the deal's value = the fee
   if (Number.isFinite(fee) && d.purchase_price) upd.assignment_price = Number(d.purchase_price) + fee;
   else if (m.assignment_price) upd.assignment_price = Number(m.assignment_price);
   if (m.buyer_id && !d.buyer_id) upd.buyer_id = Number(m.buyer_id);
   const { data: st } = await sb.from("board_stages").select("id,name,board,position").eq("board", "buyer").order("position");
-  const esc = (st || []).find((s: any) => /escrow/i.test(s.name)) || (st || [])[0];
+  const L = st || [];
+  const esc = L.find((s: any) => /escrow/i.test(s.name)) || L.find((s: any) => /assigned.*no emd/i.test(s.name)) || L.find((s: any) => /assigned/i.test(s.name)) || L[0];
   if (esc) { upd.board = "buyer"; upd.stage_id = esc.id; }
   await sb.from("deals").update(upd).eq("id", dealId);
   await milestone(dealId, "purchase");
@@ -129,7 +131,7 @@ async function assigned(dealId: number) {
     if (order.indexOf(l?.status) < order.indexOf("assigned") && !["dead", "not_selling"].includes(l?.status))
       await sb.from("leads").update({ status: "assigned", updated_at: new Date().toISOString() }).eq("id", d.lead_id);
     const price = (upd.assignment_price as number) || d.assignment_price;
-    await sb.from("activity").insert({ lead_id: d.lead_id, kind: "status", body: `Assigned${m.assignee ? " to " + m.assignee : ""}${Number.isFinite(fee) ? " · $" + fee.toLocaleString() + " fee" : ""}${price ? " · $" + Number(price).toLocaleString() + " total" : ""} · moved to Escrow (RabbitSign)` });
+    await sb.from("activity").insert({ lead_id: d.lead_id, kind: "status", body: `Assigned${m.assignee ? " to " + m.assignee : ""}${Number.isFinite(fee) ? " · $" + fee.toLocaleString() + " fee" : ""}${price ? " · $" + Number(price).toLocaleString() + " total" : ""} · moved to ${esc?.name || "Buyer Deals"} (RabbitSign)` });
   }
 }
 
