@@ -135,6 +135,14 @@ async function assigned(dealId: number) {
   }
 }
 
+// Purchase agreement signed by everyone: same as clicking "Under contract → Buyer Deals" (first Buyer Deals stage).
+async function toBuyerBoard(dealId: number) {
+  const { data: d } = await sb.from("deals").select("board").eq("id", dealId).single();
+  if (!d || d.board === "buyer") return;
+  const { data: st } = await sb.from("board_stages").select("id").eq("board", "buyer").order("position").limit(1);
+  if (st?.[0]) await sb.from("deals").update({ board: "buyer", stage_id: st[0].id, status: "open", updated_at: new Date().toISOString() }).eq("id", dealId);
+}
+
 async function sync(dealId: number | null, folderId: string, kind?: "psa" | "asg") {
   const r = await rs("GET", "/api/v1/folder/" + folderId);
   if (!r.ok) throw new Error("RabbitSign status failed: " + r.status + " " + r.text);
@@ -159,7 +167,7 @@ async function sync(dealId: number | null, folderId: string, kind?: "psa" | "asg
       saved = await saveSigned(dealId, deal?.property_id || null, f.downloadUrl, A ? "SIGNED ASSIGNMENT" : "SIGNED");
       upd[A ? "as_signed_at" : "rs_signed_at"] = new Date().toISOString();
       await sb.from("deals").update(upd).eq("id", dealId);
-      if (A) await assigned(dealId); else await milestone(dealId, "purchase");
+      if (A) await assigned(dealId); else { await milestone(dealId, "purchase"); await toBuyerBoard(dealId); }
     } else await sb.from("deals").update(upd).eq("id", dealId);
   }
   return { dealId, kind, folderStatus: f.folderStatus, allSigned, signers, saved };

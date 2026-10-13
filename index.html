@@ -838,7 +838,7 @@ async function rsSendDialog(id){const {deal,which}=kDeal();if(which.asg&&!which.
   const sellers=deal.sellers.length?deal.sellers:[d?.leads?.full_name||'Seller'];let me={name:'Damien Dupee',email:'dominionlandgroup@gmail.com'};try{me=JSON.parse(localStorage.getItem('rs_me'))||me}catch(e){}
   const addr=deal.property_address||'';
   $('k_msg').innerHTML=`<div class="card" style="margin-top:10px"><h4 style="margin:0 0 6px">Send ${kind==='house'?'House':'Land'} Purchase Agreement for e-signature</h4>
-    <div class="small muted" style="margin-bottom:8px">You sign first. When you've signed, RabbitSign emails the seller. When everyone has signed, the signed copy is saved to this deal and it's marked under contract.</div>
+    <div class="small muted" style="margin-bottom:8px">You sign first. When you've signed, RabbitSign emails the seller. When everyone has signed, the signed copy is saved to this deal and it moves to Buyer Deals (under contract).</div>
     <label class="f">Title (shows in the email)</label><input id="rs_title" value="${esc(addr||'Purchase Agreement')}">
     <label class="f">Message</label><input id="rs_msg" value="Please review and approve.">
     <h4 style="margin:10px 0 4px">1. You</h4><div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">Name</label><input id="rs_me_name" value="${esc(me.name)}"></div><div><label class="f">Email</label><input id="rs_me_email" value="${esc(me.email)}"></div></div>
