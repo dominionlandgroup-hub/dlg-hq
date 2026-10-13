@@ -1,6 +1,9 @@
 // DLG HQ <-> RabbitSign bridge
 //  POST /rabbitsign/send     Send a contract PDF for e-signature (signed-in user only)
 //  POST /rabbitsign/status   Refresh a deal's signing status; when everyone signed, save the signed PDF to the deal (signed-in user only)
+//  Assignments (doc_kind "asg") are tracked in their own columns (as_*) so they never overwrite the purchase agreement.
+//  When an assignment is signed by everyone: signed copy saved to the deal, deal moved to Buyer Deals > Escrow,
+//  assignment price + buyer filled in, lead marked "assigned".
 //  POST /rabbitsign          RabbitSign webhook (someone signed). Never trusts the body: re-reads the folder from RabbitSign.
 // Secrets (Supabase > Edge Functions > Secrets): RABBITSIGN_KEY_ID, RABBITSIGN_KEY_SECRET
 // Deploy with "Verify JWT" OFF (the webhook has no Supabase login); send/status check the user's login themselves.
@@ -79,46 +82,85 @@ async function send(b: any) {
   if (!r.ok && r.status === 400 && /signingOrder|json/i.test(r.text)) { fid = 0; r = await rs("POST", "/api/v1/folder", folder(false)); ordered = false; }
   if (!r.ok || !r.data?.folderId) throw new Error("RabbitSign create folder failed: " + r.status + " " + r.text);
   const folderId = r.data.folderId;
-  if (b.deal_id) {
+  if (b.deal_id && b.doc_kind === "asg") {
+    await sb.from("deals").update({ as_folder_id: folderId, as_status: "sent", as_sent_at: new Date().toISOString(), as_signed_at: null, as_signers: null, as_meta: b.asg_meta || null, updated_at: new Date().toISOString() }).eq("id", b.deal_id);
+  } else if (b.deal_id) {
     await sb.from("deals").update({ rs_folder_id: folderId, rs_status: "sent", rs_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", b.deal_id);
     await milestone(Number(b.deal_id), "offer");
   }
   return { folderId, ordered };
 }
 
-async function sync(dealId: number | null, folderId: string) {
+async function saveSigned(dealId: number, propertyId: number | null, downloadUrl: string, prefix: string) {
+  const zip = new Uint8Array(await (await fetch(downloadUrl)).arrayBuffer());
+  let files: Record<string, Uint8Array> = {};
+  try { files = unzipSync(zip); } catch { files = { "Signed contract.zip": zip }; }
+  const saved: string[] = [];
+  for (const [name, bytes] of Object.entries(files)) {
+    if (!bytes.length || name.endsWith("/")) continue;
+    const base = name.split("/").pop()!;
+    const nice = /audit/i.test(base) ? `Signing record (RabbitSign)${prefix === "SIGNED ASSIGNMENT" ? " - assignment" : ""}` : `${prefix} - ` + base.replace(/\.pdf$/i, "");
+    const path = `${dealId}/${Date.now()}-${(nice + (base.match(/\.\w+$/)?.[0] || ".pdf")).replace(/[^\w.\- ]+/g, "_")}`;
+    const type = /\.pdf$/i.test(base) ? "application/pdf" : /\.zip$/i.test(base) ? "application/zip" : "application/octet-stream";
+    const { error } = await sb.storage.from("deal-files").upload(path, bytes, { contentType: type });
+    if (!error) { await sb.from("deal_files").insert({ deal_id: dealId, property_id: propertyId, name: `${nice} (${today()})`, storage_path: path, source: "rabbitsign" }); saved.push(nice); }
+  }
+  return saved;
+}
+
+// Assignment fully signed: Buyer Deals > Escrow, assignment price and buyer filled in, lead marked assigned.
+async function assigned(dealId: number) {
+  const { data: d } = await sb.from("deals").select("purchase_price,assignment_price,buyer_id,lead_id,as_meta,board,stage_id").eq("id", dealId).single();
+  if (!d) return;
+  const m = d.as_meta || {};
+  const upd: Record<string, unknown> = { updated_at: new Date().toISOString(), status: "open" };
+  const fee = Number(m.fee);
+  if (Number.isFinite(fee) && d.purchase_price) upd.assignment_price = Number(d.purchase_price) + fee;
+  else if (m.assignment_price) upd.assignment_price = Number(m.assignment_price);
+  if (m.buyer_id && !d.buyer_id) upd.buyer_id = Number(m.buyer_id);
+  const { data: st } = await sb.from("board_stages").select("id,name,board,position").eq("board", "buyer").order("position");
+  const esc = (st || []).find((s: any) => /escrow/i.test(s.name)) || (st || [])[0];
+  if (esc) { upd.board = "buyer"; upd.stage_id = esc.id; }
+  await sb.from("deals").update(upd).eq("id", dealId);
+  await milestone(dealId, "purchase");
+  if (d.lead_id) {
+    const order = ["record", "new", "contacted", "interested", "offer", "under_contract", "assigned", "closed"];
+    const { data: l } = await sb.from("leads").select("status").eq("id", d.lead_id).single();
+    if (order.indexOf(l?.status) < order.indexOf("assigned") && !["dead", "not_selling"].includes(l?.status))
+      await sb.from("leads").update({ status: "assigned", updated_at: new Date().toISOString() }).eq("id", d.lead_id);
+    const price = (upd.assignment_price as number) || d.assignment_price;
+    await sb.from("activity").insert({ lead_id: d.lead_id, kind: "status", body: `Assigned${m.assignee ? " to " + m.assignee : ""}${Number.isFinite(fee) ? " · $" + fee.toLocaleString() + " fee" : ""}${price ? " · $" + Number(price).toLocaleString() + " total" : ""} · moved to Escrow (RabbitSign)` });
+  }
+}
+
+async function sync(dealId: number | null, folderId: string, kind?: "psa" | "asg") {
   const r = await rs("GET", "/api/v1/folder/" + folderId);
   if (!r.ok) throw new Error("RabbitSign status failed: " + r.status + " " + r.text);
   const f = r.data || {};
-  if (!dealId) {
-    const { data: d } = await sb.from("deals").select("id").eq("rs_folder_id", folderId).maybeSingle();
-    dealId = d?.id ?? null;
+  if (!dealId || !kind) {
+    const { data: a } = await sb.from("deals").select("id").eq("as_folder_id", folderId).maybeSingle();
+    if (a) { dealId = a.id; kind = "asg"; }
+    else {
+      const { data: d } = await sb.from("deals").select("id").eq("rs_folder_id", folderId).maybeSingle();
+      dealId = d?.id ?? dealId ?? null; kind = "psa";
+    }
   }
   const signers = (f.signers || []).map((s: any) => ({ name: s.name, email: s.email, status: s.status }));
   const allSigned = !!f.downloadUrl || (signers.length > 0 && signers.every((s: any) => s.status === "SIGNED"));
   let saved: string[] = [];
   if (dealId) {
-    const { data: deal } = await sb.from("deals").select("rs_status,property_id").eq("id", dealId).single();
-    const upd: Record<string, unknown> = { rs_status: allSigned ? "signed" : (f.folderStatus || "sent").toLowerCase(), rs_signers: signers, updated_at: new Date().toISOString() };
-    if (allSigned && f.downloadUrl && deal?.rs_status !== "signed") {
-      const zip = new Uint8Array(await (await fetch(f.downloadUrl)).arrayBuffer());
-      let files: Record<string, Uint8Array> = {};
-      try { files = unzipSync(zip); } catch { files = { "Signed contract.zip": zip }; }
-      for (const [name, bytes] of Object.entries(files)) {
-        if (!bytes.length || name.endsWith("/")) continue;
-        const base = name.split("/").pop()!;
-        const nice = /audit/i.test(base) ? "Signing record (RabbitSign)" : "SIGNED - " + base.replace(/\.pdf$/i, "");
-        const path = `${dealId}/${Date.now()}-${(nice + (base.match(/\.\w+$/)?.[0] || ".pdf")).replace(/[^\w.\- ]+/g, "_")}`;
-        const type = /\.pdf$/i.test(base) ? "application/pdf" : /\.zip$/i.test(base) ? "application/zip" : "application/octet-stream";
-        const { error } = await sb.storage.from("deal-files").upload(path, bytes, { contentType: type });
-        if (!error) { await sb.from("deal_files").insert({ deal_id: dealId, property_id: deal?.property_id || null, name: `${nice} (${today()})`, storage_path: path, source: "rabbitsign" }); saved.push(nice); }
-      }
-      upd.rs_signed_at = new Date().toISOString();
-      await milestone(dealId, "purchase");
-    }
-    await sb.from("deals").update(upd).eq("id", dealId);
+    const A = kind === "asg";
+    const { data: deal } = await sb.from("deals").select("rs_status,as_status,property_id").eq("id", dealId).single();
+    const was = A ? deal?.as_status : deal?.rs_status;
+    const upd: Record<string, unknown> = { [A ? "as_status" : "rs_status"]: allSigned ? "signed" : (f.folderStatus || "sent").toLowerCase(), [A ? "as_signers" : "rs_signers"]: signers, updated_at: new Date().toISOString() };
+    if (allSigned && f.downloadUrl && was !== "signed") {
+      saved = await saveSigned(dealId, deal?.property_id || null, f.downloadUrl, A ? "SIGNED ASSIGNMENT" : "SIGNED");
+      upd[A ? "as_signed_at" : "rs_signed_at"] = new Date().toISOString();
+      await sb.from("deals").update(upd).eq("id", dealId);
+      if (A) await assigned(dealId); else await milestone(dealId, "purchase");
+    } else await sb.from("deals").update(upd).eq("id", dealId);
   }
-  return { dealId, folderStatus: f.folderStatus, allSigned, signers, saved };
+  return { dealId, kind, folderStatus: f.folderStatus, allSigned, signers, saved };
 }
 
 Deno.serve(async (req) => {
@@ -130,10 +172,12 @@ Deno.serve(async (req) => {
       if (!(await userOk(req))) return json({ error: "Please sign in to DLG HQ" }, 401);
       const b = await req.json();
       if (route === "/send") return json(await send(b));
-      const { data: d } = await sb.from("deals").select("rs_folder_id").eq("id", b.deal_id).single();
-      if (!d?.rs_folder_id) return json({ error: "This deal has not been sent through RabbitSign" }, 400);
-      if (b.remind) { const r = await rs("POST", "/api/v1/folder-notify/" + d.rs_folder_id); if (!r.ok) throw new Error("Reminder failed: " + r.status + " " + r.text); }
-      return json(await sync(Number(b.deal_id), d.rs_folder_id));
+      const kind = b.kind === "asg" ? "asg" : "psa";
+      const { data: d } = await sb.from("deals").select("rs_folder_id,as_folder_id").eq("id", b.deal_id).single();
+      const fid = kind === "asg" ? d?.as_folder_id : d?.rs_folder_id;
+      if (!fid) return json({ error: kind === "asg" ? "The assignment has not been sent through RabbitSign" : "This deal has not been sent through RabbitSign" }, 400);
+      if (b.remind) { const r = await rs("POST", "/api/v1/folder-notify/" + fid); if (!r.ok) throw new Error("Reminder failed: " + r.status + " " + r.text); }
+      return json(await sync(Number(b.deal_id), fid, kind));
     }
     // Webhook: pull the folder id out of whatever RabbitSign sent, then re-read it from RabbitSign itself.
     const raw = await req.text();

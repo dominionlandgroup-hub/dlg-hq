@@ -509,8 +509,10 @@ async function openDealForm(d){
    <div class="card"><div class="row" style="align-items:center"><h3 class="sec" style="margin:0;flex:1">Property</h3><a href="#" class="small" onclick="addPropertyFor(${d.lead_id||'null'},${d.id});return false">${p?'Change property':'+ Link property'}</a>${p?` &nbsp;·&nbsp; <a href="#" class="small" onclick="addPropertyFor(${d.lead_id||'null'},${d.id},true);return false">+ Add another parcel</a>`:''}</div>${p?`<div><a href="#" onclick="openProperty(${p.id});return false"><b>APN ${esc(p.apn||'—')}</b></a></div><div>${esc([p.address,p.city,p.state,p.zip].filter(Boolean).join(', ')||d.property_label||'')}</div><div class="small muted">${esc([p.county,p.county_state].filter(Boolean).join(', '))}${p.acres?' · '+(+p.acres).toFixed(2)+' acres':''}</div>${xp.map(x=>`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)"><a href="#" onclick="openProperty(${x.id});return false"><b>+ APN ${esc(x.apn||'—')}</b></a> <a href="#" class="small muted" onclick="dealDropParcel(${d.id},${x.id});return false">remove</a><div class="small">${esc([x.address,x.city].filter(Boolean).join(', ')||'')}</div><div class="small muted">${esc(x.county||'')}${x.acres?' · '+(+x.acres).toFixed(2)+' acres':''}</div></div>`).join('')}`:`<div>${esc(d.property_label||'')}</div><div class="muted small">No parcel linked.</div>`}</div>
    <div class="card"><h3 class="sec" style="margin-top:0">Contracts &amp; documents</h3>
      <button class="btn" style="margin-bottom:8px" onclick="contractsFor(${d.id},'psa',true)">✍ Send agreement for e-signature</button>${d.rs_folder_id?`<div class="small muted" style="margin:-4px 0 8px">Last sent ${d.rs_sent_at?new Date(d.rs_sent_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''}</div>`:''}
+     <button class="btn ghost" style="margin-bottom:8px" onclick="contractsFor(${d.id},'asg',true)">✍ Send assignment for e-signature</button>${d.as_folder_id?`<div class="small muted" style="margin:-4px 0 8px">Assignment last sent ${d.as_sent_at?new Date(d.as_sent_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''}</div>`:''}
      <div class="docbtns">${[['psa','Land Purchase Agreement'],['house','House Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,t])=>`<button class="btn ghost" onclick="contractsFor(${d.id},'${k}')">+ ${t}</button>`).join('')}</div>
      ${d.rs_folder_id?`<div class="small" style="margin-top:10px;padding:8px;border:1px solid var(--line);border-radius:8px">✍ <b>RabbitSign:</b> ${esc(rsStatusText(d))} <a href="#" onclick="rsRefresh(${d.id});return false">Refresh</a>${d.rs_status!=='signed'?` · <a href="#" onclick="rsRefresh(${d.id},true);return false">Send reminder</a>`:''}</div>`:''}
+     ${d.as_folder_id?`<div class="small" style="margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px">✍ <b>Assignment (RabbitSign):</b> ${esc(rsStatusText({rs_status:d.as_status,rs_signers:d.as_signers,rs_sent_at:d.as_sent_at,rs_signed_at:d.as_signed_at},'asg'))} <a href="#" onclick="rsRefresh(${d.id},false,'asg');return false">Refresh</a>${d.as_status!=='signed'?` · <a href="#" onclick="rsRefresh(${d.id},true,'asg');return false">Send reminder</a>`:''}</div>`:''}
      <div id="d_files" class="small" style="margin-top:10px">Loading…</div>
      <div class="row" style="margin-top:10px"><input type="file" id="d_up" multiple><button class="btn ghost" style="flex:0" onclick="uploadDealFiles(${d.id},${d.property_id||'null'})">Upload</button></div></div>`:''}
    </div><div>
@@ -770,7 +772,7 @@ async function contractsFor(id,only,send){const {data:d}=await sb.from('deals').
     ${f('crel','Record release within (days)','')}<label class="f">Additional Terms (cancellation)</label><textarea id="k_cterms" style="min-height:50px"></textarea></div>
    <div id="kx_notice" style="display:${on('notice')?'':'none'}"><h4 style="margin:14px 0 4px">Notice of Termination</h4>${f('ndate','Date of notice',today)}
     <label class="f">Section</label><select id="k_nreason"><option value="feasibility">Did not pass inspection (Section 11)</option><option value="title">No clear title</option><option value="nostudy">Seller did not allow access for inspection</option></select></div>
-   <br>${!only||only==='psa'||only==='house'?`<div class="row" style="gap:8px;flex-wrap:nowrap"><button class="btn ghost" id="k_go" onclick="makeContracts(${id})" style="flex:1">Save PDF to deal only</button><button class="btn" onclick="rsSendDialog(${id})" style="flex:1">✍ Send for e-signature</button></div><div class="small muted" style="margin-top:6px">Send for e-signature also saves the PDF to the deal. Use "Save PDF only" if you're not sending it yet.</div>`:`<button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">Create ${only?DOCN[only]:'documents'} (PDF)</button>`}<div id="k_msg" class="small" style="margin-top:8px"></div></div>`);if(send)rsSendDialog(id)}
+   <br>${!only||only==='psa'||only==='house'||only==='asg'?`<div class="row" style="gap:8px;flex-wrap:nowrap"><button class="btn ghost" id="k_go" onclick="makeContracts(${id})" style="flex:1">Save PDF to deal only</button><button class="btn" onclick="rsSendDialog(${id})" style="flex:1">✍ Send for e-signature</button></div><div class="small muted" style="margin-top:6px">Send for e-signature also saves the PDF to the deal. Use "Save PDF only" if you're not sending it yet.</div>`:`<button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">Create ${only?DOCN[only]:'documents'} (PDF)</button>`}<div id="k_msg" class="small" style="margin-top:8px"></div></div>`);if(send)rsSendDialog(id)}
 function kDeal(){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?undefined:Number(g(k));
   const which={psa:$('w_psa').checked,house:$('w_house').checked,asg:$('w_asg').checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};
   const deal={contract_date:g('contract_date'),sellers:g('sellers').split(/\s+and\s+/i).filter(Boolean),property_address:g('address'),apn:g('apn'),legal_description:g('legal'),purchase_price:num('price'),emd:num('emd'),
@@ -817,7 +819,7 @@ async function contractPdf(deal,kind){const PL=await pdfLibLoad();
     for(const L of lines){if(y+lh>MB)newPage();const base=y+sz;let off=0;
       if(po.alignment==='center'){const used=L.end-L.start;off=(MR-ML-used)/2-(L.start-ML)}
       for(const it of L.items){if(it.w===' ')continue;page.drawText(it.w,{x:it.x+off,y:H-base,size:it.z,font:it.f});if(it.u)page.drawLine({start:{x:it.x+off,y:H-base-1.5},end:{x:it.x+off+it.wd,y:H-base-1.5},thickness:0.5})}
-      if(/_{15,}/.test(ptext)&&/date/i.test(ptext)&&(/^_{15,}/.test(ptext.trim())||/^\s*(SELLER|BUYER)/i.test(ptext))){const first=L.items.find(i=>/_{10,}/.test(i.w));const dl=L.items.filter(i=>/_{8,}/.test(i.w)).pop();
+      if(/_{15,}/.test(ptext)&&/date/i.test(ptext)&&(/^_{15,}/.test(ptext.trim())||/^\s*(SELLER|BUYER|ASSIGNOR|ASSIGNEE)/i.test(ptext))){const first=L.items.find(i=>/_{10,}/.test(i.w));const dl=L.items.filter(i=>/_{8,}/.test(i.w)).pop();
         const label=(ptext.match(/^\s*([A-Za-z() ]+):/)||[])[1]||'';const nextTxt=(paras[idx+1]?.children||[]).map(r=>r.o.text||'').join('').trim();
         sigs.push({page:pi,label:label.trim(),name:/^_/.test(ptext.trim())?nextTxt:'',sx:(first?.x||ML)+off,sw:first?.wd||180,dx:(dl&&dl!==first?dl.x:(first?.x||ML)+200)+off,dw:dl&&dl!==first?dl.wd:90,base,pageH:H})}
       y+=lh}
@@ -828,9 +830,9 @@ function rsAssign(sigs,sellers){const out={buyer:null,sellers:[]};let si=0;
   for(const g of sigs){const isBuyer=/dominion|buyer/i.test(g.name+' '+g.label)&&!/seller/i.test(g.label);if(isBuyer){if(!out.buyer)out.buyer=g}else if(si<Math.max(1,sellers.length)){out.sellers.push(g);si++}}
   return out}
 const RS_FIELD=(g,type)=>type==='SIGNATURE'?{type,page:g.page,x:g.sx,y:g.base-15,w:Math.min(g.sw,200),h:17}:{type:'LOCAL_DATE',page:g.page,x:g.dx,y:g.base-13,w:Math.max(g.dw,60),h:14};
-function rsStatusText(d){const st=d.rs_status||'sent';const who=(d.rs_signers||[]).map(s=>`${s.name||s.email}: ${String(s.status||'').toLowerCase()}`).join(' · ');
-  return (st==='signed'?'Signed by everyone'+(d.rs_signed_at?' on '+new Date(d.rs_signed_at).toLocaleDateString():'')+' — signed copy is in the files below':'Sent '+(d.rs_sent_at?new Date(d.rs_sent_at).toLocaleDateString():'')+' · waiting for signatures')+(who?' ('+who+')':'')}
-async function rsSendDialog(id){const {deal,which}=kDeal();const kind=which.house&&!which.psa?'house':'psa';
+function rsStatusText(d,kind){const st=d.rs_status||'sent';const who=(d.rs_signers||[]).map(s=>`${s.name||s.email}: ${String(s.status||'').toLowerCase()}`).join(' · ');
+  return (st==='signed'?'Signed by everyone'+(d.rs_signed_at?' on '+new Date(d.rs_signed_at).toLocaleDateString():'')+(kind==='asg'?' — signed copy is in the files below, moved to Escrow':' — signed copy is in the files below'):'Sent '+(d.rs_sent_at?new Date(d.rs_sent_at).toLocaleDateString():'')+' · waiting for signatures')+(who?' ('+who+')':'')}
+async function rsSendDialog(id){const {deal,which}=kDeal();if(which.asg&&!which.psa&&!which.house)return rsAsgDialog(id);const kind=which.house&&!which.psa?'house':'psa';
   const {data:d}=await sb.from('deals').select('lead_id,rs_folder_id,rs_status, leads(email,full_name)').eq('id',id).single();
   if(d?.rs_folder_id&&d.rs_status!=='signed'&&!confirm('This deal was already sent through RabbitSign. Send a new one anyway?'))return;
   const sellers=deal.sellers.length?deal.sellers:[d?.leads?.full_name||'Seller'];let me={name:'Damien Dupee',email:'dominionlandgroup@gmail.com'};try{me=JSON.parse(localStorage.getItem('rs_me'))||me}catch(e){}
@@ -864,9 +866,54 @@ async function rsSend(id,kind,n,leadId){const {deal}=kDeal();const v=k=>($(k)?.v
     if(cs&&cur?.board==='seller'&&cur.stage_id!==cs.id)await sb.from('deals').update({stage_id:cs.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id);
     $('rs_out').innerHTML=`✅ Sent. Check <b>${esc(me.email)}</b> — RabbitSign emails you first to sign${data.ordered?'':' (the seller may get theirs at the same time)'}. Moved to Contract Sent.`;toast('Sent through RabbitSign')}
   catch(e){$('rs_out').textContent='Not sent: '+e.message}finally{btn.disabled=false;btn.textContent='Send for signature'}}
-async function rsRefresh(id,remind){toast(remind?'Sending reminder…':'Checking RabbitSign…');const {data,error}=await sb.functions.invoke('rabbitsign/status',{body:{deal_id:id,remind:!!remind}});
+// ---------- Assignment e-signature: signed purchase agreement in front, assignment behind it ----------
+async function rsSignedPsa(id){const {data:fs}=await sb.from('deal_files').select('name,storage_path,created_at').eq('deal_id',id).is('deleted_at',null).order('created_at',{ascending:false});
+  const pdfs=(fs||[]).filter(f=>/\.pdf$/i.test(f.storage_path)&&!/record|assignment/i.test(f.name));
+  return pdfs.find(f=>/^SIGNED -/i.test(f.name))||null}
+async function rsAsgDialog(id){const {deal}=kDeal();
+  const {data:d}=await sb.from('deals').select('buyer_id,as_folder_id,as_status, buyers(id,name,company,represents,email)').eq('id',id).single();
+  if(d?.as_folder_id&&d.as_status!=='signed'&&!confirm('An assignment for this deal was already sent through RabbitSign. Send a new one anyway?'))return;
+  const psa=await rsSignedPsa(id);let me={name:'Damien Dupee',email:'dominionlandgroup@gmail.com'};try{me=JSON.parse(localStorage.getItem('rs_me'))||me}catch(e){}
+  const b=d?.buyers||{};if(!BUYERS)BUYERS=(await sb.from('buyers').select('id,name').order('name')).data||[];
+  $('k_msg').innerHTML=`<div class="card" style="margin-top:10px"><h4 style="margin:0 0 6px">Send Assignment for e-signature</h4>
+    <div class="small muted" style="margin-bottom:8px">One PDF goes out: the signed purchase agreement in front, the assignment behind it. You sign first, then the buyer. When both have signed, the signed copy is saved to this deal, the deal moves to <b>Buyer Deals › Escrow</b>, and the assignment price is filled in.</div>
+    <div class="small" style="margin-bottom:8px;padding:8px;border:1px solid var(--line);border-radius:8px">${psa?`📎 Front: <b>${esc(psa.name)}</b>`:`⚠️ No signed purchase agreement found on this deal. It will go out with the assignment only, unless you upload the signed copy first (name it starting with "SIGNED -").`}</div>
+    <label class="f">Title (shows in the email)</label><input id="rs_title" value="${esc(deal.property_address||'Assignment of Contract')}">
+    <label class="f">Message</label><input id="rs_msg" value="Please review and approve.">
+    <h4 style="margin:10px 0 4px">1. You (Assignor)</h4><div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">Name</label><input id="rs_me_name" value="${esc(me.name)}"></div><div><label class="f">Email</label><input id="rs_me_email" value="${esc(me.email)}"></div></div>
+    <h4 style="margin:10px 0 4px">2. Buyer (Assignee)</h4><label class="f">Buyer in DLG HQ</label><select id="rs_buyer" onchange="rsAsgBuyer(this.value)"><option value="">—</option>${(BUYERS||[]).map(x=>`<option value="${x.id}" ${x.id===(d?.buyer_id||b.id)?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
+    <div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">Signer name</label><input id="rs_b_name" value="${esc(b.name||'')}"></div><div><label class="f">Email</label><input id="rs_b_email" value="${esc(b.email||'')}" placeholder="buyer@email.com"></div></div>
+    <button class="btn" id="rs_go" style="width:100%;margin-top:10px" onclick="rsAsgSend(${id})">Send for signature</button><div id="rs_out" class="small" style="margin-top:6px"></div></div>`;
+  $('rs_title').scrollIntoView({behavior:'smooth',block:'center'})}
+async function rsAsgBuyer(bid){if(!bid)return;const {data:b}=await sb.from('buyers').select('name,email').eq('id',bid).single();if(b){$('rs_b_name').value=b.name||'';$('rs_b_email').value=b.email||''}}
+async function rsAsgSend(id){const {deal}=kDeal();const v=k=>($(k)?.value||'').trim();const em=x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
+  const me={name:v('rs_me_name'),email:v('rs_me_email').toLowerCase()};const buyer={name:v('rs_b_name'),email:v('rs_b_email').toLowerCase()};
+  if(!em(me.email))return toast('Enter your email');if(!em(buyer.email))return toast("Enter the buyer's email");if(buyer.email===me.email)return toast("The buyer's email can't be the same as yours");
+  if(!deal.assignment.assignee)return toast('Fill in the Assignee name');
+  const btn=$('rs_go');btn.disabled=true;btn.textContent='Building the PDF…';
+  try{try{localStorage.setItem('rs_me',JSON.stringify(me))}catch(e){}const PL=await pdfLibLoad();await docxLib();
+    const {bytes:abytes,sigs}=await contractPdf(deal,'asg');
+    const g1=sigs.find(g=>/assignor/i.test(g.label)),g2=sigs.find(g=>/assignee/i.test(g.label));if(!g1||!g2)throw new Error('Could not find the signature lines in the assignment');
+    const out=await PL.PDFDocument.create();let front=0;const psa=await rsSignedPsa(id);
+    if(psa){const {data:fb,error:fe}=await sb.storage.from('deal-files').download(psa.storage_path);if(fe)throw new Error('Could not open the signed purchase agreement: '+fe.message);
+      const src=await PL.PDFDocument.load(await fb.arrayBuffer(),{ignoreEncryption:true});const pgs=await out.copyPages(src,src.getPageIndices());pgs.forEach(p=>out.addPage(p));front=pgs.length}
+    const asrc=await PL.PDFDocument.load(abytes);(await out.copyPages(asrc,asrc.getPageIndices())).forEach(p=>out.addPage(p));const bytes=await out.save();
+    const sh=g=>({...g,page:g.page+front});
+    const signers=[{...me,order:1,fields:[RS_FIELD(sh(g1),'SIGNATURE'),RS_FIELD(sh(g1),'LOCAL_DATE')]},{...buyer,order:2,fields:[RS_FIELD(sh(g2),'SIGNATURE'),RS_FIELD(sh(g2),'LOCAL_DATE')]}];
+    let bin='';const u8=new Uint8Array(bytes);for(let i=0;i<u8.length;i+=32768)bin+=String.fromCharCode.apply(null,u8.subarray(i,i+32768));
+    const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const fname=`Assignment of Contract - ${slug}.pdf`;
+    const fee=deal.assignment.assignment_fee;const bid=Number(v('rs_buyer'))||null;
+    const asg_meta={assignee:deal.assignment.assignee,fee:Number.isFinite(fee)?fee:null,buyer_id:bid,assignment_price:Number.isFinite(fee)&&deal.purchase_price?deal.purchase_price+fee:null,signed_psa_in_front:!!psa};
+    btn.textContent='Sending…';const {data,error}=await sb.functions.invoke('rabbitsign/send',{body:{deal_id:id,doc_kind:'asg',asg_meta,pdf_base64:btoa(bin),file_name:fname,title:v('rs_title'),summary:v('rs_msg'),signers}});
+    if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}if(data?.error)throw new Error(data.error);
+    if(bid)await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);
+    const blob=new Blob([bytes],{type:'application/pdf'});const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
+    if(!(await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/pdf'})).error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`Sent for signature - Assignment${psa?' (with signed purchase agreement)':''} - ${slug} (${new Date().toLocaleDateString()})`,storage_path:path,source:'rabbitsign'});
+    $('rs_out').innerHTML=`✅ Sent. Check <b>${esc(me.email)}</b> — RabbitSign emails you first to sign, then <b>${esc(buyer.email)}</b>. When both sign, this deal moves to Escrow automatically.`;toast('Assignment sent through RabbitSign')}
+  catch(e){$('rs_out').textContent='Not sent: '+e.message}finally{btn.disabled=false;btn.textContent='Send for signature'}}
+async function rsRefresh(id,remind,kind){toast(remind?'Sending reminder…':'Checking RabbitSign…');const {data,error}=await sb.functions.invoke('rabbitsign/status',{body:{deal_id:id,remind:!!remind,kind:kind||'psa'}});
   if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}return toast(m)}if(data?.error)return toast(data.error);
-  toast(data.allSigned?'Signed by everyone — signed copy saved to this deal':remind?'Reminder sent':'Still waiting on signatures');openDeal(id)}
+  toast(data.allSigned?(kind==='asg'?'Assignment signed — saved to this deal and moved to Escrow':'Signed by everyone — signed copy saved to this deal'):remind?'Reminder sent':'Still waiting on signatures');openDeal(id)}
 
 // ---------- inboxes ----------
 // ---------- inboxes (modeled on Pebble: list · conversation · contact/deal panel) ----------
