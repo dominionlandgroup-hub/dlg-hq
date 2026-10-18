@@ -5,23 +5,28 @@
 const LB = window.LB = {};
 LB.RULES = {
   size: 1000,             // records per weekly list
-  radiusMi: [3, 6, 10],   // search rings around each closed deal, widened only if short
+  radiusMi: [0.25, 0.5, 1], // search rings around each closed deal and under-contract deal (Damien, Oct 17: close only)
   minAcres: 0.14, maxAcres: 2.2,
   minAvgWidthFt: 50,      // every closed deal is 50 ft+ on average
   minCompact: 0.25,       // below this the parcel is a sliver
   minFrontageFt: 25,      // must touch a public road
   minYearsOwned: 5,       // skip owners who bought in the last 5 years (they rarely sell and are often about to build)
+  requireSaleDate: true,  // Damien (Oct 17): no lot without a recorded last sale date is mailed (5 years can't be confirmed)
+  stateOnly: 'NC',        // Damien (Oct 17): North Carolina only for now
+  // Damien (Oct 18): if a buy-box ZIP outline won't load, pull the parcels whose site city matches (no city boundary file needed)
+  zipCityFallback: { '28002': { county: 'Stanly', city: 'ALBEMARLE' }, '28145': { county: 'Rowan', city: 'SALISBURY' } },
   recentDays: 90,         // skip anyone mailed in the last 90 days
   maxTouchesPerYear: 3,   // 3 letters in 12 months, then they rest until a year has passed
   costPerPiece: 0.55,     // postage + print per letter
   rampSize: 500, rampUntil: '2026-10-01', // ramp finished: full 1,000 a week (Damien, Oct 11)
   countyCapPct: 0.30,     // no county gets more than 30% of a list
   churchShare: 0.10,      // church-owned lots: Mecklenburg only, at most 10% of a list
-  marketShare: 0.40,      // water & sewer markets get 2 of every 5 picks (Mecklenburg church lots first)
+  marketShare: 0,         // water & sewer share turned off (Damien, Oct 17)
   maxSlopePct: 10,       // average ground slope across the lot (NC 3-ft LiDAR); infill builders grade to ~2%
   minLandValue: 15000,
   // water & sewer markets (Damien, Oct 2026): pulled every week; only lots inside a public sewer area are mailed here
-  sewerMarkets: [
+  sewerMarkets: [], // turned off (Damien, Oct 17). Previous list kept below for reference:
+  _oldSewerMarkets: [
     { county: 'Mecklenburg', state: 'NC' },
     { county: 'Gaston', state: 'NC', zips: ['28052', '28054', '28056', '28120', '28098'] }, // Gastonia, Mount Holly, Lowell
     { county: 'Iredell', state: 'NC', zips: ['28625', '28677', '28115', '28117'] },         // Statesville, Mooresville
@@ -39,7 +44,8 @@ const NC = { oid: 'objectid', name: 'NC statewide parcels', url: 'https://servic
   fields: 'saledate,parno,altparno,ownname,ownfrst,ownlast,mailadd,munit,mcity,mstate,mzip,siteadd,scity,szip,gisacres,improvval,struct,landval,parusedesc,legdecfull,cntyname,stcntyfips',
   countyWhere: c => `cntyname='${c.replace(/'/g, "''")}'`,
   vacantWhere: (a, b) => `(improvval=0 OR improvval IS NULL) AND (struct IS NULL OR struct<>'Y') AND gisacres>=${a} AND gisacres<=${b}`,
-  map: a => ({ saleDate: a.saledate || null, landval: a.landval, apn: a.parno, apn2: a.altparno, owner: a.ownname, first: a.ownfrst, last: a.ownlast, mail: [a.mailadd, a.munit].filter(Boolean).join(' '), mcity: a.mcity, mstate: a.mstate, mzip: a.mzip,
+  // NC parcels use 1900-01-01 as a placeholder when no sale is recorded: treat any date before 1950 as no sale date
+  map: a => ({ saleDate: (a.saledate && new Date(a.saledate).getUTCFullYear() >= 1950) ? a.saledate : null, landval: a.landval, apn: a.parno, apn2: a.altparno, owner: a.ownname, first: a.ownfrst, last: a.ownlast, mail: [a.mailadd, a.munit].filter(Boolean).join(' '), mcity: a.mcity, mstate: a.mstate, mzip: a.mzip,
     site: a.siteadd, scity: a.scity, szip: a.szip, acres: a.gisacres, built: (a.improvval || 0) > 0 || a.struct === 'Y', use: a.parusedesc, legal: a.legdecfull, county: titleCase(a.cntyname || ''), state: 'NC', fips: a.stcntyfips }) };
 const YORK = { oid: 'OBJECTID', name: 'York County SC parcels', url: 'https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0',
   fields: 'DateSold,ParcelID,AprLandVal,Owner1,Owner2,MailAddr1,MailAddr2,MailCity,MailState,MailZip,PropertyAddress,GISSizeAC,deededacres,AprBldgVal,BuildingCount,ImprovedStatus,LandUseDesc,LegalDescription',
@@ -172,21 +178,24 @@ function floodShare(rings, flood) {
 
 // ---- targets: closed deals + buy boxes ----
 LB.targets = async function () {
-  // closed deals plus everything under contract / in escrow (New Inventory through Take Down)
+  // Damien (Oct 17): only the cities/zips and map points of closed deals, deals under contract and builder buy boxes.
+  // No whole-county pulls. North Carolina only for now.
   const { data: deals } = await sb.from('deals').select('id,stage_id,status,property_label,properties(lat,lng,county,state)').in('stage_id', LB.RULES.targetStages).limit(2000);
-  const pts = [], missing = new Set(), counties = new Map();
-  (deals || []).forEach(d => { const p = d.properties || {}; if (!p.state || !p.county) return; const key = p.state + '|' + p.county;
+  const pts = [], missing = new Set();
+  (deals || []).forEach(d => { const p = d.properties || {}; if (!p.state || !p.county) return;
     if (d.stage_id !== 16 && ['lost', 'dead'].includes(d.status)) return;
-    if (LB.RULES.skipCounties.some(c => c.toLowerCase() === (p.county + ', ' + p.state).toLowerCase())) return;
+    if (p.state !== LB.RULES.stateOnly) return;
     d.why = d.stage_id === 16 ? 'closed deal' : 'under contract / escrow';
     if (!LB.source(p.state, p.county)) { missing.add(`${p.county} County, ${p.state}`); return; }
     if (p.lat && p.lng) pts.push({ lat: p.lat, lng: p.lng, county: p.county, state: p.state, why: d.why });
-    else counties.set(key, { county: p.county, state: p.state, why: d.why + ' (no map point)' }); });
+    else missing.add(`${p.county} County, ${p.state} (deal has no map point)`); });
   const { data: buyers } = await sb.from('buyers').select('id,name,company,counties,zips,min_acres,max_acres').limit(2000);
-  (buyers || []).forEach(b => (b.counties || []).forEach(c => { const st0 = /^(york|lancaster|chester|charleston|berkeley|dorchester|horry|greenville|spartanburg)$/i.test(c) ? 'SC' : 'NC'; if (LB.RULES.skipCounties.some(x => x.toLowerCase() === (c + ', ' + st0).toLowerCase())) return; const st = /^(york|lancaster|chester|charleston|berkeley|dorchester|horry|greenville|spartanburg)$/i.test(c) ? 'SC' : 'NC';
-    if (!LB.source(st, c)) { missing.add(`${c} County, ${st}`); return; }
-    const key = st + '|' + c; if (!counties.has(key)) counties.set(key, { county: c, state: st, why: 'buy box: ' + (b.company || b.name) }); }));
-  return { pts, counties: [...counties.values()], missing: [...missing] };
+  // NC zips start with 27 or 28. The NC parcel source is statewide and the zip outline limits the area, so no county filter is needed.
+  const zips = new Map();
+  (buyers || []).forEach(b => { const who = b.company || b.name || 'buy box';
+    (String(b.zips || '').match(/\b\d{5}\b/g) || []).filter(z => /^2[78]/.test(z)).forEach(z => {
+      if (!zips.has(z)) zips.set(z, { zip: z, why: 'buy box: ' + who }); }); });
+  return { pts, counties: [], zips: [...zips.values()], missing: [...missing] };
 };
 
 // ---- ZIP code outlines (US Census ZCTA) ----
@@ -282,7 +291,7 @@ LB.run = async function (opt = {}) {
   const cutAdd = (why) => { st.cut[why] = (st.cut[why] || 0) + 1; };
   try {
     st.phase = 'targets'; const T = opt.targets || await LB.targets();
-    log(`Targets: ${T.pts.length} closed-deal spots, ${T.counties.length} buy-box/closed-deal counties.` + (T.missing.length ? ` No county data connected for: ${T.missing.join(', ')}.` : ''));
+    log(`Targets: ${T.pts.length} deal spots (closed + under contract), ${(T.zips || []).length} buy-box ZIPs, ${T.counties.length} whole counties.` + (T.missing.length ? ` Not pulled: ${T.missing.join(', ')}.` : ''));
     st.missing = T.missing;
     const seen = new Set(), cands = [];
     const addFeat = (src, f, why) => { const r = src.map(f.attributes); const k = r.state + '|' + r.apn; if (!r.apn || seen.has(k)) return; seen.add(k);
@@ -295,6 +304,17 @@ LB.run = async function (opt = {}) {
       log(`Within ${ring} miles of closed deals: ${cands.length.toLocaleString()} vacant lots in the size range.`);
       if (cands.length >= R.size * 8) break;
     }
+    // buy-box zips (NC): lots inside each zip outline only, never a whole county
+    for (const z of (T.zips || [])) { const src = LB.source('NC'); if (R.stateOnly && R.stateOnly !== 'NC') continue;
+      const zr = await zipRings(z.zip);
+      if (!zr) { const cf = R.zipCityFallback[z.zip]; if (!cf) { log('Could not load ZIP ' + z.zip); continue; }
+        const cs = LB.source('NC'); const cityFs = await pullArea(cs, cs.countyWhere(cf.county) + " AND UPPER(scity)='" + cf.city + "' AND " + cs.vacantWhere(R.minAcres, R.maxAcres), null, 4000, log);
+        cityFs.forEach(f => addFeat(cs, f, z.why + ' (' + cf.city + ' city limits)'));
+        log(`ZIP ${z.zip} outline unavailable; used ${cf.city} city: ${cityFs.length.toLocaleString()} lots pulled.`); continue; }
+      let zx1 = 1e9, zy1 = 1e9, zx2 = -1e9, zy2 = -1e9; zr.flat().forEach(([x, y]) => { if (x < zx1) zx1 = x; if (x > zx2) zx2 = x; if (y < zy1) zy1 = y; if (y > zy2) zy2 = y; });
+      const zf = await pullArea(src, src.vacantWhere(R.minAcres, R.maxAcres), { geometry: `${zx1},${zy1},${zx2},${zy2}`, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects' }, 4000, log);
+      zf.forEach(f => { if (inPoly(centroid(f.geometry.rings), zr)) addFeat(src, f, z.why); }); }
+    log(`Buy-box ZIPs pulled: ${(T.zips || []).length}.`);
     for (const c of T.counties) { if (cands.length >= R.size * 8) break; const src = LB.source(c.state, c.county);
       const fs = await pullArea(src, src.countyWhere(c.county) + ' AND ' + src.vacantWhere(R.minAcres, R.maxAcres), null, 3000, log); fs.forEach(f => addFeat(src, f, c.why));
       log(`${c.county} County ${c.state} (${c.why}): ${fs.length.toLocaleString()} lots pulled.`); }
@@ -324,6 +344,7 @@ LB.run = async function (opt = {}) {
     for (const c of cands) { const r = c.r, nm = LB.names(r);
       if (c.dist < 0.03) { cutAdd('your own deal lot'); continue; }
       if (BUILDER.test(r.owner || '')) { cutAdd('builder / developer owner'); continue; }
+      if (R.requireSaleDate && !r.saleDate) { cutAdd('no sale date on record (5 years not confirmed)'); continue; }
       if (r.saleDate && R.minYearsOwned && r.saleDate > Date.now() - R.minYearsOwned * 365.25 * 864e5) { cutAdd('bought in the last ' + R.minYearsOwned + ' years'); continue; }
       if (BIGBUYER.test(r.owner || '')) { cutAdd('buys land, never sells (e.g. Elevation Church)'); continue; }
       if (buyerNames.has(normOwner(r.owner))) { cutAdd('one of your buyers'); continue; }
