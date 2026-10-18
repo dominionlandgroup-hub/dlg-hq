@@ -13,6 +13,8 @@ LB.RULES = {
   minYearsOwned: 5,       // skip owners who bought in the last 5 years (they rarely sell and are often about to build)
   requireSaleDate: true,  // Damien (Oct 17): no lot without a recorded last sale date is mailed (5 years can't be confirmed)
   stateOnly: 'NC',        // Damien (Oct 17): North Carolina only for now
+  // Damien (Oct 18): if a buy-box ZIP outline won't load, pull the parcels whose site city matches (no city boundary file needed)
+  zipCityFallback: { '28002': { county: 'Stanly', city: 'ALBEMARLE' }, '28145': { county: 'Rowan', city: 'SALISBURY' } },
   recentDays: 90,         // skip anyone mailed in the last 90 days
   maxTouchesPerYear: 3,   // 3 letters in 12 months, then they rest until a year has passed
   costPerPiece: 0.55,     // postage + print per letter
@@ -304,7 +306,11 @@ LB.run = async function (opt = {}) {
     }
     // buy-box zips (NC): lots inside each zip outline only, never a whole county
     for (const z of (T.zips || [])) { const src = LB.source('NC'); if (R.stateOnly && R.stateOnly !== 'NC') continue;
-      const zr = await zipRings(z.zip); if (!zr) { log('Could not load ZIP ' + z.zip); continue; }
+      const zr = await zipRings(z.zip);
+      if (!zr) { const cf = R.zipCityFallback[z.zip]; if (!cf) { log('Could not load ZIP ' + z.zip); continue; }
+        const cs = LB.source('NC'); const cityFs = await pullArea(cs, cs.countyWhere(cf.county) + " AND UPPER(scity)='" + cf.city + "' AND " + cs.vacantWhere(R.minAcres, R.maxAcres), null, 4000, log);
+        cityFs.forEach(f => addFeat(cs, f, z.why + ' (' + cf.city + ' city limits)'));
+        log(`ZIP ${z.zip} outline unavailable; used ${cf.city} city: ${cityFs.length.toLocaleString()} lots pulled.`); continue; }
       let zx1 = 1e9, zy1 = 1e9, zx2 = -1e9, zy2 = -1e9; zr.flat().forEach(([x, y]) => { if (x < zx1) zx1 = x; if (x > zx2) zx2 = x; if (y < zy1) zy1 = y; if (y > zy2) zy2 = y; });
       const zf = await pullArea(src, src.vacantWhere(R.minAcres, R.maxAcres), { geometry: `${zx1},${zy1},${zx2},${zy2}`, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects' }, 4000, log);
       zf.forEach(f => { if (inPoly(centroid(f.geometry.rings), zr)) addFeat(src, f, z.why); }); }
