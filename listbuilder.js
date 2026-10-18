@@ -42,7 +42,8 @@ const NC = { oid: 'objectid', name: 'NC statewide parcels', url: 'https://servic
   fields: 'saledate,parno,altparno,ownname,ownfrst,ownlast,mailadd,munit,mcity,mstate,mzip,siteadd,scity,szip,gisacres,improvval,struct,landval,parusedesc,legdecfull,cntyname,stcntyfips',
   countyWhere: c => `cntyname='${c.replace(/'/g, "''")}'`,
   vacantWhere: (a, b) => `(improvval=0 OR improvval IS NULL) AND (struct IS NULL OR struct<>'Y') AND gisacres>=${a} AND gisacres<=${b}`,
-  map: a => ({ saleDate: a.saledate || null, landval: a.landval, apn: a.parno, apn2: a.altparno, owner: a.ownname, first: a.ownfrst, last: a.ownlast, mail: [a.mailadd, a.munit].filter(Boolean).join(' '), mcity: a.mcity, mstate: a.mstate, mzip: a.mzip,
+  // NC parcels use 1900-01-01 as a placeholder when no sale is recorded: treat any date before 1950 as no sale date
+  map: a => ({ saleDate: (a.saledate && new Date(a.saledate).getUTCFullYear() >= 1950) ? a.saledate : null, landval: a.landval, apn: a.parno, apn2: a.altparno, owner: a.ownname, first: a.ownfrst, last: a.ownlast, mail: [a.mailadd, a.munit].filter(Boolean).join(' '), mcity: a.mcity, mstate: a.mstate, mzip: a.mzip,
     site: a.siteadd, scity: a.scity, szip: a.szip, acres: a.gisacres, built: (a.improvval || 0) > 0 || a.struct === 'Y', use: a.parusedesc, legal: a.legdecfull, county: titleCase(a.cntyname || ''), state: 'NC', fips: a.stcntyfips }) };
 const YORK = { oid: 'OBJECTID', name: 'York County SC parcels', url: 'https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0',
   fields: 'DateSold,ParcelID,AprLandVal,Owner1,Owner2,MailAddr1,MailAddr2,MailCity,MailState,MailZip,PropertyAddress,GISSizeAC,deededacres,AprBldgVal,BuildingCount,ImprovedStatus,LandUseDesc,LegalDescription',
