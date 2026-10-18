@@ -187,13 +187,11 @@ LB.targets = async function () {
     if (p.lat && p.lng) pts.push({ lat: p.lat, lng: p.lng, county: p.county, state: p.state, why: d.why });
     else missing.add(`${p.county} County, ${p.state} (deal has no map point)`); });
   const { data: buyers } = await sb.from('buyers').select('id,name,company,counties,zips,min_acres,max_acres').limit(2000);
+  // NC zips start with 27 or 28. The NC parcel source is statewide and the zip outline limits the area, so no county filter is needed.
   const zips = new Map();
   (buyers || []).forEach(b => { const who = b.company || b.name || 'buy box';
-    const nc = (b.counties || []).filter(c => !/^(york|lancaster|chester|charleston|berkeley|dorchester|horry|greenville|spartanburg)$/i.test(c));
     (String(b.zips || '').match(/\b\d{5}\b/g) || []).filter(z => /^2[78]/.test(z)).forEach(z => {
-      if (zips.has(z)) return;
-      if (!nc.length) { missing.add(`zip ${z} (buy box has no NC county)`); return; }
-      zips.set(z, { zip: z, county: nc[0], why: 'buy box: ' + who }); }); });
+      if (!zips.has(z)) zips.set(z, { zip: z, why: 'buy box: ' + who }); }); });
   return { pts, counties: [], zips: [...zips.values()], missing: [...missing] };
 };
 
@@ -290,7 +288,7 @@ LB.run = async function (opt = {}) {
   const cutAdd = (why) => { st.cut[why] = (st.cut[why] || 0) + 1; };
   try {
     st.phase = 'targets'; const T = opt.targets || await LB.targets();
-    log(`Targets: ${T.pts.length} closed-deal spots, ${T.counties.length} buy-box/closed-deal counties.` + (T.missing.length ? ` No county data connected for: ${T.missing.join(', ')}.` : ''));
+    log(`Targets: ${T.pts.length} deal spots (closed + under contract), ${(T.zips || []).length} buy-box ZIPs, ${T.counties.length} whole counties.` + (T.missing.length ? ` Not pulled: ${T.missing.join(', ')}.` : ''));
     st.missing = T.missing;
     const seen = new Set(), cands = [];
     const addFeat = (src, f, why) => { const r = src.map(f.attributes); const k = r.state + '|' + r.apn; if (!r.apn || seen.has(k)) return; seen.add(k);
@@ -304,10 +302,10 @@ LB.run = async function (opt = {}) {
       if (cands.length >= R.size * 8) break;
     }
     // buy-box zips (NC): lots inside each zip outline only, never a whole county
-    for (const z of (T.zips || [])) { const src = LB.source(LB.RULES.stateOnly, z.county); if (!src) continue;
+    for (const z of (T.zips || [])) { const src = LB.source('NC'); if (R.stateOnly && R.stateOnly !== 'NC') continue;
       const zr = await zipRings(z.zip); if (!zr) { log('Could not load ZIP ' + z.zip); continue; }
       let zx1 = 1e9, zy1 = 1e9, zx2 = -1e9, zy2 = -1e9; zr.flat().forEach(([x, y]) => { if (x < zx1) zx1 = x; if (x > zx2) zx2 = x; if (y < zy1) zy1 = y; if (y > zy2) zy2 = y; });
-      const zf = await pullArea(src, src.countyWhere(z.county) + ' AND ' + src.vacantWhere(R.minAcres, R.maxAcres), { geometry: `${zx1},${zy1},${zx2},${zy2}`, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects' }, 4000, log);
+      const zf = await pullArea(src, src.vacantWhere(R.minAcres, R.maxAcres), { geometry: `${zx1},${zy1},${zx2},${zy2}`, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects' }, 4000, log);
       zf.forEach(f => { if (inPoly(centroid(f.geometry.rings), zr)) addFeat(src, f, z.why); }); }
     log(`Buy-box ZIPs pulled: ${(T.zips || []).length}.`);
     for (const c of T.counties) { if (cands.length >= R.size * 8) break; const src = LB.source(c.state, c.county);
