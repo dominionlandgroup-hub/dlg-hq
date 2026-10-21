@@ -387,7 +387,7 @@ async function vDashboard(){
   const profit=rev-spent,avgDur=durs.length?Math.round(durs.reduce((s,x)=>s+x,0)/durs.length):0;
   // Pipeline status comes from the deals' Buyer Deals stages (not the transaction log).
   // Assigned = buyer-board stage named assign* or closed. Under contract = other buyer-board deals, excluding no-go/dead.
-  const {data:allDeals}=await sb.from('deals').select('id,board,stage_id,campaign_id,property_id,property_label,purchase_price,assignment_price,updated_at').limit(5000);
+  const {data:allDeals}=await sb.from('deals').select('id,board,stage_id,campaign_id,property_id,property_label,purchase_price,assignment_price,value,closing_date,updated_at').limit(5000);
   const stName=id=>(STAGES.find(s=>s.id===id)?.name||'');
   const isNoGo=n=>/no go|dead|lost|fell/i.test(n);
   const isAssignedD=d=>{const s=STAGES.find(x=>x.id===d.stage_id);return !!(s&&(s.closed||/^closed$/i.test(s.name)||/assign/i.test(s.name)))};
@@ -398,7 +398,8 @@ async function vDashboard(){
   const isClosedD=d=>{const s=STAGES.find(x=>x.id===d.stage_id);return !!(s&&(s.closed||/^closed$/i.test(s.name)))};
   const buyerD=(allDeals||[]).filter(d=>d.board==='buyer');
   const underD=buyerD.filter(d=>/assigned to buyer/i.test(stNameD(d))&&!isClosedD(d));
-  const closedD=buyerD.filter(d=>isClosedD(d)&&inRangeD(d));
+  const closedDate=d=>(d.closing_date||d.updated_at||'').slice(0,10);
+  const closedD=buyerD.filter(d=>isClosedD(d)&&inR(closedDate(d)));
   const assignedD=[...underD,...closedD];
   const feeOf=d=>+d.value||0;
   const feeTotal=assignedD.reduce((s,d)=>s+feeOf(d),0);
