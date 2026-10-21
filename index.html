@@ -387,7 +387,7 @@ async function vDashboard(){
   const profit=rev-spent,avgDur=durs.length?Math.round(durs.reduce((s,x)=>s+x,0)/durs.length):0;
   // Pipeline status comes from the deals' Buyer Deals stages (not the transaction log).
   // Assigned = buyer-board stage named assign* or closed. Under contract = other buyer-board deals, excluding no-go/dead.
-  const {data:allDeals}=await sb.from('deals').select('id,board,stage_id,campaign_id,property_id,property_label,purchase_price,assignment_price,value,closing_date,updated_at,properties(apn)').eq('board','buyer').limit(1000);
+  const {data:allDeals}=await sb.from('deals').select('id,board,stage_id,campaign_id,property_id,property_label,purchase_price,assignment_price,value,closing_date,as_meta,updated_at,properties(apn)').eq('board','buyer').limit(1000);
   const stName=id=>(STAGES.find(s=>s.id===id)?.name||'');
   const isNoGo=n=>/no go|dead|lost|fell/i.test(n);
   const isAssignedD=d=>{const s=STAGES.find(x=>x.id===d.stage_id);return !!(s&&(s.closed||/^closed$/i.test(s.name)||/assign/i.test(s.name)))};
@@ -398,7 +398,9 @@ async function vDashboard(){
   const isClosedD=d=>{const s=STAGES.find(x=>x.id===d.stage_id);return !!(s&&(s.closed||/^closed$/i.test(s.name)))};
   const buyerD=(allDeals||[]).filter(d=>d.board==='buyer');
   const underD=buyerD.filter(d=>/assigned to buyer/i.test(stNameD(d))&&!isClosedD(d));
-  const closedDate=d=>(d.closing_date||d.updated_at||'').slice(0,10);
+  // the assignment's closing date wins over the purchase contract's
+  const closeOf=d=>d.as_meta?.close_date||d.closing_date||null;
+  const closedDate=d=>(closeOf(d)||d.updated_at||'').slice(0,10);
   const closedD=buyerD.filter(d=>isClosedD(d)&&inR(closedDate(d)));
   const assignedD=[...underD,...closedD];
   const feeOf=d=>+d.value||0;
@@ -442,7 +444,7 @@ async function vDashboard(){
   <div class="card" style="margin-top:14px;overflow-x:auto"><h3 class="sec" style="display:flex;justify-content:space-between;align-items:center"><span>Assignments</span><span class="small">ROI ${pc(roi)}</span></h3>
    <table class="roi"><tr><th>Property</th><th>Status</th><th class="right">Contract price</th><th class="right">Assigned for</th><th class="right">Assignment fee</th><th class="right">Days to close</th></tr>
    ${dRows.map(({d,st})=>{const bp=bpOf(d),sp=spOf(d),fee=d.value!=null?+d.value:null;const pu=txOf(d,'purchase'),sa=txOf(d,'sale');const du=st==='Closed'&&pu&&sa?Math.round((new Date(sa.tx_date)-new Date(pu.tx_date))/864e5):null;
-     return `<tr><td>${esc(d.property_label||'(no address)')}</td><td>${st}</td><td class="right num">${money(bp)}</td><td class="right num">${sp!=null?money(sp):'—'}</td><td class="right num" style="color:#1a9e5a">${fee!=null?money(fee):'—'}</td><td class="right">${du!=null?du+' days':(st!=='Closed'&&d.closing_date?'closes '+d.closing_date.slice(5).replace('-','/'):'—')}</td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No deals on the Buyer Deals board.</td></tr>'}
+     return `<tr><td>${esc(d.property_label||'(no address)')}</td><td>${st}</td><td class="right num">${money(bp)}</td><td class="right num">${sp!=null?money(sp):'—'}</td><td class="right num" style="color:#1a9e5a">${fee!=null?money(fee):'—'}</td><td class="right">${du!=null?du+' days':(st!=='Closed'&&closeOf(d)?'closes '+closeOf(d).slice(5).replace('-','/'):'—')}</td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No deals on the Buyer Deals board.</td></tr>'}
    ${dRows.length?`<tr class="tot"><td colspan="2"><b>Total assigned</b></td><td class="right num"><b>${money(contractTotal)}</b></td><td></td><td class="right num"><b>${money(feeTotal)}</b></td><td class="right"><b>${avgDur} days avg</b></td></tr>`:''}</table></div>`;
   // charts
   CHARTS.forEach(c=>c.destroy());CHARTS=[];if(!window.Chart)return;
@@ -533,7 +535,8 @@ async function openDealForm(d){
    <div class="dgrid"><div>
    <div class="card"><h3 class="sec" style="margin-top:0">Deal terms</h3>
      <div class="g3">${$f('value','Estimated value')}${$f('purchase_price','Contract price')}${$f('assignment_price','Assignment / sale price')}</div>
-     <div class="g3">${$f('emd','EMD (leave blank if none)')}<div><label class="f">Due diligence (business days)</label><input id="d_dd_days" type="number" min="0" step="1" value="${esc(d.dd_days??'')}" placeholder="e.g. 10"></div>${tf('closing_date','Closing date','date')}</div>
+     <div class="g3">${$f('emd','EMD (leave blank if none)')}<div><label class="f">Due diligence (business days)</label><input id="d_dd_days" type="number" min="0" step="1" value="${esc(d.dd_days??'')}" placeholder="e.g. 10"></div>${tf('closing_date','Contract closing date','date')}</div>
+     <div class="g3"><div><label class="f">Assignment closing date</label><input id="d_as_close" type="date" value="${esc(d.as_meta?.close_date||'')}"></div></div>
      <div class="g2">${tf('attorney','Closing attorney')}<div><label class="f">Buyer</label><select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>`<option value="${b.id}" ${b.id===d.buyer_id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div></div>
      <div class="g2"><div><label class="f">Campaign</label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div></div>
      <div class="g2">${tf('source','Source')}${!d.id||!p?tf('property_label','Property address'):`<input id="d_property_label" type="hidden" value="${esc(d.property_label||'')}">`}</div>
@@ -615,7 +618,7 @@ async function moveToSeller(id){const s=STAGES.find(x=>x.board==='seller');const
 async function saveDeal(id,board){
   const n=k=>{const v=$('d_'+k).value;return v===''?null:Number(v)};
   const r={board,stage_id:n('stage_id'),priority:$('d_priority').value||null,value:n('value'),property_label:$('d_property_label').value||null,campaign_id:$('d_campaign_id').value==='sms'?null:n('campaign_id'),
-    source:$('d_campaign_id').value==='sms'?'ReplySmart SMS':($('d_source').value||null),purchase_price:n('purchase_price'),assignment_price:n('assignment_price'),emd:n('emd'),closing_date:$('d_closing_date').value||null,
+    source:$('d_campaign_id').value==='sms'?'ReplySmart SMS':($('d_source').value||null),purchase_price:n('purchase_price'),assignment_price:n('assignment_price'),emd:n('emd'),closing_date:$('d_closing_date').value||null,...($('d_as_close')?{as_meta:{...((window._dl&&window._dl.id===id&&window._dl.as_meta)||{}),close_date:$('d_as_close').value||null}}:{}),
     attorney:$('d_attorney').value||null,buyer_id:n('buyer_id'),dd_days:n('dd_days'),updated_at:new Date().toISOString()};
   const put=r=>id?sb.from('deals').update(r).eq('id',id).select().single():sb.from('deals').insert(r).select().single();
   let {data,error}=await put(r);let note='Saved';
@@ -808,7 +811,7 @@ async function contractsFor(id,only,send){const {data:d}=await sb.from('deals').
    <label class="f">Additional Terms (one per line)</label><div class="row" style="flex-wrap:nowrap;gap:6px;align-items:flex-start"><textarea id="k_terms" style="min-height:70px;flex:1" placeholder="e.g. Buyer may assign this contract."></textarea>${micBtn('k_terms')}</div>
    <div id="kx_asg" style="display:${on('asg')?'':'none'}"><h4 style="margin:14px 0 4px">Assignment</h4>
     ${f('assignee','Assignee (buyer)',d.buyers?.represents||d.buyers?.name||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('fee','Assignment fee $',d.assignment_price&&d.purchase_price?d.assignment_price-d.purchase_price:'','number')}${f('adep','Assignee deposit $','','number')}</div>
-    ${f('depto','Deposit delivered to',d.attorney||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('depdue','Deposit due by','')}${f('closeby','Close on or before',d.closing_date?fmtDate(d.closing_date):'')}</div>${f('exam','Examination period ends','')}</div>
+    ${f('depto','Deposit delivered to',d.attorney||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('depdue','Deposit due by','')}${f('closeby','Close on or before',(d.as_meta?.close_date||d.closing_date)?fmtDate(d.as_meta?.close_date||d.closing_date):'')}</div>${f('exam','Examination period ends','')}</div>
    <div id="kx_cancel" style="display:${on('cancel')?'':'none'}"><h4 style="margin:14px 0 4px">Cancellation</h4>${f('cdate','Cancellation date',today)}
     <label class="f">Reason</label><select id="k_creason"><option value="feasibility">Did not pass inspection (Section 11)</option><option value="title">No clear title</option><option value="mutual">Mutual agreement</option><option value="other">Other</option></select>${f('cother','If other, reason','')}
     <label class="f">Earnest money</label><select id="k_cemd"><option value="none">No Earnest Money was deposited</option><option value="buyer">Returned to Buyer</option><option value="seller">Released to Seller</option></select>
@@ -952,7 +955,7 @@ async function rsAsgSend(id){const {deal}=kDeal();const v=k=>($(k)?.value||'').t
     let bin='';const u8=new Uint8Array(bytes);for(let i=0;i<u8.length;i+=32768)bin+=String.fromCharCode.apply(null,u8.subarray(i,i+32768));
     const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const fname=`Assignment of Contract - ${slug}.pdf`;
     const fee=deal.assignment.assignment_fee;const bid=Number(v('rs_buyer'))||null;
-    const asg_meta={assignee:deal.assignment.assignee,fee:Number.isFinite(fee)?fee:null,buyer_id:bid,assignment_price:Number.isFinite(fee)&&deal.purchase_price?deal.purchase_price+fee:null,signed_psa_in_front:!!psa};
+    const asg_meta={assignee:deal.assignment.assignee,fee:Number.isFinite(fee)?fee:null,buyer_id:bid,assignment_price:Number.isFinite(fee)&&deal.purchase_price?deal.purchase_price+fee:null,signed_psa_in_front:!!psa,close_date:(()=>{const t=new Date(deal.assignment.close_by||'');return isNaN(t)?null:t.toISOString().slice(0,10)})()};
     btn.textContent='Sending…';const {data,error}=await sb.functions.invoke('rabbitsign/send',{body:{deal_id:id,doc_kind:'asg',asg_meta,pdf_base64:btoa(bin),file_name:fname,title:v('rs_title'),summary:v('rs_msg'),signers}});
     if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}if(data?.error)throw new Error(data.error);
     if(bid)await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);
