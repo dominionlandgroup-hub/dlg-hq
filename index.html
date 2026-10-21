@@ -1355,12 +1355,21 @@ async function amen(id){const {data:c}=await sb.from('campaigns').select('name')
   $('m_send').disabled=false;$('m_send').title='';$('m_pray').innerHTML='<b>🙏 Amen.</b> <span class="small muted">Prayed over this campaign. You can send it now.</span>'}
 async function buildMailList(id){
   $('m_msg').textContent='Building list…';const all=[];
-  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('offer_code, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status), properties(apn,address,city,state,zip,county,fips,acres)').eq('campaign_id',id).range(from,from+999);
+  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('offer_code, lead_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status), properties(apn,address,city,state,zip,county,fips,acres,fields)').eq('campaign_id',id).range(from,from+999);
     if(error){$('m_msg').textContent=error.message;return}all.push(...data);if(data.length<1000)break}
   const sup=new Set(),on=$('m_sup').checked;if(on){const {data:s}=await sb.from('suppression').select('phone,apn');(s||[]).forEach(x=>{if(x.phone)sup.add(x.phone);if(x.apn)sup.add('A'+x.apn)})}
   const {data:_c0}=await sb.from('campaigns').select('drop_date').eq('id',id).single();const _mdate=new Date(((_c0&&_c0.drop_date)||new Date().toISOString().slice(0,10))+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-  const rows=all.filter(r=>!on||(!r.leads?.do_not_mail&&r.leads?.status!=='not_selling'&&!sup.has(r.leads?.phone)&&!sup.has('A'+r.properties?.apn)))
-   .map(r=>{const l=r.leads||{},p=r.properties||{};return {Owner:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),Greeting:l.first_name||l.full_name||'Property Owner',
+  const kept=all.filter(r=>!on||(!r.leads?.do_not_mail&&r.leads?.status!=='not_selling'&&!sup.has(r.leads?.phone)&&!sup.has('A'+r.properties?.apn)));
+  // Teardown letter: one letter per owner; the owner's other properties go in Other_Property_Line
+  const tplName=($('m_tpl')?.value||'');const perOwner=/teardown/i.test(tplName);
+  const tc=x=>String(x||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+  const paddr=p=>[p.address?tc(p.address):'',/^\d{5}$/.test(p.city||'')?'':tc(p.city||'')].filter(Boolean).join(', ');
+  const byOwner={};kept.forEach(r=>{const k=r.lead_id||('r'+Math.random());(byOwner[k]=byOwner[k]||[]).push(r)});
+  const otherLine=(r)=>{const f=r.properties?.fields||{};if(f.Other_Property_Line)return f.Other_Property_Line;const o=(byOwner[r.lead_id]||[]).filter(x=>x!==r&&x.properties?.address).map(x=>paddr(x.properties));if(!o.length)return '';
+    return `I also see that you own ${o.length===1?o[0]:o.slice(0,-1).join(', ')+' and '+o[o.length-1]}. I would be glad to make you an offer on ${o.length===1?'that property':'those properties'} as well.`};
+  const src=perOwner?Object.values(byOwner).map(g=>g[0]):kept;
+  const rows=src
+   .map(r=>{const l=r.leads||{},p=r.properties||{},f=p.fields||{};const nm=splitName(l);return {Salutation:/\b(llc|inc|corp|co|company|church|ministries|trust|trustees?|estate|bank|association|partners|lp|ltd|holdings)\b/i.test(l.full_name||'')||!nm.first?'Property Owner':tc(nm.first),Property_Address:paddr(p),Ownership_Line:f.Ownership_Line||'',Neighborhood:f.Neighborhood||f.Subdivision||f.neighborhood||f.subdivision||tc(/^\d{5}$/.test(p.city||'')?'':p.city)||'your neighborhood',Other_Property_Line:perOwner?otherLine(r):(f.Other_Property_Line||''),Owner:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),Greeting:l.first_name||l.full_name||'Property Owner',
      Mail1:l.mail_address||'',Mail2:'',Mail3:[l.mail_city,[l.mail_state,l.mail_zip].filter(Boolean).join(' ')].filter(Boolean).join(', '),PropertyAddress:p.address||'',PropertyCity:/^\d{5}$/.test(p.city||'')?'':(p.city||''),APN:p.apn||'',OfferCode:r.offer_code||'',
      OwnerName:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),FirstName:l.first_name||'',LastName:l.last_name||'',MailAddress:l.mail_address||'',MailCity:l.mail_city||'',MailState:l.mail_state||'',MailZip:l.mail_zip||'',
      PropertyState:p.state||'',PropertyZip:p.zip||(/^\d{5}$/.test(p.city||'')?p.city:''),County:p.county||'',FIPS:p.fips||'',Acres:p.acres!=null?String(+(+p.acres).toFixed(2)):'',MailDate:_mdate}});
