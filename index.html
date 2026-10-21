@@ -497,7 +497,7 @@ async function openDealForm(d){
      <div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="saveDeal(${d.id||0},'${board}')">Save deal</button>
      ${d.id?(board==='seller'?`<button class="btn" style="background:var(--accent)" onclick="moveToBuyer(${d.id})">Under contract → Buyer Deals</button>`:`<button class="btn ghost" onclick="moveToSeller(${d.id})">← Back to Seller Deals</button>`)+`<button class="btn danger" style="margin-left:auto" onclick="delDeal(${d.id},'${board}')">Delete deal</button>`:''}</div></div>
    ${d.id?`
-   <div class="card"><h3 class="sec" style="margin-top:0">Contact</h3>${l?`<div class="ccard"><div class="row" style="align-items:center;gap:10px"><span class="av">${esc(((fn[0]||'')+(ln[0]||'')).toUpperCase())}</span><div style="flex:1"><a href="#" onclick="openLead(${l.id});return false"><b>${esc(leadName(l))}</b></a> <span class="chip">Seller</span></div></div>
+   <div class="card"><h3 class="sec" style="margin-top:0">Contact</h3>${l?`<div class="ccard"><div class="row" style="align-items:center;gap:10px"><span class="av">${esc(((fn[0]||'')+(ln[0]||'')).toUpperCase())}</span><div style="flex:1"><a href="#" onclick="openLead(${l.id});return false"><b>${esc(leadName(l))}</b></a> <span class="chip">Seller</span> <a href="#" class="small muted" onclick="editContactName(${l.id},${d.id});return false">edit name</a></div></div>
        <div class="g2" style="margin-top:10px"><div><div class="l">First name</div>${esc(fn||'—')}</div><div><div class="l">Last name</div>${esc(ln||'—')}</div>
        <div><div class="l">Phone</div>${ph?`<a href="tel:${esc(ph)}">${esc(ph)}</a> <a class="ico" href="sms:${esc(ph)}" title="Text">✉</a>${cp(ph)}`:'<span class="muted">none on file</span>'}${[l.phone2,l.phone3].filter(Boolean).map(x=>`<br><a href="tel:${esc(x)}">${esc(x)}</a>`).join('')}</div>
        <div><div class="l">Email</div>${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>${cp(l.email)}`:'<span class="muted">none on file</span>'}</div>
@@ -1451,6 +1451,22 @@ async function savePropertyDetails(pid,dealId){
   const {error}=await sb.from('properties').update({address:g('address')||null,city:g('city')||null,state:g('state')||null,zip:g('zip')||null,county:g('county')||null,apn:apn||null,acres:g('acres')===''?null:+g('acres'),legal:g('legal')||null,updated_at:new Date().toISOString()}).eq('id',pid);
   if(error)return toast(error.message);
   toast('Property saved');if(dealId)openDeal(dealId);else closeDrawer()}
+// Edit the contact's name fields directly (first, last, full name)
+async function editContactName(lid,dealId){
+  const {data:l,error}=await sb.from('leads').select('id,first_name,last_name,full_name').eq('id',lid).single();
+  if(error||!l)return toast(error?.message||'Contact not found');
+  openDrawer(`<div class="dhead"><h2 style="margin:0">Edit contact name</h2><div class="row" style="flex:0 0 auto;gap:8px"><button class="btn ghost" onclick="openDeal(${dealId})">← Back</button><button class="btn ghost" onclick="closeDrawer()">Close</button></div></div>
+  <div class="card"><p class="small muted" style="margin-top:0">Use the person's real first and last name. Example: first "Wanda J", last "Wallerman". Put titles like personal representative in the contract's Seller name box, not here.</p>
+  <div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">First name</label><input id="cn_first" value="${esc(l.first_name||'')}"></div><div><label class="f">Last name</label><input id="cn_last" value="${esc(l.last_name||'')}"></div></div>
+  <label class="f">Full name (as shown on the contact)</label><input id="cn_full" value="${esc(l.full_name||'')}">
+  <button class="btn" style="width:100%;margin-top:10px" onclick="saveContactName(${lid},${dealId})">Save name</button><div id="cn_msg" class="small" style="margin-top:6px"></div></div>`)}
+async function saveContactName(lid,dealId){
+  const g=k=>($('cn_'+k)?.value||'').trim();const first=g('first'),last=g('last');
+  const full=g('full')||[first,last].filter(Boolean).join(' ');
+  if(!full)return toast('Enter a name');
+  const {error}=await sb.from('leads').update({first_name:first||null,last_name:last||null,full_name:full,updated_at:new Date().toISOString()}).eq('id',lid);
+  if(error)return toast(error.message);
+  toast('Name saved');openDeal(dealId)}
 async function apPick(i){const h=_apHits[i];const {leadId,dealId,extra}=window._apx||{};let pid=h.id;
   if(!pid){const {data,error}=await sb.from('properties').insert(h.new).select('id').single();if(error)return toast(error.message);pid=data.id}
   if(leadId){const {data:ex}=await sb.from('property_owners').select('lead_id').eq('lead_id',leadId).eq('property_id',pid).limit(1);if(!(ex||[]).length){const {error}=await sb.from('property_owners').insert({lead_id:leadId,property_id:pid});if(error)return toast(error.message)}}
