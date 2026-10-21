@@ -939,6 +939,46 @@ async function loadThreads(first){const {data,error}=await sb.rpc('inbox_threads
   const P=(data||[]).filter(t=>t.pinned),A=(data||[]).filter(t=>!t.pinned);
   $('tl').innerHTML=(P.length?'<div class="tsec">Pinned</div>'+P.map(item).join(''):'')+'<div class="tsec">All</div>'+(A.map(item).join('')||'<div class="muted small" style="padding:12px">No conversations.</div>');
   if(first&&data&&data.length&&!IST2.tid&&window.innerWidth>700)openThreadT(data[0].id)}
+// Campaign stat tiles open the records behind them: responses, offers, under contract, closed (with profit)
+async function campDrill(cid,kind){
+  const T={responses:'Responses',offers:'Offers',purchases:'Under Contract',closed:'Closed deals'}[kind]||'';
+  openDrawer(`<div class="dhead"><h2 style="margin:0">${T}</h2><div class="row" style="flex:0 0 auto;gap:8px"><button class="btn ghost" onclick="closeDrawer()">Close</button></div></div><div id="cd_body" class="small muted" style="margin-top:10px">Loading…</div>`);
+  const body=h=>{const el=$('cd_body');if(el)el.innerHTML=h};
+  const addr=p=>p?[p.address,p.city,p.state,p.zip].filter(Boolean).join(', '):'(no address)';
+  const m=n=>(n==null||n==='')?'—':money(+n);
+  const nameOf=d=>esc(d.leads?.full_name||'(no name)');
+  const link=(d,inner)=>`<a href="#" onclick="closeDrawer();openDeal(${d.id});return false" style="color:inherit;text-decoration:underline">${inner}</a>`;
+  try{
+    const {data:deals,error}=await sb.from('deals').select('id,stage_id,property_id,created_at,leads(full_name),properties(address,city,state,zip,apn)').eq('campaign_id',cid).limit(5000);
+    if(error)return body('Error: '+esc(error.message));
+    const rows=deals||[];
+    const pids=[...new Set(rows.map(d=>d.property_id).filter(Boolean))];
+    let tx=[];
+    if(pids.length){const {data:t,error:e2}=await sb.from('transactions').select('property_id,kind,tx_date,price,costs').in('property_id',pids).limit(5000);if(e2)return body('Error: '+esc(e2.message));tx=t||[]}
+    const firstTx=(p,k)=>tx.find(t=>t.property_id===p&&t.kind===k);
+    const dealOf=p=>rows.find(d=>d.property_id===p);
+    let head='',out='',n=0;
+    if(kind==='responses'){
+      head='<tr><th>Lead</th><th>Property</th><th>Added</th></tr>';
+      out=rows.map(d=>{n++;return `<tr><td>${link(d,nameOf(d))}</td><td>${esc(addr(d.properties))}</td><td>${d.created_at?new Date(d.created_at).toLocaleDateString():''}</td></tr>`}).join('');
+    } else if(kind==='offers'){
+      head='<tr><th>Lead</th><th>Property</th><th>Date</th><th class="right">Offer</th></tr>';
+      out=tx.filter(t=>t.kind==='offer').map(t=>{const d=dealOf(t.property_id);n++;return `<tr><td>${d?link(d,nameOf(d)):'—'}</td><td>${esc(addr(d?.properties))}</td><td>${t.tx_date||''}</td><td class="right">${m(t.price)}</td></tr>`}).join('');
+    } else if(kind==='purchases'){
+      head='<tr><th>Lead</th><th>Property</th><th>Purchase date</th><th class="right">Purchase price</th></tr>';
+      out=rows.filter(d=>firstTx(d.property_id,'purchase')&&!firstTx(d.property_id,'sale')).map(d=>{const b=firstTx(d.property_id,'purchase');n++;return `<tr><td>${link(d,nameOf(d))}</td><td>${esc(addr(d.properties))}</td><td>${b.tx_date||''}</td><td class="right">${m(b.price)}</td></tr>`}).join('');
+    } else {
+      let total=0;
+      head='<tr><th>Lead</th><th>Property</th><th>Closed</th><th class="right">Sale price</th><th class="right">Purchase price</th><th class="right">Profit</th></tr>';
+      out=rows.filter(d=>firstTx(d.property_id,'sale')||d.stage_id===16).map(d=>{const b=firstTx(d.property_id,'purchase'),s=firstTx(d.property_id,'sale');n++;
+        const pr=(b&&s)?(+s.price||0)-(+b.price||0)-(+b.costs||0)-(+s.costs||0):null;if(pr!=null)total+=pr;
+        return `<tr><td>${link(d,nameOf(d))}</td><td>${esc(addr(d.properties))}</td><td>${s?.tx_date||''}</td><td class="right">${m(s?.price)}</td><td class="right">${m(b?.price)}</td><td class="right" style="color:${pr!=null&&pr<0?'#c0392b':'#1a9e5a'}"><b>${m(pr)}</b></td></tr>`}).join('');
+      if(n)out+=`<tr class="tot"><td colspan="5"><b>Total profit</b></td><td class="right"><b>${money(total)}</b></td></tr>`;
+    }
+    if(!n)return body('Nothing here yet.');
+    body(`<div class="small muted" style="margin-bottom:8px">${n} ${n===1?'record':'records'}. Click a lead to open the deal.</div><div class="card" style="overflow-x:auto;padding:0"><table>${head}${out}</table></div>`);
+  }catch(e){body('Error: '+esc(e.message))}
+}
 async function hydrateRec(){const els=[...document.querySelectorAll('audio[data-rec]')];if(!els.length)return;const {data}=await sb.storage.from('call-recordings').createSignedUrls(els.map(e=>e.dataset.rec),21600);(data||[]).forEach((d,i)=>{if(d.signedUrl)els[i].src=d.signedUrl})}
 async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem').forEach(e=>e.classList.toggle('on',e.getAttribute('onclick')===`openThreadT(${tid})`));
   const [{data:t},{data:msgs},{data:tpl},{data:obx}]=await Promise.all([sb.from('threads').select('*, leads(*)').eq('id',tid).single(),sb.from('messages').select('*').eq('thread_id',tid).order('created_at'),sb.from('templates').select('id,name,body').eq('kind','text').order('name'),sb.from('email_outbox').select('id,subject,body,status,error,created_at').eq('thread_id',tid).in('status',['pending','sending','failed']).order('id')]);
@@ -1154,7 +1194,8 @@ async function vCampaign(id){
   $('actions').innerHTML=`<button class="btn ghost" onclick="go('campaigns')">← Back to Campaigns</button><button class="btn ghost" onclick="remarket(${id})">Remarket</button><button class="btn ghost" onclick="go('import')">Import List</button><button class="btn" onclick="startMailing(${id})">Start Mailing</button>
    <div class="menu"><button class="btn ghost" onclick="toggleMenu(this)">···</button><div class="mlist"><a href="#" onclick="splitCampaign(${id});return false">Split</a><a href="#" onclick="editCampaign(${id});return false">Edit Campaign</a><a href="#" style="color:var(--red)" onclick="askDeleteCampaign(${id});return false">Delete Campaign</a></div></div>`;
   const st=(l,v,col)=>`<div class="pst"><div class="l">${l}</div><div class="v" ${col?`style="color:${col}"`:''}>${v}</div></div>`;
-  $('view').innerHTML=`<div class="card"><div class="pstats" style="grid-template-columns:repeat(7,1fr)">${st('Created',fmtDate(c.drop_date||c.created_at))}${st('Amount spent',money(c.cost),'#a7822a')}${st('Responses',s.deals)}${st('Response Rate',s.resp.toFixed(2)+'%')}${st('Offers',s.offers)}${st('Under Contract',s.purchases)}${st('Closed',s.sales)}</div></div>
+  const stc=(l,v,k)=>`<div class="pst" style="cursor:pointer" title="Click to see the list" onclick="campDrill(${id},'${k}')"><div class="l">${l} ›</div><div class="v">${v}</div></div>`;
+  $('view').innerHTML=`<div class="card"><div class="pstats" style="grid-template-columns:repeat(7,1fr)">${st('Created',fmtDate(c.drop_date||c.created_at))}${st('Amount spent',money(c.cost),'#a7822a')}${stc('Responses',s.deals,'responses')}${st('Response Rate',s.resp.toFixed(2)+'%')}${stc('Offers',s.offers,'offers')}${stc('Under Contract',s.purchases,'purchases')}${stc('Closed',s.sales,'closed')}</div></div>
    ${c.channel==='mail'?`<div class="card"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><b>Mailing Progress</b><div style="flex:1;min-width:220px">${mailProgress(c)}</div>
      <span class="small muted">${[['To mail house',c.mail_to_house_at],['Received',c.mail_received_at],['Processing',c.mail_processing_at],['Mailed',c.mail_sent_at]].filter(x=>x[1]).map(x=>x[0]+' '+new Date(x[1]).toLocaleDateString()).join(' · ')}</span>
      <button class="btn ghost sm" onclick="copyMailLink(${id})">Copy mail house link</button></div></div>`:''}
