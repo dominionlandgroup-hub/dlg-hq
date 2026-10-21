@@ -260,7 +260,22 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=n=>n==null||n===''?'—':(Number(n)<0?'$-':'$')+Math.abs(Number(n)).toLocaleString('en-US',{minimumFractionDigits:Number(n)%1?2:0,maximumFractionDigits:2});
 const ago=d=>{if(!d)return'';const s=(Date.now()-new Date(d))/1e3;if(s<3600)return Math.max(1,Math.round(s/60))+'m ago';if(s<86400)return Math.round(s/3600)+'h ago';if(s<86400*30)return Math.round(s/86400)+'d ago';return new Date(d).toLocaleDateString()};
 const toast=m=>{const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)};
-const leadName=l=>l?(l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' ')||l.company||'(no name)'):'';
+// Split a contact into first and last. Trusts saved first and last when they differ.
+// Imported names are often stored as "LAST FIRST MIDDLE" (all caps), so those are read that way.
+function splitName(l){
+  const fn=(l?.first_name||'').trim().replace(/\s+/g,' '),ln=(l?.last_name||'').trim().replace(/\s+/g,' ');
+  if(fn&&ln&&fn.toLowerCase()!==ln.toLowerCase())return {first:fn,last:ln};
+  const full=(l?.full_name||'').trim().replace(/\s+/g,' ');
+  if(!full)return {first:fn,last:ln};
+  const tc=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+  const t=full.split(' ');
+  if(full.includes(',')){const [a,b]=full.split(/\s*,\s*/);return {first:tc(b||''),last:tc(a||'')}}
+  if(t.length<2)return {first:tc(full),last:''};
+  if(full===full.toUpperCase())return {first:tc(t.slice(1).join(' ')),last:tc(t[0])};
+  if(t.length>=3&&t[t.length-1].length===1)return {first:t.slice(1).join(' '),last:t[0]};
+  return {first:t.slice(0,-1).join(' '),last:t[t.length-1]};
+}
+const leadName=l=>{if(!l)return '';const n=splitName(l);const s=[n.first,n.last].filter(Boolean).join(' ');return s||l.company||'(no name)'};
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const head=t=>`<div class="row" style="align-items:center;flex-wrap:nowrap"><h2 style="margin:0;flex:1">${t}</h2><button class="btn ghost sm" style="flex:0" onclick="closeDrawer()">Close</button></div><br>`;
 function closeDrawer(){$('drawer').style.display='none'}
@@ -475,7 +490,7 @@ async function openDealForm(d){
   const camp=(camps||[]).find(c=>c.id===d.campaign_id);
   const $f=(k,lab)=>`<div><label class="f">${lab}</label><div class="moneyin"><span>$</span><input id="d_${k}" type="number" step="any" value="${esc(d[k]??'')}"></div></div>`;
   const tf=(k,lab,t='text')=>`<div><label class="f">${lab}</label><input id="d_${k}" type="${t}" value="${esc(d[k]??'')}"></div>`;
-  const fn=l?(l.first_name||(l.full_name||'').split(/\s+/)[0]||''):'',ln=l?(l.last_name||(l.full_name||'').split(/\s+/).slice(1).join(' ')||''):'';
+  const _sn=l?splitName(l):{first:'',last:''};const fn=_sn.first||'',ln=_sn.last||'';
   const ph=l?.phone,cp=t=>`<button class="ico" title="Copy" onclick="navigator.clipboard.writeText('${esc(t)}');toast('Copied')">⧉</button>`;
   const notes=parseNotes(d.notes);
   window._wideNext=true;
@@ -756,7 +771,7 @@ async function contractsFor(id,only,send){const {data:d}=await sb.from('deals').
   window._wideNext=true;openDrawer(`<div class="dhead"><h2 style="margin:0">${only?DOCN[only]:'Contracts'}</h2><div class="row" style="flex:0 0 auto;gap:8px"><button class="btn ghost" onclick="openDeal(${id})">← Back to deal</button><button class="btn ghost" onclick="closeDrawer()">Close</button></div></div><div class="card"><p class="small muted" style="margin-top:0">The contract wording never changes. Fill or fix the blanks, add anything special under Additional Terms, then create. Blank fields print as fill-in lines.</p>
    <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">${[['psa','Land Purchase Agreement'],['house','House Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,l])=>`<label class="small" style="display:${only?'none':'flex'};gap:6px;align-items:center"><input type="checkbox" id="w_${k}" ${on(k)?'checked':''} style="width:auto" onchange="$('kx_${k}')&&($('kx_${k}').style.display=this.checked?'':'none')"> ${l}</label>`).join('')}</div>
    <h4 style="margin:10px 0 4px">Deal</h4>
-   ${f('contract_date','Contract date',today)}${f('sellers','Seller name(s) — separate two sellers with " and "',d.leads?.full_name||'')}${f('address','Property address',addr)}${f('apn','Parcel ID / APN',d.properties?.apn||'')}<div style="grid-column:1/-1"><button class="btn ghost" style="margin:4px 0 8px" onclick="saveDealPropFields(${id})">Save address & APN to this property</button> <span class="small muted">Only the single property address and parcel number save here. Extra parcels stay on the deal.</span></div>
+   ${f('contract_date','Contract date',today)}${f('sellers','Seller name(s) — separate two sellers with " and "',d.leads?leadName(d.leads):'')}${f('address','Property address',addr)}${f('apn','Parcel ID / APN',d.properties?.apn||'')}<div style="grid-column:1/-1"><button class="btn ghost" style="margin:4px 0 8px" onclick="saveDealPropFields(${id})">Save address & APN to this property</button> <span class="small muted">Only the single property address and parcel number save here. Extra parcels stay on the deal.</span></div>
    ${f('legal','Legal description (saved to the property)',d.properties?.legal||'')}
    <div class="row" style="flex-wrap:nowrap;gap:8px">${f('price','Purchase price $',d.purchase_price??d.value??'','number')}${f('emd','Earnest money $ (blank = none)',d.emd??'','number')}</div>
    <div class="row" style="flex-wrap:nowrap;gap:8px">${f('feas','Due diligence (business days)',d.dd_days??10,'number')}${f('closedate','Close on or before',d.closing_date?fmtDate(d.closing_date):fmtDate(new Date(Date.now()+40*864e5).toISOString().slice(0,10)))}</div>
@@ -1786,7 +1801,7 @@ async function runImport(){const f=$('impFile').files[0];if(!f)return toast('Cho
   Papa.parse(f,{header:true,skipEmptyLines:true,complete:async r=>{const m=impMapCols(r.meta.fields||[]);
     const rows=r.data.map(o=>{const x={};for(const [k,c] of Object.entries(m)){let v=o[c]==null?'':String(o[c]).trim();if(!v)continue;if(['acres','lat','lng','offer_price'].includes(k)){v=Number(v.replace(/[$,]/g,''));if(isNaN(v))continue}x[k]=v}
       if(!x.full_name&&(x.first_name||x.last_name))x.full_name=[x.first_name,x.last_name].filter(Boolean).join(' ');return x}).filter(x=>x.full_name||x.phone||x.apn||x.address);
-    if(cid==='none'){let done=0;for(let i=0;i<rows.length;i+=500){const part=rows.slice(i,i+500).map(x=>({source:$('impSource').value,status:'record',full_name:x.full_name,first_name:x.first_name,last_name:x.last_name,phone:x.phone,email:x.email,mail_address:x.mail_address,mail_city:x.mail_city,mail_state:x.mail_state,mail_zip:x.mail_zip,apn:x.apn,county:x.county,offer_code:x.offer_code,tags:$('impTag').value?[$('impTag').value]:[]}));
+    if(cid==='none'){let done=0;for(let i=0;i<rows.length;i+=500){const part=rows.slice(i,i+500).map(x=>({source:$('impSource').value,status:'record',full_name:x.full_name,first_name:x.first_name||splitName({full_name:x.full_name}).first||null,last_name:x.last_name||splitName({full_name:x.full_name}).last||null,phone:x.phone,email:x.email,mail_address:x.mail_address,mail_city:x.mail_city,mail_state:x.mail_state,mail_zip:x.mail_zip,apn:x.apn,county:x.county,offer_code:x.offer_code,tags:$('impTag').value?[$('impTag').value]:[]}));
       const {error}=await sb.from('leads').insert(part);if(error)return msg(error.message);done+=part.length;msg(`Imported ${done.toLocaleString()} of ${rows.length.toLocaleString()} contacts`)}return}
     const tot={leads:0,properties:0,records:0,skipped_dnm:0,skipped_not_interested:0,skipped_recent:0,duplicate_codes:0};const skip={skip_dnm:$('skDnm').checked,skip_ni:$('skNi').checked,skip_days:$('skRec').checked?Number($('skDays').value)||0:0};
     for(let i=0;i<rows.length;i+=1000){const {data,error}=await sb.rpc('import_campaign_list',{cid:Number(cid),rows:rows.slice(i,i+1000),src:$('impSource').value,tag:$('impTag').value||null,...skip});
