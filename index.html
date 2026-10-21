@@ -482,6 +482,7 @@ function card(d){const p=d.properties||{},l=d.leads;
    <div class="t"><span>${esc(leadName(l)||d.property_label||'Deal')}</span>${d.value?`<span class="val">${money(d.value)}</span>`:''}</div>
    ${p.apn?`<div class="s">APN ${esc(p.apn)}</div>`:''}
    <div class="s">${esc([p.address||d.property_label,p.city].filter(Boolean).join(', '))}</div>
+   ${d.as_meta?.esc_max?`<div class="s">Offer ${money(d.purchase_price)} escalating to ${money(d.as_meta.esc_max)}</div>`:''}
    ${p.county?`<div class="s">${esc(p.county)}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' ac':''}</div>`:''}
    <div class="s" style="display:flex;gap:6px;align-items:center;margin-top:6px">${d.priority?`<span class="pill ${d.priority}">${d.priority}</span>`:''}${d.closing_date?`<span>Close ${d.closing_date}</span>`:''}<span style="margin-left:auto">${ago(d.updated_at||d.created_at)}</span></div></div>`}
 // ---------- deal milestones: offer made / under contract / closed, counted on each campaign ----------
@@ -539,6 +540,7 @@ async function openDealForm(d){
      <div class="g3">${$f('value','Estimated value')}${$f('purchase_price','Contract price')}${$f('assignment_price','Assignment / sale price')}</div>
      <div class="g3">${$f('emd','EMD (leave blank if none)')}<div><label class="f">Due diligence (business days)</label><input id="d_dd_days" type="number" min="0" step="1" value="${esc(d.dd_days??'')}" placeholder="e.g. 10"></div>${tf('closing_date','Contract closing date','date')}</div>
      <div class="g3"><div><label class="f">Assignment closing date</label><input id="d_as_close" type="date" value="${esc(d.as_meta?.close_date||'')}"></div><div><label class="f">JV partner</label><input id="d_jv_partner" value="${esc(d.as_meta?.jv_partner||'')}" placeholder="Name"></div><div><label class="f">JV partner's cut</label><div class="moneyin"><span>$</span><input id="d_jv_cut" type="number" step="any" value="${esc(d.as_meta?.jv_cut??'')}"></div></div></div>
+     <div class="g3"><div><label class="f">Escalate up to</label><div class="moneyin"><span>$</span><input id="d_esc_max" type="number" step="any" value="${esc(d.as_meta?.esc_max??'')}"></div></div><div><label class="f">Escalation increments</label><div class="moneyin"><span>$</span><input id="d_esc_step" type="number" step="any" value="${esc(d.as_meta?.esc_step??'')}"></div></div><div class="small muted" style="align-self:end">${d.as_meta?.esc_max&&d.purchase_price?'Offer '+money(d.purchase_price)+' escalating by '+money(d.as_meta.esc_step||0)+' up to '+money(d.as_meta.esc_max):'Purchase price = starting offer'}</div></div>
      <div class="small muted" style="margin:-4px 0 8px">Value = your fee after the JV partner's cut. The dashboard counts Value.</div>
      <div class="g2">${tf('attorney','Closing attorney')}<div><label class="f">Buyer</label><select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>`<option value="${b.id}" ${b.id===d.buyer_id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div></div>
      <div class="g2"><div><label class="f">Campaign</label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div></div>
@@ -621,7 +623,7 @@ async function moveToSeller(id){const s=STAGES.find(x=>x.board==='seller');const
 async function saveDeal(id,board){
   const n=k=>{const v=$('d_'+k).value;return v===''?null:Number(v)};
   const r={board,stage_id:n('stage_id'),priority:$('d_priority').value||null,value:n('value'),property_label:$('d_property_label').value||null,campaign_id:$('d_campaign_id').value==='sms'?null:n('campaign_id'),
-    source:$('d_campaign_id').value==='sms'?'ReplySmart SMS':($('d_source').value||null),purchase_price:n('purchase_price'),assignment_price:n('assignment_price'),emd:n('emd'),closing_date:$('d_closing_date').value||null,...($('d_as_close')?{as_meta:{...((window._dl&&window._dl.id===id&&window._dl.as_meta)||{}),close_date:$('d_as_close').value||null,jv_partner:$('d_jv_partner').value.trim()||null,jv_cut:$('d_jv_cut').value===''?null:Number($('d_jv_cut').value)}}:{}),
+    source:$('d_campaign_id').value==='sms'?'ReplySmart SMS':($('d_source').value||null),purchase_price:n('purchase_price'),assignment_price:n('assignment_price'),emd:n('emd'),closing_date:$('d_closing_date').value||null,...($('d_as_close')?{as_meta:{...((window._dl&&window._dl.id===id&&window._dl.as_meta)||{}),close_date:$('d_as_close').value||null,jv_partner:$('d_jv_partner').value.trim()||null,jv_cut:$('d_jv_cut').value===''?null:Number($('d_jv_cut').value),esc_max:$('d_esc_max').value===''?null:Number($('d_esc_max').value),esc_step:$('d_esc_step').value===''?null:Number($('d_esc_step').value)}}:{}),
     attorney:$('d_attorney').value||null,buyer_id:n('buyer_id'),dd_days:n('dd_days'),updated_at:new Date().toISOString()};
   const put=r=>id?sb.from('deals').update(r).eq('id',id).select().single():sb.from('deals').insert(r).select().single();
   let {data,error}=await put(r);let note='Saved';
@@ -808,6 +810,7 @@ async function contractsFor(id,only,send){const {data:d}=await sb.from('deals').
    ${f('contract_date','Contract date',today)}${f('sellers','Seller name(s) — separate two sellers with " and "',d.leads?leadName(d.leads):'')}${f('address','Property address',addr)}${f('apn','Parcel ID / APN',d.properties?.apn||'')}<div style="grid-column:1/-1"><button class="btn ghost" style="margin:4px 0 8px" onclick="saveDealPropFields(${id})">Save address & APN to this property</button> <span class="small muted">Only the single property address and parcel number save here. Extra parcels stay on the deal.</span></div>
    ${f('legal','Legal description (saved to the property)',d.properties?.legal||'')}
    <div class="row" style="flex-wrap:nowrap;gap:8px">${f('price','Purchase price $',d.purchase_price??d.value??'','number')}${f('emd','Earnest money $ (blank = none)',d.emd??'','number')}</div>
+   <div class="row" style="flex-wrap:nowrap;gap:8px">${f('escmax','Escalate up to $ (blank = no escalation)',d.as_meta?.esc_max??'','number')}${f('escstep','Escalation increments $',d.as_meta?.esc_step??(d.as_meta?.esc_max?'':1000),'number')}</div><div class="small muted" style="margin:-2px 0 8px">With both filled, the purchase price above is the starting offer and the escalation clause is added as the first Additional Term.</div>
    <div class="row" style="flex-wrap:nowrap;gap:8px">${f('feas','Due diligence (business days)',d.dd_days??10,'number')}${f('closedate','Close on or before',d.closing_date?fmtDate(d.closing_date):fmtDate(new Date(Date.now()+40*864e5).toISOString().slice(0,10)))}</div>
    ${f('sellermail',"Seller mailing address (for 'To Seller at')",[d.leads?.mail_address,[d.leads?.mail_city,d.leads?.mail_state].filter(Boolean).join(', '),d.leads?.mail_zip].filter(Boolean).join(' ').replace(/ (\d{5})$/,' $1'))}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('county','County',d.properties?.county||'')}${f('state','Property state',d.properties?.state||'NC')}</div>
    ${f('agent','Closing agent',d.attorney||'','text','e.g. Merritt Law, PLLC, Kannapolis, NC')}
@@ -828,6 +831,10 @@ async function saveDealPropFields(id){const g=k=>($('k_'+k)?.value||'').trim();c
   const {data:d,error:e1}=await sb.from('deals').select('property_id').eq('id',id).single();if(e1||!d?.property_id)return toast('No property is linked to this deal');
   const {error}=await sb.from('properties').update({address:addr||null,apn:apn||null,legal:legal||null,updated_at:new Date().toISOString()}).eq('id',d.property_id);
   toast(error?error.message:'Saved to property')}
+// escalation clause for competitive offers: base price, step, ceiling
+function escClause(base,step,max){return `ESCALATION: Buyer's purchase price is ${money(base)}. If Seller receives another bona fide written offer for this property with a higher purchase price, the Purchase Price in this agreement will automatically increase to ${money(step)} more than the highest such offer, up to a maximum Purchase Price of ${money(max)}. Seller will give Buyer a copy of that competing offer (the other buyer's name and personal information may be removed) when Seller accepts this agreement. The Earnest Money stays the same and the Cash To Seller At Closing will be adjusted to match the final Purchase Price.`}
+async function saveEsc(id,deal){if(!id||!deal.escalation)return;const {data:x}=await sb.from('deals').select('as_meta').eq('id',id).single();
+  await sb.from('deals').update({purchase_price:deal.purchase_price??null,as_meta:{...(x?.as_meta||{}),esc_step:deal.escalation.step,esc_max:deal.escalation.max}}).eq('id',id)}
 function kDeal(){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?undefined:Number(g(k));
   const which={psa:$('w_psa').checked,house:$('w_house').checked,asg:$('w_asg').checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};
   const deal={contract_date:g('contract_date'),sellers:g('sellers').split(/\s+and\s+/i).filter(Boolean),property_address:g('address'),apn:g('apn'),legal_description:g('legal'),purchase_price:num('price'),emd:num('emd'),
@@ -835,8 +842,10 @@ function kDeal(){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?
     assignment:{assignee:g('assignee'),assignment_fee:num('fee'),deposit:num('adep'),deposit_to:g('depto'),deposit_due:g('depdue'),close_by:g('closeby'),exam_ends:g('exam')},
     cancel:{date:g('cdate'),reason:$('k_creason')?.value,other:g('cother'),emd_to:$('k_cemd')?.value,release_days:g('crel'),additional_terms:$('k_cterms')?.value||''},
     notice:{date:g('ndate'),reason:$('k_nreason')?.value}};
+  const es=num('escstep'),em=num('escmax');
+  if(Number.isFinite(es)&&es>0&&Number.isFinite(em)&&Number.isFinite(deal.purchase_price)&&em>deal.purchase_price){deal.escalation={step:es,max:em};deal.additional_terms=[escClause(deal.purchase_price,es,em),deal.additional_terms].filter(x=>x&&String(x).trim()).join('\n')}
   return {deal,which}}
-async function makeContracts(id){const {deal,which}=kDeal();if(!Object.values(which).some(Boolean))return toast('Pick at least one document');
+async function makeContracts(id){const {deal,which}=kDeal();if(!Object.values(which).some(Boolean))return toast('Pick at least one document');saveEsc(id,deal);
   const btn=$('k_go');btn.dataset.label=btn.textContent;btn.disabled=true;btn.textContent='Creating…';
   try{await docxLib();const docs=buildDocs(deal,which);const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
     const KIND={'Land Purchase Agreement':'psa','House Purchase and Sale Agreement':'house','Assignment of Contract':'asg','Cancellation of Contract':'cancel','Notice of Termination':'notice'};
@@ -900,7 +909,7 @@ async function rsSendDialog(id){const {deal,which}=kDeal();if(which.asg&&!which.
     ${sellers.map((n,i)=>`<h4 style="margin:10px 0 4px">${i+2}. Seller${sellers.length>1?' '+(i+1):''}</h4><div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">Name</label><input id="rs_s${i}_name" value="${esc(n)}"></div><div><label class="f">Email</label><input id="rs_s${i}_email" value="${esc(i===0?(d?.leads?.email||''):'')}" placeholder="seller@email.com"></div></div>`).join('')}
     <button class="btn" id="rs_go" style="width:100%;margin-top:10px" onclick="rsSend(${id},'${kind}',${sellers.length},${d?.lead_id||'null'})">Send for signature</button><div id="rs_out" class="small" style="margin-top:6px"></div></div>`;
   $('rs_title').scrollIntoView({behavior:'smooth',block:'center'})}
-async function rsSend(id,kind,n,leadId){const {deal}=kDeal();const v=k=>($(k)?.value||'').trim();const em=x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
+async function rsSend(id,kind,n,leadId){const {deal}=kDeal();saveEsc(id,deal);const v=k=>($(k)?.value||'').trim();const em=x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
   const me={name:v('rs_me_name'),email:v('rs_me_email').toLowerCase()};const sellers=[...Array(n)].map((_,i)=>({name:v(`rs_s${i}_name`),email:v(`rs_s${i}_email`).toLowerCase()}));
   if(!em(me.email))return toast('Enter your email');if(sellers.some(s=>!em(s.email)))return toast("Enter the seller's email");
   if(sellers.some(s=>s.email===me.email))return toast("The seller's email can't be the same as yours");
@@ -958,7 +967,7 @@ async function rsAsgSend(id){const {deal}=kDeal();const v=k=>($(k)?.value||'').t
     let bin='';const u8=new Uint8Array(bytes);for(let i=0;i<u8.length;i+=32768)bin+=String.fromCharCode.apply(null,u8.subarray(i,i+32768));
     const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const fname=`Assignment of Contract - ${slug}.pdf`;
     const fee=deal.assignment.assignment_fee;const bid=Number(v('rs_buyer'))||null;
-    const {data:_am}=await sb.from('deals').select('as_meta').eq('id',id).single();const _jv={jv_partner:_am?.as_meta?.jv_partner||null,jv_cut:_am?.as_meta?.jv_cut??null};
+    const {data:_am}=await sb.from('deals').select('as_meta').eq('id',id).single();const _jv={jv_partner:_am?.as_meta?.jv_partner||null,jv_cut:_am?.as_meta?.jv_cut??null,esc_max:_am?.as_meta?.esc_max??null,esc_step:_am?.as_meta?.esc_step??null};
     const asg_meta={..._jv,assignee:deal.assignment.assignee,fee:Number.isFinite(fee)?fee:null,buyer_id:bid,assignment_price:Number.isFinite(fee)&&deal.purchase_price?deal.purchase_price+fee:null,signed_psa_in_front:!!psa,close_date:(()=>{const t=new Date(deal.assignment.close_by||'');return isNaN(t)?null:t.toISOString().slice(0,10)})()};
     btn.textContent='Sending…';const {data,error}=await sb.functions.invoke('rabbitsign/send',{body:{deal_id:id,doc_kind:'asg',asg_meta,pdf_base64:btoa(bin),file_name:fname,title:v('rs_title'),summary:v('rs_msg'),signers}});
     if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}if(data?.error)throw new Error(data.error);
