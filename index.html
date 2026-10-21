@@ -118,6 +118,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 12px}
 .moneyin{display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;background:#fff;padding-left:10px}.moneyin span{color:var(--muted);font-weight:600}.moneyin input{border:0!important;box-shadow:none!important;background:transparent}
 .ico{background:none;border:0;padding:2px 5px;color:var(--brand2);font-size:14px;text-decoration:none;cursor:pointer}
+.pline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0}.pline .pn{margin-right:2px}.pbtn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;color:var(--brand);text-decoration:none;cursor:pointer;line-height:1.4}.pbtn:hover{border-color:var(--brand2);background:#f7f3fa}.pbtn:focus-visible{outline:2px solid var(--brand2);outline-offset:1px}
 .ccard .av{width:36px!important;height:36px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px;flex:0 0 36px!important}.note .row>*{flex:0 0 auto}.note .row .small{white-space:nowrap}
 .ccard details summary{cursor:pointer;padding:6px 0;border-top:1px solid var(--line)}
 .note{border-top:1px solid var(--line);padding:10px 0}.note .nb{white-space:pre-wrap;margin-top:4px;line-height:1.45}
@@ -276,6 +277,14 @@ function splitName(l){
   return {first:t.slice(0,-1).join(' '),last:t[t.length-1]};
 }
 const leadName=l=>{if(!l)return '';const n=splitName(l);const s=[n.first,n.last].filter(Boolean).join(' ');return s||l.company||'(no name)'};
+// phone number with Call / Text / Copy. Call: Quo app on phone (deep link), tel: on computer (Quo once it's the Mac's default for calls).
+// Text: Quo app on phone; on computer, opens the DLG HQ conversation (sends through Quo).
+const IS_MOBILE=/iPhone|iPad|Android/i.test(navigator.userAgent);
+const e164=p=>{const d=String(p||'').replace(/\D/g,'');return d.length===10?'+1'+d:d.length===11&&d[0]==='1'?'+'+d:(d?'+'+d:'')};
+function phoneLine(ph,leadId,box){if(!ph)return '';const n=e164(ph),en=encodeURIComponent(n);
+  const call=IS_MOBILE?`openphone://dial?number=${en}&action=call`:`tel:${n}`;
+  const text=IS_MOBILE?`href="openphone://message?number=${en}"`:(leadId?`href="#" onclick="openThread(${leadId},'${box||'seller'}');return false"`:`href="sms:${n}"`);
+  return `<div class="pline"><span class="pn">${esc(ph)}</span><a class="pbtn" href="${call}" onclick="event.stopPropagation()" title="Call ${esc(ph)}">📞 Call</a><a class="pbtn" ${text} title="Text ${esc(ph)}">💬 Text</a><button type="button" class="pbtn" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(ph)}');toast('Copied ${esc(ph)}')" title="Copy">⧉ Copy</button></div>`}
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const head=t=>`<div class="row" style="align-items:center;flex-wrap:nowrap"><h2 style="margin:0;flex:1">${t}</h2><button class="btn ghost sm" style="flex:0" onclick="closeDrawer()">Close</button></div><br>`;
 function closeDrawer(){$('drawer').style.display='none'}
@@ -550,7 +559,7 @@ async function openDealForm(d){
    ${d.id?`
    <div class="card"><h3 class="sec" style="margin-top:0">Contact</h3>${l?`<div class="ccard"><div class="row" style="align-items:center;gap:10px"><span class="av">${esc(((fn[0]||'')+(ln[0]||'')).toUpperCase())}</span><div style="flex:1"><a href="#" onclick="openLead(${l.id});return false"><b>${esc(leadName(l))}</b></a> <span class="chip">Seller</span> <a href="#" class="small muted" onclick="editContactName(${l.id},${d.id});return false">edit name</a></div></div>
        <div class="g2" style="margin-top:10px"><div><div class="l">First name</div>${esc(fn||'—')}</div><div><div class="l">Last name</div>${esc(ln||'—')}</div>
-       <div><div class="l">Phone</div>${ph?`<a href="tel:${esc(ph)}">${esc(ph)}</a> <a class="ico" href="sms:${esc(ph)}" title="Text">✉</a>${cp(ph)}`:'<span class="muted">none on file</span>'}${[l.phone2,l.phone3].filter(Boolean).map(x=>`<br><a href="tel:${esc(x)}">${esc(x)}</a>`).join('')}</div>
+       <div style="grid-column:1/-1"><div class="l">Phone</div>${ph?[ph,l.phone2,l.phone3].filter(Boolean).map(x=>phoneLine(x,l.id,board)).join(''):'<span class="muted">none on file</span>'}</div>
        <div><div class="l">Email</div>${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>${cp(l.email)}`:'<span class="muted">none on file</span>'}</div>
        <div style="grid-column:1/-1"><div class="l">Mailing address</div>${esc([l.mail_address,[l.mail_city,l.mail_state].filter(Boolean).join(', '),l.mail_zip].filter(Boolean).join(' · ')||'—')}</div></div>
        <details style="margin-top:10px"><summary><b>Auto followup</b> <span class="small muted">${(enr||[]).length?'enrolled':'not enrolled'}</span></summary>${(enr||[]).map(e=>`<div style="margin-top:8px">${esc(e.followup_plans?.name)} <span class="small muted">· started ${new Date(e.started_at).toLocaleDateString()} · step ${e.next_step+1}</span> <button class="btn ghost sm" onclick="stopEnroll(${e.id},${d.id})">Stop</button></div>`).join('')}
@@ -1477,7 +1486,7 @@ async function openProperty(id){
   const F=p.fields||{};const buy=(tx||[]).find(t=>t.kind==='purchase'),sell=(tx||[]).find(t=>t.kind==='sale');const cost=buy?+buy.price+ +(buy.costs||0):null;
   openDrawer(head('APN '+esc(p.apn||'—'))+`
    <p class="muted" style="margin-top:-8px">${esc([p.address,p.city,p.state,p.zip].filter(Boolean).join(', '))}<br>${esc(p.county||'')}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' acres':''}${p.lat?` · <a target="_blank" href="https://www.google.com/maps?q=${p.lat},${p.lng}">${(+p.lat).toFixed(5)}, ${(+p.lng).toFixed(5)}</a>`:''}${p.fips?' · FIPS '+esc(p.fips):''}</p>${buildLine(F.buildable)}
-   <div class="card"><b>Owners</b>${(own||[]).map(o=>`<div style="margin-top:8px"><a href="#" onclick="openLead(${o.leads.id});return false">${esc(leadName(o.leads))}</a> ${o.leads.phone?'· <a href="tel:'+esc(o.leads.phone)+'">'+esc(o.leads.phone)+'</a>':''}<div class="small muted">${esc([o.leads.mail_address,o.leads.mail_city,o.leads.mail_state,o.leads.mail_zip].filter(Boolean).join(', '))}</div></div>`).join('')||'<div class="muted small">No owner linked.</div>'}</div>
+   <div class="card"><b>Owners</b>${(own||[]).map(o=>`<div style="margin-top:8px"><a href="#" onclick="openLead(${o.leads.id});return false">${esc(leadName(o.leads))}</a> ${o.leads.phone?phoneLine(o.leads.phone,o.leads.id,'seller'):''}<div class="small muted">${esc([o.leads.mail_address,o.leads.mail_city,o.leads.mail_state,o.leads.mail_zip].filter(Boolean).join(', '))}</div></div>`).join('')||'<div class="muted small">No owner linked.</div>'}</div>
    <div class="card" style="overflow-x:auto"><b>History</b><table style="margin-top:6px">${(cr||[]).map(r=>`<tr><td>${r.sent_at||r.campaigns?.drop_date||''}</td><td>Campaign</td><td>${esc(r.campaigns?.name||'')}</td><td><b>${esc(r.offer_code||'')}</b></td><td class="right">${money(r.offer_price)}</td></tr>`).join('')}
     ${(tx||[]).map(t=>`<tr><td>${t.tx_date||''}</td><td style="text-transform:capitalize">${t.kind}</td><td colspan="2">${esc(t.notes||'')}</td><td class="right"><b>${money(t.price)}</b></td></tr>`).join('')}</table>
     ${buy&&sell?`<p><b>Profit ${money(sell.price-cost)}</b> · ROI ${((sell.price-cost)/cost*100).toFixed(2)}%</p>`:''}
@@ -1518,7 +1527,7 @@ async function openLead(id){
     sb.from('activity').select('*').eq('lead_id',id).order('created_at',{ascending:false}).limit(40),sb.from('property_owners').select('properties(*)').eq('lead_id',id)]);
   const [{data:fam},{data:lc}]=await Promise.all([sb.rpc('lead_family',{lid:id}),sb.from('legacy_codes').select('code,source,list').eq('lead_id',id).limit(50)]);
   openDrawer(head(esc(leadName(l)))+`
-  <div class="card"><div class="kv"><div>Phone</div><div>${[l.phone,l.phone2,l.phone3].filter(Boolean).map(p=>`<a href="tel:${esc(p)}">${esc(p)}</a>`).join('<br>')||'—'} <a href="#" class="small" onclick="editPhones(${l.id});return false">${l.phone?'edit':'+ add phone'}</a></div><div>Email</div><div>${esc(l.email||'—')} <a href="#" class="small" onclick="editLeadField(${l.id},'email','Email address','${esc(l.email||'')}');return false">${l.email?'edit':'+ add email'}</a></div>
+  <div class="card"><div class="kv"><div>Phone</div><div>${[l.phone,l.phone2,l.phone3].filter(Boolean).map(p=>phoneLine(p,l.id,l.inbox||'seller')).join('')||'—'} <a href="#" class="small" onclick="editPhones(${l.id});return false">${l.phone?'edit':'+ add phone'}</a></div><div>Email</div><div>${esc(l.email||'—')} <a href="#" class="small" onclick="editLeadField(${l.id},'email','Email address','${esc(l.email||'')}');return false">${l.email?'edit':'+ add email'}</a></div>
    <div>Mailing</div><div>${esc([l.mail_address,l.mail_city,l.mail_state,l.mail_zip].filter(Boolean).join(', ')||'—')}</div><div>Offer code</div><div>${esc(l.offer_code||'—')}</div><div>Source</div><div>${esc([l.source,l.lead_source].filter(Boolean).join(' / ')||'—')}</div><div>Category</div><div>${esc(l.category||'—')}</div></div>
    <div class="row" style="margin-top:12px"><select onchange="setStatus(${l.id},this.value)">${STATUSES.map(s=>`<option ${s===l.status?'selected':''} value="${s}">${s.replace('_',' ')}</option>`).join('')}</select>
    <button class="btn ghost" style="flex:0" onclick="dealFromLead(${l.id},'seller')">+ Seller deal</button><button class="btn ghost" style="flex:0" onclick="dealFromLead(${l.id},'buyer')">+ Buyer deal</button></div></div>
