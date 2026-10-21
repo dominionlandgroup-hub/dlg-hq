@@ -370,13 +370,13 @@ async function vDashboard(){
     sb.from('pebble_history').select('*'),
     sb.from('transactions').select('id,property_id,deal_id,kind,tx_date,price,costs,notes,properties(id,apn,address,city)').order('tx_date',{ascending:false}).limit(5000),
     sb.from('campaigns').select('id,name,drop_date,records,cost').limit(2000),
-    sb.from('deals').select('id,board,created_at,source,campaign_id,lead_id,property_label').or('source.is.null,source.neq.pebble').gte('created_at',a).lte('created_at',end).limit(5000),
+    sb.from('deals').select('id,board,created_at,source,campaign_id,lead_id,property_id,property_label').or('source.is.null,source.neq.pebble').gte('created_at',a).lte('created_at',end).limit(5000),
     sb.from('messages').select('lead_id,channel,direction,duration_s,created_at').gte('created_at',a).lte('created_at',end).limit(10000)]);
   const inR=d=>d&&d>=a&&d<=b;
   const h=histSum(H||[],a,b);
   // Live numbers made in DLG HQ after the move
   // one lead per person per board; skip rows marked DUPLICATE and blank rows
-  const _seen=new Set();const dl=(dl0||[]).filter(d=>{if(/^duplicate/i.test(d.property_label||''))return false;if(!d.lead_id&&!d.property_label)return false;if(d.lead_id){const k=d.board+':'+d.lead_id;if(_seen.has(k))return false;_seen.add(k)}return true});
+  const _seen=new Set();const dl=(dl0||[]).filter(d=>{if(/^duplicate/i.test(d.property_label||''))return false;if(!d.lead_id&&!d.property_label)return false;if(d.lead_id){const k=d.board+':'+d.lead_id+':'+(d.property_id||'');if(_seen.has(k))return false;_seen.add(k)}return true});
   const liveDeals=dl.length,liveSeller=(dl||[]).filter(d=>d.board==='seller').length;
   const M=msgs||[];const live={conv:new Set(M.map(m=>m.lead_id)).size,calls:M.filter(m=>m.channel==='call'&&m.direction==='out').length,missed:M.filter(m=>m.channel==='call'&&m.direction==='in'&&!m.duration_s).length,
     talk:M.filter(m=>m.channel==='call').reduce((s,m)=>s+(m.duration_s||0),0),texts:M.filter(m=>m.channel==='sms'&&m.direction==='out').length,emails:M.filter(m=>m.channel==='email'&&m.direction==='out').length};
