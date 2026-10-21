@@ -283,7 +283,7 @@ const IS_MOBILE=/iPhone|iPad|Android/i.test(navigator.userAgent);
 const e164=p=>{const d=String(p||'').replace(/\D/g,'');return d.length===10?'+1'+d:d.length===11&&d[0]==='1'?'+'+d:(d?'+'+d:'')};
 function phoneLine(ph,leadId,box){if(!ph)return '';const n=e164(ph),en=encodeURIComponent(n);
   const call=IS_MOBILE?`openphone://dial?number=${en}&action=call`:`tel:${n}`;
-  const text=IS_MOBILE?`href="openphone://message?number=${en}"`:(leadId?`href="#" onclick="openThread(${leadId},'${box||'seller'}');return false"`:`href="sms:${n}"`);
+  const text=IS_MOBILE?`href="openphone://message?number=${en}"`:(leadId?`href="#" onclick="event.stopPropagation();closeDrawer();openThread(${leadId},'${box||'seller'}');return false"`:`href="sms:${n}"`);
   return `<div class="pline"><span class="pn">${esc(ph)}</span><a class="pbtn" href="${call}" onclick="event.stopPropagation()" title="Call ${esc(ph)}">📞 Call</a><a class="pbtn" ${text} title="Text ${esc(ph)}">💬 Text</a><button type="button" class="pbtn" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(ph)}');toast('Copied ${esc(ph)}')" title="Copy">⧉ Copy</button></div>`}
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const head=t=>`<div class="row" style="align-items:center;flex-wrap:nowrap"><h2 style="margin:0;flex:1">${t}</h2><button class="btn ghost sm" style="flex:0" onclick="closeDrawer()">Close</button></div><br>`;
