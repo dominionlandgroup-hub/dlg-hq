@@ -384,29 +384,42 @@ async function vDashboard(){
   const rows=Object.values(byP).filter(r=>inR(r.sell?.tx_date||r.buy?.tx_date)).sort((x,y)=>(y.sell?.tx_date||y.buy?.tx_date).localeCompare(x.sell?.tx_date||x.buy?.tx_date));
   const purchased=T.filter(t=>t.kind==='purchase'&&inR(t.tx_date)).length,sold=T.filter(t=>t.kind==='sale'&&inR(t.tx_date)).length;
   let spent=0,rev=0,durs=[];rows.forEach(r=>{if(r.buy&&r.sell){spent+=(+r.buy.price||0)+(+r.buy.costs||0)+(+r.sell.costs||0);rev+=+r.sell.price||0;durs.push(Math.round((new Date(r.sell.tx_date)-new Date(r.buy.tx_date))/864e5))}});
-  const profit=rev-spent,roi=spent?profit/spent*100:0,avgDur=durs.length?Math.round(durs.reduce((s,x)=>s+x,0)/durs.length):0;
-  // Simple view: contract price, assigned-for price, assignment fee, days from contract to close
-  const closedRows=rows.filter(r=>r.buy&&r.sell),underContract=rows.filter(r=>r.buy&&!r.sell).length;
-  const feeTotal=closedRows.reduce((s,r)=>s+(+r.sell.price||0)-(+r.buy.price||0),0);
-  const contractTotal=rows.filter(r=>r.buy).reduce((s,r)=>s+(+r.buy.price||0),0);
+  const profit=rev-spent,avgDur=durs.length?Math.round(durs.reduce((s,x)=>s+x,0)/durs.length):0;
+  // Pipeline status comes from the deals' Buyer Deals stages (not the transaction log).
+  // Assigned = buyer-board stage named assign* or closed. Under contract = other buyer-board deals, excluding no-go/dead.
+  const {data:allDeals}=await sb.from('deals').select('id,board,stage_id,campaign_id,property_id,property_label,purchase_price,assignment_price').limit(5000);
+  const stName=id=>(STAGES.find(s=>s.id===id)?.name||'');
+  const isNoGo=n=>/no go|dead|lost|fell/i.test(n);
+  const isAssignedD=d=>{const s=STAGES.find(x=>x.id===d.stage_id);return !!(s&&(s.closed||/^closed$/i.test(s.name)||/assign/i.test(s.name)))};
+  const buyerDeals=(allDeals||[]).filter(d=>d.board==='buyer'&&!isNoGo(stName(d.stage_id)));
+  const assignedD=buyerDeals.filter(isAssignedD),underD=buyerDeals.filter(d=>!isAssignedD(d));
+  const feeOf=d=>(+d.assignment_price||0)-(+d.purchase_price||0);
+  const feeTotal=assignedD.reduce((s,d)=>s+feeOf(d),0);
+  const contractTotal=assignedD.reduce((s,d)=>s+(+d.purchase_price||0),0);
+  const underContract=underD.length;
+  const roi=contractTotal?feeTotal/contractTotal*100:0;
+  const firstTxOf=(p,k)=>T.find(t=>t.property_id===p&&t.kind===k);
+  const dRows=[...assignedD.map(d=>({d,st:'Assigned'})),...underD.map(d=>({d,st:'Under contract'}))];
   const C=(camps||[]).filter(c=>inR(c.drop_date));const cSpent=C.reduce((s,c)=>s+(+c.cost||0),0),cRec=C.reduce((s,c)=>s+(c.records||0),0);
   const deals=Math.round(h.deals)+liveDeals;
   // ROAS: profit from sold properties that were mailed in a campaign created in this range, over that range's mail spend
   const cIds=new Set(C.map(c=>c.id));let attrProfit=0;
   if(cIds.size){const pids=rows.filter(r=>r.buy&&r.sell&&r.p?.id).map(r=>r.p.id);if(pids.length){const {data:crs}=await sb.from('campaign_records').select('property_id,campaign_id').in('property_id',pids);
     const hit=new Set((crs||[]).filter(x=>cIds.has(x.campaign_id)).map(x=>x.property_id));rows.forEach(r=>{if(r.buy&&r.sell&&hit.has(r.p?.id))attrProfit+=(+r.sell.price)-(+r.buy.price)-(+r.buy.costs||0)-(+r.sell.costs||0)})}}
-  const roas=cSpent?attrProfit/cSpent*100:0;
+  const campFee=assignedD.filter(d=>cIds.has(d.campaign_id)).reduce((s,d)=>s+feeOf(d),0);
+  const roas=cSpent?campFee/cSpent*100:0;
+  const conv=deals?assignedD.length/deals*100:0;
   const S={conv:Math.round(h.conv)+live.conv,calls:Math.round(h.calls)+live.calls,missed:Math.round(h.missed)+live.missed,talk:h.talk+live.talk,texts:Math.round(h.texts)+live.texts,emails:Math.round(h.emails)+live.emails};
   const pc=v=>`<span style="color:${v>0?'#1a9e5a':v<0?'var(--red)':'#5C2977'}">${v.toFixed(2)}%</span>`;
   const stat=(l,v)=>`<div class="pst"><div class="l">${l}</div><div class="v">${v}</div></div>`;
   $('view').innerHTML=`<div class="vbanner"><svg class="ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 207.27 203.63"><defs><style>.cls-1{fill:#d5a940;}.cls-2{fill:#5c2977;}</style></defs><g id="Capa_2" data-name="Capa 2"><g id="Capa_4" data-name="Capa 4"><path class="cls-1" d="M134.08,106l73.19,18.29-53.77-8q-11-2.23-22.73-3.49a28.62,28.62,0,1,0-54.26,0c-7.83.83-15.43,2-22.72,3.49L0,124.25l72.25-18L22.4,104l50.79-2.69L0,83,73.66,94,28.45,72.9l48,16.94L15.78,44.93,79.63,83.25,45.93,46.46l37.82,34L44.93,15.78,89.25,75.62l-17-46.89,21.93,45.9L83,0l18,72.25,2.19-49.85L106,73.2,124.25,0l-11,73.66,21.1-45.22-16.94,48,44.9-60.62L124,79.63l36.79-33.69-34,37.82,64.68-38.83L131.66,89.26l46.89-17.05-45.9,21.93L207.27,83,135,101.08l49.84,2.19Z"/><path class="cls-2" d="M141,185v0c-1.31-.3-2.62-.58-3.94-.83v0C138.34,184.45,139.66,184.72,141,185Z"/><path class="cls-2" d="M146.88,186.23q-2.94-.79-5.91-1.47V160.57a3.14,3.14,0,0,0-1.26-2.5l-16.23-11.92V118.43a3.11,3.11,0,0,0-1.06-2.33l-5-4.4-11.8-10.29a3.08,3.08,0,0,0-4.11,0L90.18,111.69l-4.89,4.44a3.05,3.05,0,0,0-1,2.29v9.06L67.47,140.85a3.07,3.07,0,0,0-1.16,2.41v41.5c-2,.45-4,.94-5.91,1.47a132.1,132.1,0,0,0-39.61,17.4,262.22,262.22,0,0,1,41.09-10.57c1.74-.28,3.46-.58,5.2-.79s3.45-.55,5.2-.74c3.46-.45,7-.8,10.43-1.06,7-.6,13.94-.94,20.92-.86,7-.08,14,.26,20.94.86q5.22.39,10.43,1.06c1.73.19,3.46.51,5.2.74s3.46.51,5.19.79a262.05,262.05,0,0,1,41.1,10.57A132.32,132.32,0,0,0,146.88,186.23Zm-62.6-4.45c-.82.08-1.64.16-2.46.26-1.09.15-2.17.32-3.26.48,0-.7-.09-1.4-.13-2.1q-.66-10.56-1.32-21.12l-.34,0c-.44,7.91-.89,15.81-1.28,23.72-1.48.25-3,.51-4.45.79l-.8.15V143.67l14-11.16Zm17.29-1.09h0c-1.78,0-3.55.08-5.33.17,0-1.87-.09-3.74-.16-5.6q-.63-19.55-1.28-39.06l-.33,0c-.47,15-1,29.9-1.35,44.86-1.64.1-3.28.21-4.91.35V118.79l8.09-7.34,5.27-4.78Zm18,.73h0c-1.86-.17-3.74-.31-5.6-.41,0-1.91-.09-3.83-.16-5.75q-.63-19.55-1.28-39.06l-.33,0c-.46,14.9-1,29.79-1.34,44.69h0c-1.77-.08-3.54-.14-5.3-.17V106.55l5.61,4.91,8.43,7.35ZM137,183.94h0l-.79-.15c-1.56-.3-3.12-.57-4.68-.83h0c0-.31-.07-.62-.11-.93q-.68-6.18-1.34-12.35h-.33c-.41,4.27-.82,8.54-1.18,12.81h0l-3.1-.44-2-.23V151L137,161Z"/></g></g></svg><div class="verse">${verseHTML()}</div></div>
   <div class="pgrid">
-   <div class="card"><h3 class="sec">Summary</h3><div class="pstats">${stat('Responses<br>added',kfmt(deals))}${stat('Offers<br>made',Math.round(h.offers)+offersLive)}${stat('Properties<br>purchased',rows.filter(r=>r.buy).length)}${stat('Properties<br>under contract',underContract)}${stat('Properties<br>assigned',closedRows.length)}${stat('Avg. days contract<br>to assign',avgDur)}${stat('Assignment<br>fees',money(feeTotal))}<div class="pst"><div class="l big">ROI</div><div class="v">${pc(roi)}</div></div></div></div>
+   <div class="card"><h3 class="sec">Summary</h3><div class="pstats">${stat('Responses<br>added',kfmt(deals))}${stat('Offers<br>made',Math.round(h.offers)+offersLive)}${stat('Properties<br>under contract',underContract)}${stat('Properties<br>assigned',assignedD.length)}${stat('Avg. days contract<br>to assign',avgDur)}${stat('Assignment<br>fees',money(feeTotal))}<div class="pst"><div class="l big">ROI</div><div class="v">${pc(roi)}</div></div></div></div>
    <div class="card"><h3 class="sec">Responses added</h3><div style="height:150px"><canvas id="chDeals"></canvas></div></div>
   </div>
   <div class="grid2" style="margin-top:14px">
    <div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="sec" style="margin:0">Campaign report</h3><button class="btn ghost sm" onclick="go('campaigns')">See campaigns</button></div>
-     <div class="pstats" style="margin-top:14px">${stat('Campaigns<br>created',C.length)}${stat('Amount<br>spent','$'+kfmt(cSpent))}${stat('Total<br>records',kfmt(cRec))}${stat('Total<br>deals',deals.toLocaleString())}${stat('Cost per<br>lead',deals?money(cSpent/deals):'—')}${stat('Response<br>rate',cRec?(deals/cRec*100).toFixed(2)+'%':'0.00%')}<div class="pst"><div class="l big">ROAS</div><div class="v">${pc(roas)}</div></div></div>
+     <div class="pstats" style="margin-top:14px">${stat('Campaigns<br>created',C.length)}${stat('Amount<br>spent','$'+kfmt(cSpent))}${stat('Total<br>records',kfmt(cRec))}${stat('Total<br>deals',deals.toLocaleString())}${stat('Cost per<br>lead',deals?money(cSpent/deals):'—')}${stat('Response<br>rate',cRec?(deals/cRec*100).toFixed(2)+'%':'0.00%')}${stat('Conversion<br>rate',conv.toFixed(2)+'%')}<div class="pst"><div class="l big">ROAS</div><div class="v">${pc(roas)}</div></div></div>
      <h3 class="sec" style="margin-top:18px">Mailings</h3><div style="height:170px"><canvas id="chMail"></canvas></div></div>
    <div class="card"><h3 class="sec">Communication report</h3>
      <div class="pstats" style="margin-top:14px">${stat('Total<br>conversations',S.conv.toLocaleString())}${stat('Calls<br>made',S.calls.toLocaleString())}${stat('Calls<br>missed',S.missed.toLocaleString())}${stat('Talk<br>time',fmtTalk(S.talk))}${stat('Text messages<br>sent',S.texts.toLocaleString())}${stat('Emails<br>sent',S.emails.toLocaleString())}</div>
@@ -414,11 +427,9 @@ async function vDashboard(){
   </div>
   <div class="card" style="margin-top:14px;overflow-x:auto"><h3 class="sec" style="display:flex;justify-content:space-between;align-items:center"><span>Assignments</span><span class="small">ROI ${pc(roi)}</span></h3>
    <table class="roi"><tr><th>Property</th><th>Status</th><th class="right">Contract price</th><th class="right">Assigned for</th><th class="right">Assignment fee</th><th class="right">Days to close</th></tr>
-   ${rows.map(r=>{const bp=r.buy?+r.buy.price:null,sp=r.sell?+r.sell.price:null,fee=bp!=null&&sp!=null?sp-bp:null,du=r.buy&&r.sell?Math.round((new Date(r.sell.tx_date)-new Date(r.buy.tx_date))/864e5):null;
-     const apn=r.p?.apn||(r.notes||'').replace('Pebble ROI: APN ','');
-     const name=r.p?.id?`<a href="#" onclick="openProperty(${r.p.id});return false">${esc(apn||'—')}</a>`:esc(apn||'—');
-     return `<tr><td>${name}</td><td>${r.sell?'Closed':'Under contract'}</td><td class="right num">${money(bp)}</td><td class="right num">${money(sp)}</td><td class="right num" style="color:${fee!=null&&fee<0?'var(--red)':'#1a9e5a'}">${money(fee)}</td><td class="right">${du!=null?du+' days':(r.buy&&!r.sell?'open':'-')}</td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No contracts or closings in this date range.</td></tr>'}
-   ${rows.length?`<tr class="tot"><td colspan="2"><b>Total</b></td><td class="right num"><b>${money(contractTotal)}</b></td><td></td><td class="right num"><b>${money(feeTotal)}</b></td><td class="right"><b>${avgDur} days avg</b></td></tr>`:''}</table></div>`;
+   ${dRows.map(({d,st})=>{const bp=d.purchase_price!=null?+d.purchase_price:null,sp=d.assignment_price!=null?+d.assignment_price:null,fee=st==='Assigned'&&bp!=null&&sp!=null?sp-bp:null;const pu=firstTxOf(d.property_id,'purchase'),sa=firstTxOf(d.property_id,'sale');const du=st==='Assigned'&&pu&&sa?Math.round((new Date(sa.tx_date)-new Date(pu.tx_date))/864e5):null;
+     return `<tr><td>${esc(d.property_label||'(no address)')}</td><td>${st}</td><td class="right num">${money(bp)}</td><td class="right num">${st==='Assigned'?money(sp):'—'}</td><td class="right num" style="color:#1a9e5a">${fee!=null?money(fee):'—'}</td><td class="right">${du!=null?du+' days':'—'}</td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No deals on the Buyer Deals board.</td></tr>'}
+   ${dRows.length?`<tr class="tot"><td colspan="2"><b>Total assigned</b></td><td class="right num"><b>${money(contractTotal)}</b></td><td></td><td class="right num"><b>${money(feeTotal)}</b></td><td class="right"><b>${avgDur} days avg</b></td></tr>`:''}</table></div>`;
   // charts
   CHARTS.forEach(c=>c.destroy());CHARTS=[];if(!window.Chart)return;
   const bk=buckets(a,b),L=bk.map(x=>lbl(x[0]));
