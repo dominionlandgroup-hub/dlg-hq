@@ -1253,7 +1253,20 @@ async function deleteCampaign(id,sent){if(sent&&($('delConf').value||'').trim().
   const {error:e1}=await sb.from('campaign_records').delete().eq('campaign_id',id);if(e1)return $('delMsg').textContent=e1.message;
   const {error:e2}=await sb.from('campaigns').delete().eq('id',id);if(e2)return $('delMsg').textContent=e2.message;
   await sb.from('activity').insert({kind:'note',body:'Deleted campaign #'+id});closeDrawer();toast('Campaign deleted');go('campaigns')}
-async function remarket(id){const n=prompt('Name for the new campaign (same records, new offer codes)');if(!n)return;const {data,error}=await sb.rpc('campaign_remarket',{cid:id,new_name:n});if(error)return toast(error.message);toast('Remarket campaign created');go('campaign:'+data)}
+// Remarket: creates the new campaign with new offer codes, then takes out anyone tagged Due Diligence (or DD).
+// Their tags are left as they are. Only the new campaign's records are removed.
+async function remarket(id){
+  const n=prompt('Name for the new campaign (same records, new offer codes)');if(!n)return;
+  const {data,error}=await sb.rpc('campaign_remarket',{cid:id,new_name:n});if(error)return toast(error.message);
+  const newId=data;const isDD=t=>/^(due diligence|dd)$/i.test(String(t).trim());
+  let skipped=0;
+  const recs=[];for(let f=0;;f+=1000){const {data:r,error:e1}=await sb.from('campaign_records').select('id,lead_id').eq('campaign_id',newId).range(f,f+999);if(e1)break;recs.push(...(r||[]));if((r||[]).length<1000)break}
+  const lids=[...new Set(recs.map(r=>r.lead_id).filter(Boolean))];const ddLeads=new Set();
+  for(let i=0;i<lids.length;i+=200){const {data:ls}=await sb.from('leads').select('id,tags').in('id',lids.slice(i,i+200));(ls||[]).forEach(l=>{if((l.tags||[]).some(isDD))ddLeads.add(l.id)})}
+  const delIds=recs.filter(r=>ddLeads.has(r.lead_id)).map(r=>r.id);
+  for(let i=0;i<delIds.length;i+=200){const {error:e2}=await sb.from('campaign_records').delete().in('id',delIds.slice(i,i+200));if(e2)return toast('Created, but could not skip some: '+e2.message)}
+  skipped=delIds.length;
+  toast(`Remarket campaign created. Skipped ${skipped} Due Diligence contacts.`);go('campaign:'+newId)}
 async function splitCampaign(id){const k=+prompt('Split into how many campaigns?','2');if(!(k>1))return;const {error}=await sb.rpc('campaign_split',{cid:id,parts:k});if(error)return toast(error.message);toast('Split into '+k);go('campaigns')}
 
 // ---------- Mailing Insights (By Month / By County / By Template) ----------
@@ -1276,11 +1289,11 @@ async function startMailing(id){
    <div class="card"><p style="margin-top:0"><b>${esc(c.name)}</b></p>
    <label class="f">Letter template</label><select id="m_tpl">${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}" ${c.template===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
    <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Remove opt-outs, "not selling" and do-not-mail</label>
-   <p class="small muted">Downloads the mail-house list with every merge field (Owner name, first and last name, mailing address, city, state, zip, property address, city, state, zip, county, FIPS, APN, acres, offer code), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. Attach the list, this campaign's letter (shown above) and PatrickHand-Regular.ttf from your DM LETTERS folder (the handwriting font, so the letter prints right), then send.</p>
+   <p class="small muted">Saves the mail-house list (no download) and opens a draft email to Brandon, cc Paul, with a link to the list. Every merge field (Owner name, first and last name, mailing address, city, state, zip, property address, city, state, zip, county, FIPS, APN, acres, offer code), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. The list is in the draft as a link. Attach this campaign's letter (shown above) and PatrickHand-Regular.ttf from your DM LETTERS folder (the handwriting font, so the letter prints right), then send.</p>
    <div class="card" id="m_pray" style="margin:12px 0;background:#f7f3ea;border-left:4px solid #b8963e"><b>Pray before you send</b>
     <p style="font-style:italic;line-height:1.6;margin:8px 0">${esc(PRAYERS[(id||0)%PRAYERS.length].replace('{n}',(c.records||0).toLocaleString()))}</p>
     <button class="btn ghost" onclick="amen(${id})">🙏 Amen</button></div>
-   <button class="btn" id="m_send" disabled title="Pray first" onclick="buildMailList(${id})">Download list + draft email</button><div id="m_msg" class="small" style="margin-top:8px"></div></div>`)}
+   <button class="btn" id="m_send" disabled title="Pray first" onclick="buildMailList(${id})">Draft email with list</button><div id="m_msg" class="small" style="margin-top:8px"></div></div>`)}
 const PRAYERS=['Lord, this business is Yours before it is mine. Give me wisdom for every call these {n} letters bring, keep me honest with every owner, and lead me to the people You want me to serve. Amen.',
  'Father, I put these {n} letters in Your hands. Give me wisdom, open the right doors and close the wrong ones, and let every deal honor You. Amen.',
  'God, thank You for this business. Grant me wisdom and patience with every seller who calls, and let Your favor go before this mailing. Amen.',
@@ -1300,10 +1313,16 @@ async function buildMailList(id){
      PropertyState:p.state||'',PropertyZip:p.zip||(/^\d{5}$/.test(p.city||'')?p.city:''),County:p.county||'',FIPS:p.fips||'',Acres:p.acres!=null?String(+(+p.acres).toFixed(2)):'',MailDate:_mdate}});
   const missing=rows.filter(r=>!r.OfferCode).length;
   const {data:c}=await sb.from('campaigns').select('name,mail_token').eq('id',id).single();
-  dlCSV(`${c.name.replace(/[^\w ]+/g,'')} - mail house.csv`,rows);
+  // No download: the list goes to secure storage and the draft email links to it (valid 7 days)
+  const csvName=`${c.name.replace(/[^\w ]+/g,'').trim()} - mail house.csv`;
+  const path=`mail-lists/${id}/${Date.now()}-${csvName.replace(/[^\w.\- ]+/g,'_')}`;
+  const {error:upErr}=await sb.storage.from('deal-files').upload(path,new Blob([Papa.unparse(rows)],{type:'text/csv'}),{contentType:'text/csv'});
+  if(upErr)return $('m_msg').textContent='Could not save the list: '+upErr.message;
+  const {data:sl,error:slErr}=await sb.storage.from('deal-files').createSignedUrl(path,604800);
+  if(slErr)return $('m_msg').textContent='Could not create the list link: '+slErr.message;
   await sb.from('campaigns').update({template:$('m_tpl').value,mail_status:'to_house',mail_to_house_at:new Date().toISOString(),records:rows.length}).eq('id',id);
   $('m_msg').innerHTML=`${rows.length.toLocaleString()} records (${all.length-rows.length} removed).${missing?` <b style="color:var(--red)">${missing} have no offer code.</b> Add codes before sending; Brandon flags lists without them.`:''}`;
-  const body=`Hello,\n\nAttached is a new list for "${c.name}" (${rows.length} records) and the letter template (${$('m_tpl').value}).\n\nPlease use this link to mark the job Received, Processing and Sent as it moves along:\n${mailLink(c)}\n\nPlease send a sample and postage when ready.\n\nThanks!\nDamien Dupee\nDominion Land Group`;
+  const body=`Hello,\n\nHere is a new list for "${c.name}" (${rows.length} records). Download it here (link valid 7 days):\n${sl.signedUrl}\n\nThe letter template for this campaign is ${$('m_tpl').value}. Please attach it, along with PatrickHand-Regular.ttf from the DM LETTERS folder.\n\nPlease use this link to mark the job Received, Processing and Sent as it moves along:\n${mailLink(c)}\n\nPlease send a sample and postage when ready.\n\nThanks!\nDamien Dupee\nDominion Land Group`;
   window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${MAIL_HOUSE.to}&cc=${MAIL_HOUSE.cc}&su=${encodeURIComponent('NEW DATA - '+c.name)}&body=${encodeURIComponent(body)}`,'_blank');
 }
 async function editCampaign(id){const {data:c}=id?await sb.from('campaigns').select('*').eq('id',id).single():{data:{channel:'mail'}};
