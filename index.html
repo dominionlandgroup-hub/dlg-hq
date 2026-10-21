@@ -418,8 +418,10 @@ async function vDashboard(){
   const cIds=new Set(C.map(c=>c.id));let attrProfit=0;
   if(cIds.size){const pids=rows.filter(r=>r.buy&&r.sell&&r.p?.id).map(r=>r.p.id);if(pids.length){const {data:crs}=await sb.from('campaign_records').select('property_id,campaign_id').in('property_id',pids);
     const hit=new Set((crs||[]).filter(x=>cIds.has(x.campaign_id)).map(x=>x.property_id));rows.forEach(r=>{if(r.buy&&r.sell&&hit.has(r.p?.id))attrProfit+=(+r.sell.price)-(+r.buy.price)-(+r.buy.costs||0)-(+r.sell.costs||0)})}}
-  const campFee=assignedD.filter(d=>cIds.has(d.campaign_id)).reduce((s,d)=>s+feeOf(d),0);
-  const roas=cSpent?campFee/cSpent*100:0;
+  // ROAS: assignment fees from this range's assigned/closed deals, over the cost of the campaigns those deals came from (whenever they dropped)
+  const campD=assignedD.filter(d=>d.campaign_id);const campFee=campD.reduce((s,d)=>s+feeOf(d),0);
+  const campCost=[...new Set(campD.map(d=>d.campaign_id))].reduce((s,id)=>s+(+((camps||[]).find(c=>c.id===id)?.cost)||0),0);
+  const roas=campCost?campFee/campCost*100:0;
   const conv=deals?assignedD.length/deals*100:0;
   const S={conv:Math.round(h.conv)+live.conv,calls:Math.round(h.calls)+live.calls,missed:Math.round(h.missed)+live.missed,talk:h.talk+live.talk,texts:Math.round(h.texts)+live.texts,emails:Math.round(h.emails)+live.emails};
   const pc=v=>`<span style="color:${v>0?'#1a9e5a':v<0?'var(--red)':'#5C2977'}">${v.toFixed(2)}%</span>`;
@@ -526,14 +528,14 @@ async function openDealForm(d){
        <select id="d_stage_id" style="width:auto">${st.map(s=>`<option value="${s.id}" ${s.id===d.stage_id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
        <button class="btn ghost" onclick="closeDrawer()">Close</button></div></div>
    <div class="card dsum"><div><div class="l">Estimated value</div><div class="v">${d.value!=null&&d.value!==''?money(d.value):'—'}</div></div>
-     <div><div class="l">Campaign</div><div class="v">${esc(camp?.name||'—')}</div></div><div><div class="l">Source</div><div class="v">${esc(d.source||'—')}</div></div>
+     <div><div class="l">Campaign</div><div class="v">${esc(camp?.name||(/replysmart|sms/i.test(d.source||'')?'ReplySmart (SMS)':'—'))}</div></div><div><div class="l">Source</div><div class="v">${esc(d.source||'—')}</div></div>
      <div><div class="l">Created</div><div class="v">${d.created_at?fmtDate(d.created_at):'—'}</div></div></div>
    <div class="dgrid"><div>
    <div class="card"><h3 class="sec" style="margin-top:0">Deal terms</h3>
      <div class="g3">${$f('value','Estimated value')}${$f('purchase_price','Contract price')}${$f('assignment_price','Assignment / sale price')}</div>
      <div class="g3">${$f('emd','EMD (leave blank if none)')}<div><label class="f">Due diligence (business days)</label><input id="d_dd_days" type="number" min="0" step="1" value="${esc(d.dd_days??'')}" placeholder="e.g. 10"></div>${tf('closing_date','Closing date','date')}</div>
      <div class="g2">${tf('attorney','Closing attorney')}<div><label class="f">Buyer</label><select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>`<option value="${b.id}" ${b.id===d.buyer_id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div></div>
-     <div class="g2"><div><label class="f">Campaign</label><select id="d_campaign_id"><option value="">—</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div></div>
+     <div class="g2"><div><label class="f">Campaign</label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div></div>
      <div class="g2">${tf('source','Source')}${!d.id||!p?tf('property_label','Property address'):`<input id="d_property_label" type="hidden" value="${esc(d.property_label||'')}">`}</div>
      <div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="saveDeal(${d.id||0},'${board}')">Save deal</button>
      ${d.id?(board==='seller'?`<button class="btn" style="background:var(--accent)" onclick="moveToBuyer(${d.id})">Under contract → Buyer Deals</button>`:`<button class="btn ghost" onclick="moveToSeller(${d.id})">← Back to Seller Deals</button>`)+`<button class="btn danger" style="margin-left:auto" onclick="delDeal(${d.id},'${board}')">Delete deal</button>`:''}</div></div>
@@ -612,8 +614,8 @@ async function moveToBuyer(id){const s=STAGES.find(x=>x.board==='buyer');if(!s)r
 async function moveToSeller(id){const s=STAGES.find(x=>x.board==='seller');const {error}=await sb.from('deals').update({board:'seller',stage_id:s.id,updated_at:new Date().toISOString()}).eq('id',id);if(error)return toast(error.message);toast('Moved back to Seller Deals');closeDrawer();go('board-seller')}
 async function saveDeal(id,board){
   const n=k=>{const v=$('d_'+k).value;return v===''?null:Number(v)};
-  const r={board,stage_id:n('stage_id'),priority:$('d_priority').value||null,value:n('value'),property_label:$('d_property_label').value||null,campaign_id:n('campaign_id'),
-    source:$('d_source').value||null,purchase_price:n('purchase_price'),assignment_price:n('assignment_price'),emd:n('emd'),closing_date:$('d_closing_date').value||null,
+  const r={board,stage_id:n('stage_id'),priority:$('d_priority').value||null,value:n('value'),property_label:$('d_property_label').value||null,campaign_id:$('d_campaign_id').value==='sms'?null:n('campaign_id'),
+    source:$('d_campaign_id').value==='sms'?'ReplySmart SMS':($('d_source').value||null),purchase_price:n('purchase_price'),assignment_price:n('assignment_price'),emd:n('emd'),closing_date:$('d_closing_date').value||null,
     attorney:$('d_attorney').value||null,buyer_id:n('buyer_id'),dd_days:n('dd_days'),updated_at:new Date().toISOString()};
   const put=r=>id?sb.from('deals').update(r).eq('id',id).select().single():sb.from('deals').insert(r).select().single();
   let {data,error}=await put(r);let note='Saved';
