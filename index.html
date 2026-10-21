@@ -1197,7 +1197,18 @@ async function deleteCampaign(id,sent){if(sent&&($('delConf').value||'').trim().
   const {error:e1}=await sb.from('campaign_records').delete().eq('campaign_id',id);if(e1)return $('delMsg').textContent=e1.message;
   const {error:e2}=await sb.from('campaigns').delete().eq('id',id);if(e2)return $('delMsg').textContent=e2.message;
   await sb.from('activity').insert({kind:'note',body:'Deleted campaign #'+id});closeDrawer();toast('Campaign deleted');go('campaigns')}
-async function remarket(id){const n=prompt('Name for the new campaign (same records, new offer codes)');if(!n)return;const {data,error}=await sb.rpc('campaign_remarket',{cid:id,new_name:n});if(error)return toast(error.message);toast('Remarket campaign created');go('campaign:'+data)}
+// Remarket: first remove the Due Diligence tag (and DD) from this campaign's contacts, so they can be mailed again,
+// then create the new campaign with new offer codes.
+async function remarket(id){
+  const n=prompt('Name for the new campaign (same records, new offer codes)');if(!n)return;
+  const lids=new Set();
+  for(let f=0;;f+=1000){const {data,error}=await sb.from('campaign_records').select('lead_id').eq('campaign_id',id).range(f,f+999);if(error)return toast(error.message);(data||[]).forEach(r=>{if(r.lead_id)lids.add(r.lead_id)});if((data||[]).length<1000)break}
+  const ids=[...lids];const isDD=t=>/^(due diligence|dd)$/i.test(String(t).trim());const dd=[];
+  for(let i=0;i<ids.length;i+=200){const {data,error}=await sb.from('leads').select('id,tags').in('id',ids.slice(i,i+200));if(error)return toast(error.message);(data||[]).forEach(l=>{if((l.tags||[]).some(isDD))dd.push(l)})}
+  if(!confirm(`Remove the Due Diligence tag from ${dd.length} contacts in this campaign, then create the new campaign "${n}"?`))return;
+  for(const l of dd){const tags=(l.tags||[]).filter(t=>!isDD(t));const {error}=await sb.from('leads').update({tags,updated_at:new Date().toISOString()}).eq('id',l.id);if(error)return toast('Stopped: '+error.message)}
+  const {data,error}=await sb.rpc('campaign_remarket',{cid:id,new_name:n});if(error)return toast(error.message);
+  toast(`Removed Due Diligence from ${dd.length}. Remarket campaign created`);go('campaign:'+data)}
 async function splitCampaign(id){const k=+prompt('Split into how many campaigns?','2');if(!(k>1))return;const {error}=await sb.rpc('campaign_split',{cid:id,parts:k});if(error)return toast(error.message);toast('Split into '+k);go('campaigns')}
 
 // ---------- Mailing Insights (By Month / By County / By Template) ----------
