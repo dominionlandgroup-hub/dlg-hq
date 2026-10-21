@@ -366,16 +366,18 @@ async function vDashboard(){
   $('dr').onchange=e=>{store.set('dashRange',e.target.value);vDashboard()};
   if($('dra')){const f=()=>{store.set('dashA',$('dra').value);store.set('dashB',$('drb').value);vDashboard()};$('dra').onchange=f;$('drb').onchange=f}
   const end=b+'T23:59:59';
-  const [{data:H},{data:tx},{data:camps},{data:dl},{data:msgs}]=await Promise.all([
+  const [{data:H},{data:tx},{data:camps},{data:dl0},{data:msgs}]=await Promise.all([
     sb.from('pebble_history').select('*'),
     sb.from('transactions').select('id,property_id,deal_id,kind,tx_date,price,costs,notes,properties(id,apn,address,city)').order('tx_date',{ascending:false}).limit(5000),
     sb.from('campaigns').select('id,name,drop_date,records,cost').limit(2000),
-    sb.from('deals').select('id,board,created_at,source,campaign_id').neq('source','pebble').gte('created_at',a).lte('created_at',end).limit(5000),
+    sb.from('deals').select('id,board,created_at,source,campaign_id,lead_id,property_label').or('source.is.null,source.neq.pebble').gte('created_at',a).lte('created_at',end).limit(5000),
     sb.from('messages').select('lead_id,channel,direction,duration_s,created_at').gte('created_at',a).lte('created_at',end).limit(10000)]);
   const inR=d=>d&&d>=a&&d<=b;
   const h=histSum(H||[],a,b);
   // Live numbers made in DLG HQ after the move
-  const liveDeals=(dl||[]).length,liveSeller=(dl||[]).filter(d=>d.board==='seller').length;
+  // one lead per person per board; skip rows marked DUPLICATE and blank rows
+  const _seen=new Set();const dl=(dl0||[]).filter(d=>{if(/^duplicate/i.test(d.property_label||''))return false;if(!d.lead_id&&!d.property_label)return false;if(d.lead_id){const k=d.board+':'+d.lead_id;if(_seen.has(k))return false;_seen.add(k)}return true});
+  const liveDeals=dl.length,liveSeller=(dl||[]).filter(d=>d.board==='seller').length;
   const M=msgs||[];const live={conv:new Set(M.map(m=>m.lead_id)).size,calls:M.filter(m=>m.channel==='call'&&m.direction==='out').length,missed:M.filter(m=>m.channel==='call'&&m.direction==='in'&&!m.duration_s).length,
     talk:M.filter(m=>m.channel==='call').reduce((s,m)=>s+(m.duration_s||0),0),texts:M.filter(m=>m.channel==='sms'&&m.direction==='out').length,emails:M.filter(m=>m.channel==='email'&&m.direction==='out').length};
   const T=tx||[];const offersLive=T.filter(t=>t.kind==='offer'&&inR(t.tx_date)).length;
@@ -444,7 +446,7 @@ async function vDashboard(){
   <div class="card" style="margin-top:14px;overflow-x:auto"><h3 class="sec" style="display:flex;justify-content:space-between;align-items:center"><span>Assignments</span><span class="small">ROI ${pc(roi)}</span></h3>
    <table class="roi"><tr><th>Property</th><th>Status</th><th class="right">Contract price</th><th class="right">Assigned for</th><th class="right">Assignment fee</th><th class="right">Days to close</th></tr>
    ${dRows.map(({d,st})=>{const bp=bpOf(d),sp=spOf(d),fee=d.value!=null?+d.value:null;const pu=txOf(d,'purchase'),sa=txOf(d,'sale');const du=st==='Closed'&&pu&&sa?Math.round((new Date(sa.tx_date)-new Date(pu.tx_date))/864e5):null;
-     return `<tr><td>${esc(d.property_label||'(no address)')}</td><td>${st}</td><td class="right num">${money(bp)}</td><td class="right num">${sp!=null?money(sp):'—'}</td><td class="right num" style="color:#1a9e5a">${fee!=null?money(fee):'—'}</td><td class="right">${du!=null?du+' days':(st!=='Closed'&&closeOf(d)?'closes '+closeOf(d).slice(5).replace('-','/'):'—')}</td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No deals on the Buyer Deals board.</td></tr>'}
+     return `<tr><td>${esc(d.property_label||'(no address)')}</td><td>${st}</td><td class="right num">${money(bp)}</td><td class="right num">${sp!=null?money(sp):'—'}</td><td class="right num" style="color:#1a9e5a">${fee!=null?money(fee):'—'}${d.as_meta?.jv_cut?`<div class="small muted">after ${money(+d.as_meta.jv_cut)} to ${esc(d.as_meta.jv_partner||'JV')}</div>`:''}</td><td class="right">${du!=null?du+' days':(st!=='Closed'&&closeOf(d)?'closes '+closeOf(d).slice(5).replace('-','/'):'—')}</td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No deals on the Buyer Deals board.</td></tr>'}
    ${dRows.length?`<tr class="tot"><td colspan="2"><b>Total assigned</b></td><td class="right num"><b>${money(contractTotal)}</b></td><td></td><td class="right num"><b>${money(feeTotal)}</b></td><td class="right"><b>${avgDur} days avg</b></td></tr>`:''}</table></div>`;
   // charts
   CHARTS.forEach(c=>c.destroy());CHARTS=[];if(!window.Chart)return;
@@ -536,7 +538,8 @@ async function openDealForm(d){
    <div class="card"><h3 class="sec" style="margin-top:0">Deal terms</h3>
      <div class="g3">${$f('value','Estimated value')}${$f('purchase_price','Contract price')}${$f('assignment_price','Assignment / sale price')}</div>
      <div class="g3">${$f('emd','EMD (leave blank if none)')}<div><label class="f">Due diligence (business days)</label><input id="d_dd_days" type="number" min="0" step="1" value="${esc(d.dd_days??'')}" placeholder="e.g. 10"></div>${tf('closing_date','Contract closing date','date')}</div>
-     <div class="g3"><div><label class="f">Assignment closing date</label><input id="d_as_close" type="date" value="${esc(d.as_meta?.close_date||'')}"></div></div>
+     <div class="g3"><div><label class="f">Assignment closing date</label><input id="d_as_close" type="date" value="${esc(d.as_meta?.close_date||'')}"></div><div><label class="f">JV partner</label><input id="d_jv_partner" value="${esc(d.as_meta?.jv_partner||'')}" placeholder="Name"></div><div><label class="f">JV partner's cut</label><div class="moneyin"><span>$</span><input id="d_jv_cut" type="number" step="any" value="${esc(d.as_meta?.jv_cut??'')}"></div></div></div>
+     <div class="small muted" style="margin:-4px 0 8px">Value = your fee after the JV partner's cut. The dashboard counts Value.</div>
      <div class="g2">${tf('attorney','Closing attorney')}<div><label class="f">Buyer</label><select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>`<option value="${b.id}" ${b.id===d.buyer_id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div></div>
      <div class="g2"><div><label class="f">Campaign</label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div></div>
      <div class="g2">${tf('source','Source')}${!d.id||!p?tf('property_label','Property address'):`<input id="d_property_label" type="hidden" value="${esc(d.property_label||'')}">`}</div>
@@ -618,7 +621,7 @@ async function moveToSeller(id){const s=STAGES.find(x=>x.board==='seller');const
 async function saveDeal(id,board){
   const n=k=>{const v=$('d_'+k).value;return v===''?null:Number(v)};
   const r={board,stage_id:n('stage_id'),priority:$('d_priority').value||null,value:n('value'),property_label:$('d_property_label').value||null,campaign_id:$('d_campaign_id').value==='sms'?null:n('campaign_id'),
-    source:$('d_campaign_id').value==='sms'?'ReplySmart SMS':($('d_source').value||null),purchase_price:n('purchase_price'),assignment_price:n('assignment_price'),emd:n('emd'),closing_date:$('d_closing_date').value||null,...($('d_as_close')?{as_meta:{...((window._dl&&window._dl.id===id&&window._dl.as_meta)||{}),close_date:$('d_as_close').value||null}}:{}),
+    source:$('d_campaign_id').value==='sms'?'ReplySmart SMS':($('d_source').value||null),purchase_price:n('purchase_price'),assignment_price:n('assignment_price'),emd:n('emd'),closing_date:$('d_closing_date').value||null,...($('d_as_close')?{as_meta:{...((window._dl&&window._dl.id===id&&window._dl.as_meta)||{}),close_date:$('d_as_close').value||null,jv_partner:$('d_jv_partner').value.trim()||null,jv_cut:$('d_jv_cut').value===''?null:Number($('d_jv_cut').value)}}:{}),
     attorney:$('d_attorney').value||null,buyer_id:n('buyer_id'),dd_days:n('dd_days'),updated_at:new Date().toISOString()};
   const put=r=>id?sb.from('deals').update(r).eq('id',id).select().single():sb.from('deals').insert(r).select().single();
   let {data,error}=await put(r);let note='Saved';
@@ -955,7 +958,8 @@ async function rsAsgSend(id){const {deal}=kDeal();const v=k=>($(k)?.value||'').t
     let bin='';const u8=new Uint8Array(bytes);for(let i=0;i<u8.length;i+=32768)bin+=String.fromCharCode.apply(null,u8.subarray(i,i+32768));
     const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const fname=`Assignment of Contract - ${slug}.pdf`;
     const fee=deal.assignment.assignment_fee;const bid=Number(v('rs_buyer'))||null;
-    const asg_meta={assignee:deal.assignment.assignee,fee:Number.isFinite(fee)?fee:null,buyer_id:bid,assignment_price:Number.isFinite(fee)&&deal.purchase_price?deal.purchase_price+fee:null,signed_psa_in_front:!!psa,close_date:(()=>{const t=new Date(deal.assignment.close_by||'');return isNaN(t)?null:t.toISOString().slice(0,10)})()};
+    const {data:_am}=await sb.from('deals').select('as_meta').eq('id',id).single();const _jv={jv_partner:_am?.as_meta?.jv_partner||null,jv_cut:_am?.as_meta?.jv_cut??null};
+    const asg_meta={..._jv,assignee:deal.assignment.assignee,fee:Number.isFinite(fee)?fee:null,buyer_id:bid,assignment_price:Number.isFinite(fee)&&deal.purchase_price?deal.purchase_price+fee:null,signed_psa_in_front:!!psa,close_date:(()=>{const t=new Date(deal.assignment.close_by||'');return isNaN(t)?null:t.toISOString().slice(0,10)})()};
     btn.textContent='Sending…';const {data,error}=await sb.functions.invoke('rabbitsign/send',{body:{deal_id:id,doc_kind:'asg',asg_meta,pdf_base64:btoa(bin),file_name:fname,title:v('rs_title'),summary:v('rs_msg'),signers}});
     if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}if(data?.error)throw new Error(data.error);
     if(bid)await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);
