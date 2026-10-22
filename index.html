@@ -323,7 +323,7 @@ const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox
  followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse};
 const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
-function go(v){const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch(decodeURIComponent(m[2]));return}
+function go(v){try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status='unread'}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch(decodeURIComponent(m[2]));return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
   document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v===v));
   $('title').textContent=TITLES[v];$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');VIEWS[v]()}
@@ -1051,8 +1051,8 @@ async function rsRefresh(id,remind,kind){toast(remind?'Sending reminder…':'Che
 
 // ---------- inboxes ----------
 // ---------- inboxes (modeled on Pebble: list · conversation · contact/deal panel) ----------
-let IST2={status:'inbox',term:'',tid:null,box:'seller'};
-async function vInbox(box){if(!PNUMS)await loadPnums();if(IST2.box!==box)IST2={status:'inbox',term:'',tid:null,box};
+let IST2={status:'unread',term:'',tid:null,box:'seller'}; // seller and buyer inboxes open on Unread
+async function vInbox(box){if(!PNUMS)await loadPnums();if(IST2.box!==box)IST2={status:'unread',term:'',tid:null,box};
   $('actions').innerHTML=`<button class="btn ghost" onclick="emailSetup('${box}')">✉ Email settings</button> <button class="btn ghost" onclick="phoneSetup()">☎ Phone numbers</button> <button class="btn" onclick="startConversation('${box}')">+ Start Conversation</button>`;
   $('view').innerHTML=`<div class="inbox3"><div class="tlist"><div class="tl-top"><input id="tq" placeholder="Search conversations" value="${esc(IST2.term)}">
      <div class="seg" id="seg2">${SEGS.map(([x,l])=>`<button class="${IST2.status===x?'on':''}" onclick="IST2.status='${x}';drawSeg();loadThreads()">${l}</button>`).join('')}</div></div><div id="tl"></div></div>
