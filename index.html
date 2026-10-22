@@ -515,11 +515,17 @@ function wireDnD(board){let dragId=null;
 async function addStage(board){const n=prompt('New stage name');if(!n)return;const pos=Math.max(0,...STAGES.filter(s=>s.board===board).map(s=>s.position))+1;
   const {data,error}=await sb.from('board_stages').insert({board,name:n,position:pos}).select().single();if(error)return toast(error.message);STAGES.push(data);vBoard(board)}
 
+// buyer pickers: option text = name (company); a search box above the select filters by name, company or email and always keeps the selected buyer
+const buyerQ=b=>[b.name,b.company,b.email].filter(Boolean).join(' ').toLowerCase();
+const buyerOpt=(b,sel)=>`<option value="${b.id}" ${sel?'selected':''}>${esc((b.name||'')+(b.company&&b.company!==b.name?' ('+b.company+')':''))}</option>`;
+const buyerSearch=sid=>`<input type="search" placeholder="Search buyers by name, company or email" oninput="filterBuyers('${sid}',this.value)" style="margin-bottom:4px">`;
+function filterBuyers(sid,q){const s=$(sid);if(!s)return;const cur=s.value;q=String(q||'').trim().toLowerCase();const L=(BUYERS||[]).filter(b=>String(b.id)===cur||!q||buyerQ(b).includes(q));
+  s.innerHTML='<option value="">'+(q?L.filter(b=>String(b.id)!==cur).length+' match'+(L.filter(b=>String(b.id)!==cur).length===1?'':'es'):'—')+'</option>'+L.map(b=>buyerOpt(b,String(b.id)===cur)).join('');s.value=cur}
 function newDeal(board,stageId){openDealForm({board,stage_id:stageId||STAGES.find(s=>s.board===board)?.id})}
 async function openDeal(id){const {data:d,error}=await sb.from('deals').select('*, leads(*), properties(*)').eq('id',id).single();if(error)return toast(error.message);openDealForm(d)}
 async function openDealForm(d){
   const xp=(d?.extra_property_ids||[]).length?((await sb.from('properties').select('id,apn,address,city,county,acres').in('id',d.extra_property_ids)).data||[]):[];
-  if(!BUYERS){const {data}=await sb.from('buyers').select('id,name').order('name');BUYERS=data||[]}
+  if(!BUYERS){const {data}=await sb.from('buyers').select('id,name,company,email').order('name');BUYERS=data||[]}
   const none={data:[]};
   const [{data:camps},{data:tasks},{data:plans},{data:enr},{data:msgs}]=await Promise.all([
     sb.from('campaigns').select('id,name,drop_date').order('created_at',{ascending:false}).limit(1000),
@@ -551,7 +557,7 @@ async function openDealForm(d){
      <div class="g3"><div><label class="f">Assignment closing date</label><input id="d_as_close" type="date" value="${esc(d.as_meta?.close_date||'')}"></div><div><label class="f">JV partner</label><input id="d_jv_partner" value="${esc(d.as_meta?.jv_partner||'')}" placeholder="Name"></div><div><label class="f">JV partner's cut</label><div class="moneyin"><span>$</span><input id="d_jv_cut" type="number" step="any" value="${esc(d.as_meta?.jv_cut??'')}"></div></div></div>
      <div class="g3"><div><label class="f">Escalate up to</label><div class="moneyin"><span>$</span><input id="d_esc_max" type="number" step="any" value="${esc(d.as_meta?.esc_max??'')}"></div></div><div><label class="f">Escalation increments</label><div class="moneyin"><span>$</span><input id="d_esc_step" type="number" step="any" value="${esc(d.as_meta?.esc_step??'')}"></div></div><div class="small muted" style="align-self:end">${d.as_meta?.esc_max&&d.purchase_price?'Offer '+money(d.purchase_price)+' escalating by '+money(d.as_meta.esc_step||0)+' up to '+money(d.as_meta.esc_max):'Purchase price = starting offer'}</div></div>
      <div class="small muted" style="margin:-4px 0 8px">Value = your fee after the JV partner's cut. The dashboard counts Value.</div>
-     <div class="g2">${tf('attorney','Closing attorney')}<div><label class="f">Buyer</label><select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>`<option value="${b.id}" ${b.id===d.buyer_id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div></div>
+     <div class="g2">${tf('attorney','Closing attorney')}<div><label class="f">Buyer</label>${buyerSearch('d_buyer_id')}<select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>buyerOpt(b,b.id===d.buyer_id)).join('')}</select></div></div>
      <div class="g2"><div><label class="f">Campaign</label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div></div>
      <div class="g2">${tf('source','Source')}${!d.id||!p?tf('property_label','Property address'):`<input id="d_property_label" type="hidden" value="${esc(d.property_label||'')}">`}</div>
      <div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="saveDeal(${d.id||0},'${board}')">Save deal</button>
@@ -570,9 +576,9 @@ async function openDealForm(d){
    <div class="card"><h3 class="sec" style="margin-top:0">Contracts &amp; documents</h3>
      <button class="btn" style="margin-bottom:8px" onclick="contractsFor(${d.id},'psa',true)">✍ Send agreement for e-signature</button>${d.rs_folder_id?`<div class="small muted" style="margin:-4px 0 8px">Last sent ${d.rs_sent_at?new Date(d.rs_sent_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''}</div>`:''}
      <button class="btn ghost" style="margin-bottom:8px" onclick="contractsFor(${d.id},'asg',true)">✍ Send assignment for e-signature</button>${d.as_folder_id?`<div class="small muted" style="margin:-4px 0 8px">Assignment last sent ${d.as_sent_at?new Date(d.as_sent_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''}</div>`:''}
-     <div class="docbtns">${[['psa','Land Purchase Agreement'],['house','House Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,t])=>`<button class="btn ghost" onclick="contractsFor(${d.id},'${k}')">+ ${t}</button>`).join('')}</div>
+     <div class="docbtns">${[['psa','Land Purchase Agreement'],['house','House Purchase Agreement'],['asg','Assignment of Contract'],['resale','Resale Purchase Agreement'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,t])=>`<button class="btn ghost" onclick="contractsFor(${d.id},'${k}')">+ ${t}</button>`).join('')}</div>
      ${d.rs_folder_id?`<div class="small" style="margin-top:10px;padding:8px;border:1px solid var(--line);border-radius:8px">✍ <b>RabbitSign:</b> ${esc(rsStatusText(d))} <a href="#" onclick="rsRefresh(${d.id});return false">Refresh</a>${d.rs_status!=='signed'?` · <a href="#" onclick="rsRefresh(${d.id},true);return false">Send reminder</a>`:''}</div>`:''}
-     ${d.as_folder_id?`<div class="small" style="margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px">✍ <b>Assignment (RabbitSign):</b> ${esc(rsStatusText({rs_status:d.as_status,rs_signers:d.as_signers,rs_sent_at:d.as_sent_at,rs_signed_at:d.as_signed_at},'asg'))} <a href="#" onclick="rsRefresh(${d.id},false,'asg');return false">Refresh</a>${d.as_status!=='signed'?` · <a href="#" onclick="rsRefresh(${d.id},true,'asg');return false">Send reminder</a>`:''}</div>`:''}
+     ${d.as_folder_id?`<div class="small" style="margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px">✍ <b>${d.as_meta?.resale?'Resale agreement':'Assignment'} (RabbitSign):</b> ${esc(rsStatusText({rs_status:d.as_status,rs_signers:d.as_signers,rs_sent_at:d.as_sent_at,rs_signed_at:d.as_signed_at},'asg'))} <a href="#" onclick="rsRefresh(${d.id},false,'asg');return false">Refresh</a>${d.as_status!=='signed'?` · <a href="#" onclick="rsRefresh(${d.id},true,'asg');return false">Send reminder</a>`:''}</div>`:''}
      <div id="d_files" class="small" style="margin-top:10px">Loading…</div>
      <div class="row" style="margin-top:10px"><input type="file" id="d_up" multiple><button class="btn ghost" style="flex:0" onclick="uploadDealFiles(${d.id},${d.property_id||'null'})">Upload</button></div></div>`:''}
    </div><div>
@@ -637,7 +643,7 @@ async function saveDeal(id,board){
   const put=r=>id?sb.from('deals').update(r).eq('id',id).select().single():sb.from('deals').insert(r).select().single();
   let {data,error}=await put(r);let note='Saved';
   if(error&&/dd_days/.test(error.message)){delete r.dd_days;({data,error}=await put(r));note='Saved (due diligence days will save once the database is updated)'}
-  if(error)return toast(error.message);if(r.stage_id)stageMilestone(data.id,r.stage_id);toast(note);if(!id)openDeal(data.id);else closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
+  if(error)return toast(error.message);if(r.stage_id)stageMilestone(data.id,r.stage_id);toast(note);openDeal(id||data.id);if(CUR.startsWith('board'))vBoard(board)}
 async function delDeal(id,board){if(!confirm('Delete this deal?'))return;await sb.from('deals').delete().eq('id',id);closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
 async function pickLead(dealId){const q=$('d_lq').value.trim();if(!q)return;const {data}=await sb.rpc('search_leads',{q,lim:8});
   $('d_lres').innerHTML=(data||[]).map(l=>`<div class="pitem" onclick="linkLead(${dealId},${l.id})">${esc(leadName(l))} <span class="small muted">${esc(l.phone||'')} ${esc(l.prop_address||'')}</span></div>`).join('')||'<div class="muted small">No match.</div>'}
@@ -666,16 +672,19 @@ function buildDocs(deal,which){const {Document,Packer,Paragraph,TextRun,Alignmen
   const sellers=Array.isArray(deal.sellers)?deal.sellers.filter(Boolean).join(' and '):deal.sellers;
   const extraLines=t=>(t||'').split('\n').filter(Boolean);
   const out=[];
-  if(which.psa){S=19;LINE=250;// Pebble "Land Purchase Contract" wording, verbatim; only blanks are filled (DD days, closing date, closing location, optional EMD)
+  if(which.psa||which.resale){// Pebble "Land Purchase Contract" wording, verbatim; only blanks are filled (DD days, closing date, closing location, optional EMD)
+   // landPc(null) = Land Purchase Agreement (seller -> DLG). landPc(R) = Resale Purchase Agreement for an SC double close: same wording, parties swapped
+   // (Seller = Dominion Land Group, Buyer = R.buyer and or assigns), price = R.price (deal's sale price), plus a SELLER'S TITLE clause.
+   const landPc=R=>{const PRICE=R?R.price:deal.purchase_price;
     const ST={NC:'North Carolina',SC:'South Carolina',GA:'Georgia',FL:'Florida',TN:'Tennessee',VA:'Virginia',TX:'Texas'};const stt=String(deal.state||'').toUpperCase();
     const num=(t,o={})=>p([b(t+'\t'),...(o.runs||[])],{indent:{left:720,hanging:360},tabs:[{type:TabStopType.LEFT,position:720}],after:o.after??100});
-    const hasEmd=deal.emd!==undefined&&deal.emd!==null&&deal.emd!==''&&Number(deal.emd)>0;const extra=extraLines(deal.additional_terms);let k=11;
+    const hasEmd=deal.emd!==undefined&&deal.emd!==null&&deal.emd!==''&&Number(deal.emd)>0;const extra=extraLines(R?R.terms??deal.additional_terms:deal.additional_terms);let k=11;
     const pc=[
-      p([{text:'FOR VALUABLE CONSIDERATION OF ',bold:true},{...um(deal.purchase_price||null,12),bold:true},' and other good and valuable consideration, to be paid at closing of which is hereby acknowledged ',u(sellers,40),' (Seller), and Dominion Land Group (Buyer) and or assigns, whether one or more, do hereby covenant, contract and agree as follows:'],{after:160}),
+      p([{text:'FOR VALUABLE CONSIDERATION OF ',bold:true},{...um(PRICE||null,12),bold:true},' and other good and valuable consideration, to be paid at closing of which is hereby acknowledged ',...(R?[u('Dominion Land Group',40),' (Seller), and ',u(R.buyer,40),' (Buyer) and or assigns, whether one or more, do hereby covenant, contract and agree as follows:']:[u(sellers,40),' (Seller), and Dominion Land Group (Buyer) and or assigns, whether one or more, do hereby covenant, contract and agree as follows:'])],{after:160}),
       num('1.',{runs:['AGREEMENT TO SALE AND PURCHASE: Seller agrees to sell, and Buyer agrees to buy from Seller the property described as follows: ',u(deal.property_address,50)],after:60}),
       p(["Assessor's Parcel Number: ",u(deal.apn,24)],{indent:{left:720},after:60}),
       p('All property sold by this contract is called the "Property."',{indent:{left:720},after:100}),
-      num('2.',{runs:['SALES PRICE: The parties agree to the following sales price: ',um(deal.purchase_price||null,12)]}),
+      num('2.',{runs:['SALES PRICE: The parties agree to the following sales price: ',um(PRICE||null,12)]}),
       num('3.',{runs:['CASH SALE: The buyer will pay cash for the Property with no financing contingency.']}),
       num('4.',{runs:['CLOSING: The closing of the sale will be on or before ',u(deal.close_date,18),' unless extended pursuant to the terms hereof.']}),
       num('5.',{runs:['TITLE AND CONVEYANCE: Closing to take place at: ',deal.closing_agent?u(deal.closing_agent):'TBD','.']}),
@@ -686,16 +695,23 @@ function buildDocs(deal,which){const {Document,Packer,Paragraph,TextRun,Alignmen
       p([b('ACCESS & INSPECTION: '),'Seller shall make the Property reasonably accessible to Buyer, Buyer’s partners, contractors, surveyors, and appraisers prior to Closing. This agreement is subject to a satisfactory inspection of the property by the Buyer. Should the property not pass satisfactory inspection the contract is null and void.'],{indent:{left:720},after:100}),
       num('10.',{runs:[b('NO BROKER OR AGENTS: '),'The parties represent that neither party has employed the services of a real estate broker or agent in connection with the property, or that if such agents have been employed, that the party employing said agent shall pay any and all expenses outside the closing of this agreement.']}),
       num('11.',{runs:['Buyer will have a ',u(deal.dd_days,4),' business day inspection period and has the right to cancel this agreement with written notice to the seller within the inspection period. The inspection period starts when the last party has signed this agreement.']}),
+      ...(R?[num(String(++k)+'.',{runs:[b("SELLER'S TITLE: "),'Seller is under contract to purchase the Property and will acquire title before or at the same closing. This Agreement is contingent on Seller acquiring title. If Seller does not acquire title, this Agreement is cancelled and any earnest money is returned to Buyer.']})]:[]),
       ...(hasEmd?[num(String(++k)+'.',{runs:[b('EARNEST MONEY: '),'Buyer will deposit ',um(deal.emd,10),' as earnest money with the closing agent, to be credited to Buyer at closing.']})]:[]),
       ...(extra.length?[num(String(++k)+'.',{runs:[b('ADDITIONAL TERMS: '),extra[0]],after:extra.length>1?40:100}),...extra.slice(1).map((t,i)=>p(t,{indent:{left:720},after:i===extra.length-2?100:40}))]:[]),
       p('',{after:120}),
-      p([b('To Seller at:')],{after:20}),...(deal.seller_lines||[]).map(t=>p(t,{after:0})),...((deal.seller_lines||[]).length?[]:[p(L,{after:0}),p(L,{after:0})]),
+      ...(R?[p([b('To Seller at:')],{after:20}),p('Dominion Land Group',{after:0}),p('1235 East Blvd C1#424',{after:0}),p('Charlotte NC 28203',{after:100}),
+       p([b('To Buyer at:')],{after:20}),...(R.buyer?[p(R.buyer,{after:0})]:[p(L,{after:0})]),p(R.email||L,{after:140})]
+      :[p([b('To Seller at:')],{after:20}),...(deal.seller_lines||[]).map(t=>p(t,{after:0})),...((deal.seller_lines||[]).length?[]:[p(L,{after:0}),p(L,{after:0})]),
       p('',{after:100}),
-      p([b('To Buyer at:')],{after:20}),p('Dominion Land Group',{after:0}),p('1235 East Blvd C1#424',{after:0}),p('Charlotte NC 28203',{after:140}),
+      p([b('To Buyer at:')],{after:20}),p('Dominion Land Group',{after:0}),p('1235 East Blvd C1#424',{after:0}),p('Charlotte NC 28203',{after:140})]),
       p(['GOVERNING LAW: This contract shall be governed by the laws of the State of ',u(ST[stt]||deal.state,16),'.'],{after:240}),
-      ...(Array.isArray(deal.sellers)&&deal.sellers.length?deal.sellers:['']).flatMap(n=>[p('____________________________________        Date: _______________',{after:20}),p(n||'Seller',{after:0}),p('Seller',{after:200})]),
-      p('____________________________________        Date: _______________',{after:20}),p('Dominion Land Group',{after:0}),p('Buyer',{after:0})];
-    out.push(['Land Purchase Agreement',doc('LAND SALE AGREEMENT',pc)])}
+      ...(R?[p('____________________________________        Date: _______________',{after:20}),p('Dominion Land Group',{after:0}),p('Seller',{after:200}),
+        p('____________________________________        Date: _______________',{after:20}),p(R.buyer||'Buyer',{after:0}),p('Buyer',{after:0})]
+      :[...(Array.isArray(deal.sellers)&&deal.sellers.length?deal.sellers:['']).flatMap(n=>[p('____________________________________        Date: _______________',{after:20}),p(n||'Seller',{after:0}),p('Seller',{after:200})]),
+      p('____________________________________        Date: _______________',{after:20}),p('Dominion Land Group',{after:0}),p('Buyer',{after:0})])];
+    return pc};
+   if(which.psa){S=19;LINE=250;out.push(['Land Purchase Agreement',doc('LAND SALE AGREEMENT',landPc(null))])}
+   if(which.resale){S=19;LINE=250;out.push(['Resale Purchase Agreement',doc('LAND SALE AGREEMENT',landPc(deal.resale||{}))])}}
   if(which.house){S=18;LINE=236;// Damien's HOUSE P&S AGREEMENT MASTER COPY, wording verbatim; only blanks filled
     const fv=(x,len)=>(x===undefined||x===null||x==='')?{text:'_'.repeat(len)}:{text:String(x),bold:true,underline:{}};
     const fm=(x,len)=>(x===undefined||x===null||x==='')?{text:'$'+'_'.repeat(len)}:{text:money(x),bold:true,underline:{}};
@@ -804,7 +820,7 @@ function buildDocs(deal,which){const {Document,Packer,Paragraph,TextRun,Alignmen
       p('Copy sent to closing agent on _______________ by ☐ Email  ☐ Mail  ☐ Hand delivery',{after:0})];
     out.push(['Notice of Termination',doc('Notice of Termination of Purchase Agreement',nc)])}
   return out}
-async function contractsFor(id,only,send){const {data:d}=await sb.from('deals').select('*, leads(full_name,mail_address,mail_city,mail_state,mail_zip), properties(apn,address,city,state,zip,county,legal), buyers(name,represents)').eq('id',id).single();
+async function contractsFor(id,only,send){const {data:d}=await sb.from('deals').select('*, leads(full_name,mail_address,mail_city,mail_state,mail_zip), properties(apn,address,city,state,zip,county,legal), buyers(name,company,email,represents)').eq('id',id).single();
   const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   const xp=(d.extra_property_ids||[]).length?((await sb.from('properties').select('apn,address,city,county').in('id',d.extra_property_ids)).data||[]):[];
   const P0=d.properties||{};let pa=P0.address||'',pc=P0.city||'',pz=P0.zip||'';if(/^\d{5}/.test(pc)){pz=pz||pc;pc=''}
@@ -812,9 +828,12 @@ async function contractsFor(id,only,send){const {data:d}=await sb.from('deals').
   const addr=addr1+(xp.length?', together with '+xp.map(x=>(x.address&&/^\d/.test(x.address)?x.address+' ':'')+'Parcel '+(x.apn||'')).join(' and ')+(d.properties?.county?', '+d.properties.county+' County':''):'');
   if(xp.length&&d.properties)d.properties.apn=[d.properties.apn,...xp.map(x=>x.apn)].filter(Boolean).join(' and ');
   const f=(id2,label,val,type='text',ph='')=>`<div><label class="f">${label}</label><input id="k_${id2}" type="${type}" value="${esc(val??'')}" placeholder="${esc(ph)}"></div>`;
-  const DOCN={psa:'Land Purchase Agreement',house:'House Purchase Agreement',asg:'Assignment of Contract',cancel:'Cancellation',notice:'Notice of Termination'};const on=k=>only?k===only:(k==='psa'||(k==='asg'&&!!(d.buyers?.represents||d.buyers?.name)));
+  const DOCN={psa:'Land Purchase Agreement',house:'House Purchase Agreement',asg:'Assignment of Contract',resale:'Resale Purchase Agreement',cancel:'Cancellation',notice:'Notice of Termination'};
+  // SC: double close instead of assigning, so with a buyer linked the resale agreement (DLG -> buyer) is on and the assignment is off by default
+  const scDbl=/^(SC|South Carolina)$/i.test(String(d.properties?.state||'').trim())&&!!d.buyer_id;
+  const on=k=>only?k===only:(k==='psa'||(k==='asg'&&!scDbl&&!!(d.buyers?.represents||d.buyers?.name))||(k==='resale'&&scDbl));
   window._wideNext=true;openDrawer(`<div class="dhead"><h2 style="margin:0">${only?DOCN[only]:'Contracts'}</h2><div class="row" style="flex:0 0 auto;gap:8px"><button class="btn ghost" onclick="openDeal(${id})">← Back to deal</button><button class="btn ghost" onclick="closeDrawer()">Close</button></div></div><div class="card"><p class="small muted" style="margin-top:0">The contract wording never changes. Fill or fix the blanks, add anything special under Additional Terms, then create. Blank fields print as fill-in lines.</p>
-   <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">${[['psa','Land Purchase Agreement'],['house','House Purchase Agreement'],['asg','Assignment of Contract'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,l])=>`<label class="small" style="display:${only?'none':'flex'};gap:6px;align-items:center"><input type="checkbox" id="w_${k}" ${on(k)?'checked':''} style="width:auto" onchange="$('kx_${k}')&&($('kx_${k}').style.display=this.checked?'':'none')"> ${l}</label>`).join('')}</div>
+   <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">${[['psa','Land Purchase Agreement'],['house','House Purchase Agreement'],['asg','Assignment of Contract'],['resale','Resale Purchase Agreement (DLG → buyer, for double close)'],['cancel','Cancellation'],['notice','Notice of Termination']].map(([k,l])=>`<label class="small" style="display:${only?'none':'flex'};gap:6px;align-items:center"><input type="checkbox" id="w_${k}" ${on(k)?'checked':''} style="width:auto" onchange="$('kx_${k}')&&($('kx_${k}').style.display=this.checked?'':'none')"> ${l}</label>`).join('')}</div>
    <h4 style="margin:10px 0 4px">Deal</h4>
    ${f('contract_date','Contract date',today)}${f('sellers','Seller name(s) — separate two sellers with " and "',d.leads?leadName(d.leads):'')}${f('address','Property address',addr)}${f('apn','Parcel ID / APN',d.properties?.apn||'')}<div style="grid-column:1/-1"><button class="btn ghost" style="margin:4px 0 8px" onclick="saveDealPropFields(${id})">Save address & APN to this property</button> <span class="small muted">Only the single property address and parcel number save here. Extra parcels stay on the deal.</span></div>
    ${f('legal','Legal description (saved to the property)',d.properties?.legal||'')}
@@ -827,13 +846,16 @@ async function contractsFor(id,only,send){const {data:d}=await sb.from('deals').
    <div id="kx_asg" style="display:${on('asg')?'':'none'}"><h4 style="margin:14px 0 4px">Assignment</h4>
     ${f('assignee','Assignee (buyer)',d.buyers?.represents||d.buyers?.name||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('fee','Assignment fee $',d.assignment_price&&d.purchase_price?d.assignment_price-d.purchase_price:'','number')}${f('adep','Assignee deposit $','','number')}</div>
     ${f('depto','Deposit delivered to',d.attorney||'')}<div class="row" style="flex-wrap:nowrap;gap:8px">${f('depdue','Deposit due by','')}${f('closeby','Close on or before',(d.as_meta?.close_date||d.closing_date)?fmtDate(d.as_meta?.close_date||d.closing_date):'')}</div>${f('exam','Examination period ends','')}</div>
+   <div id="kx_resale" style="display:${on('resale')?'':'none'}"><h4 style="margin:14px 0 4px">Resale Purchase Agreement (DLG sells to buyer)</h4><div class="small muted" style="margin-bottom:6px">Dominion Land Group is the Seller, the buyer below is the Buyer. Same closing date, closing agent, APN, address, due diligence days, earnest money and additional terms as above.</div>
+    <div class="row" style="flex-wrap:nowrap;gap:8px">${f('rbuyer','Buyer name',d.buyers?.company||d.buyers?.name||'')}${f('remail','Buyer email',d.buyers?.email||'','email')}</div>${f('rprice','Sale price $',d.assignment_price??'','number')}
+    ${only==='resale'?'':`<button class="btn ghost" style="margin-top:6px" onclick="rsResaleDialog(${id})">✍ Send resale agreement to buyer for e-signature</button>`}</div>
    <div id="kx_cancel" style="display:${on('cancel')?'':'none'}"><h4 style="margin:14px 0 4px">Cancellation</h4>${f('cdate','Cancellation date',today)}
     <label class="f">Reason</label><select id="k_creason"><option value="feasibility">Did not pass inspection (Section 11)</option><option value="title">No clear title</option><option value="mutual">Mutual agreement</option><option value="other">Other</option></select>${f('cother','If other, reason','')}
     <label class="f">Earnest money</label><select id="k_cemd"><option value="none">No Earnest Money was deposited</option><option value="buyer">Returned to Buyer</option><option value="seller">Released to Seller</option></select>
     ${f('crel','Record release within (days)','')}<label class="f">Additional Terms (cancellation)</label><textarea id="k_cterms" style="min-height:50px"></textarea></div>
    <div id="kx_notice" style="display:${on('notice')?'':'none'}"><h4 style="margin:14px 0 4px">Notice of Termination</h4>${f('ndate','Date of notice',today)}
     <label class="f">Section</label><select id="k_nreason"><option value="feasibility">Did not pass inspection (Section 11)</option><option value="title">No clear title</option><option value="nostudy">Seller did not allow access for inspection</option></select></div>
-   <br>${!only||only==='psa'||only==='house'||only==='asg'?`<div class="row" style="gap:8px;flex-wrap:nowrap"><button class="btn ghost" id="k_go" onclick="makeContracts(${id})" style="flex:1">Save PDF to deal only</button><button class="btn" onclick="rsSendDialog(${id})" style="flex:1">✍ Send for e-signature</button></div><div class="small muted" style="margin-top:6px">Send for e-signature also saves the PDF to the deal. Use "Save PDF only" if you're not sending it yet.</div>`:`<button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">Create ${only?DOCN[only]:'documents'} (PDF)</button>`}<div id="k_msg" class="small" style="margin-top:8px"></div></div>`);if(send)rsSendDialog(id)}
+   <br>${!only||only==='psa'||only==='house'||only==='asg'||only==='resale'?`<div class="row" style="gap:8px;flex-wrap:nowrap"><button class="btn ghost" id="k_go" onclick="makeContracts(${id})" style="flex:1">Save PDF to deal only</button><button class="btn" onclick="rsSendDialog(${id})" style="flex:1">✍ Send for e-signature</button></div><div class="small muted" style="margin-top:6px">Send for e-signature also saves the PDF to the deal. Use "Save PDF only" if you're not sending it yet.</div>`:`<button class="btn" id="k_go" onclick="makeContracts(${id})" style="width:100%">Create ${only?DOCN[only]:'documents'} (PDF)</button>`}<div id="k_msg" class="small" style="margin-top:8px"></div></div>`);if(send)rsSendDialog(id)}
 async function saveDealPropFields(id){const g=k=>($('k_'+k)?.value||'').trim();const addr=g('address'),apn=g('apn'),legal=g('legal');
   if(/^[A-Za-z]{2}$/.test(apn))return toast('That APN is a state code. Enter the parcel number.');
   if(/together with/i.test(addr))return toast('Remove the extra parcels from the address first. Save only one property address here.');
@@ -845,9 +867,10 @@ function escClause(base,step,max){return `ESCALATION: Buyer's purchase price is 
 async function saveEsc(id,deal){if(!id||!deal.escalation)return;const {data:x}=await sb.from('deals').select('as_meta').eq('id',id).single();
   await sb.from('deals').update({purchase_price:deal.purchase_price??null,as_meta:{...(x?.as_meta||{}),esc_step:deal.escalation.step,esc_max:deal.escalation.max}}).eq('id',id)}
 function kDeal(){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?undefined:Number(g(k));
-  const which={psa:$('w_psa').checked,house:$('w_house').checked,asg:$('w_asg').checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};
+  const which={psa:$('w_psa').checked,house:$('w_house').checked,asg:$('w_asg').checked,resale:!!$('w_resale')?.checked,cancel:$('w_cancel').checked,notice:$('w_notice').checked};
   const deal={contract_date:g('contract_date'),sellers:g('sellers').split(/\s+and\s+/i).filter(Boolean),property_address:g('address'),apn:g('apn'),legal_description:g('legal'),purchase_price:num('price'),emd:num('emd'),
     feasibility_days:g('feas'),dd_days:g('feas'),close_date:g('closedate'),state:g('state'),county:g('county'),seller_lines:[...g('sellers').split(/\s+and\s+/i).filter(Boolean),...(g('sellermail')?[g('sellermail')]:[])],closing_agent:g('agent'),additional_terms:$('k_terms').value,
+    resale:{buyer:g('rbuyer'),email:g('remail'),price:num('rprice'),terms:$('k_terms').value},// terms: raw Additional Terms, without the escalation clause (it shows DLG's purchase price)
     assignment:{assignee:g('assignee'),assignment_fee:num('fee'),deposit:num('adep'),deposit_to:g('depto'),deposit_due:g('depdue'),close_by:g('closeby'),exam_ends:g('exam')},
     cancel:{date:g('cdate'),reason:$('k_creason')?.value,other:g('cother'),emd_to:$('k_cemd')?.value,release_days:g('crel'),additional_terms:$('k_cterms')?.value||''},
     notice:{date:g('ndate'),reason:$('k_nreason')?.value}};
@@ -857,7 +880,7 @@ function kDeal(){const g=k=>$('k_'+k)?.value?.trim()||'';const num=k=>g(k)===''?
 async function makeContracts(id){const {deal,which}=kDeal();if(!Object.values(which).some(Boolean))return toast('Pick at least one document');saveEsc(id,deal);
   const btn=$('k_go');btn.dataset.label=btn.textContent;btn.disabled=true;btn.textContent='Creating…';
   try{await docxLib();const docs=buildDocs(deal,which);const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
-    const KIND={'Land Purchase Agreement':'psa','House Purchase and Sale Agreement':'house','Assignment of Contract':'asg','Cancellation of Contract':'cancel','Notice of Termination':'notice'};
+    const KIND={'Land Purchase Agreement':'psa','House Purchase and Sale Agreement':'house','Assignment of Contract':'asg','Resale Purchase Agreement':'resale','Cancellation of Contract':'cancel','Notice of Termination':'notice'};
     for(const [name] of docs){const k=KIND[name]||Object.keys(which).find(x=>which[x]);const {bytes}=await contractPdf(deal,k);const blob=new Blob([bytes],{type:'application/pdf'});const fname=`${name} - ${slug}.pdf`;
       const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {error}=await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/pdf'});
       window._lastDocs=(window._lastDocs||[]);window._lastDocs.push([name,blob,error?null:path]);
@@ -905,7 +928,7 @@ function rsAssign(sigs,sellers){const out={buyer:null,sellers:[]};let si=0;
 const RS_FIELD=(g,type)=>type==='SIGNATURE'?{type,page:g.page,x:g.sx,y:g.base-15,w:Math.min(g.sw,200),h:17}:{type:'LOCAL_DATE',page:g.page,x:g.dx,y:g.base-13,w:Math.max(g.dw,60),h:14};
 function rsStatusText(d,kind){const st=d.rs_status||'sent';const who=(d.rs_signers||[]).map(s=>`${s.name||s.email}: ${String(s.status||'').toLowerCase()}`).join(' · ');
   return (st==='signed'?'Signed by everyone'+(d.rs_signed_at?' on '+new Date(d.rs_signed_at).toLocaleDateString():'')+(kind==='asg'?' — signed copy is in the files below, moved to Assigned to Buyer':' — signed copy is in the files below'):'Sent '+(d.rs_sent_at?new Date(d.rs_sent_at).toLocaleDateString():'')+' · waiting for signatures')+(who?' ('+who+')':'')}
-async function rsSendDialog(id){const {deal,which}=kDeal();if(which.asg&&!which.psa&&!which.house)return rsAsgDialog(id);const kind=which.house&&!which.psa?'house':'psa';
+async function rsSendDialog(id){const {deal,which}=kDeal();if(which.resale&&!which.psa&&!which.house)return rsResaleDialog(id);if(which.asg&&!which.psa&&!which.house)return rsAsgDialog(id);const kind=which.house&&!which.psa?'house':'psa';
   const {data:d}=await sb.from('deals').select('lead_id,rs_folder_id,rs_status, leads(email,full_name)').eq('id',id).single();
   if(d?.rs_folder_id&&d.rs_status!=='signed'&&!confirm('This deal was already sent through RabbitSign. Send a new one anyway?'))return;
   const sellers=deal.sellers.length?deal.sellers:[d?.leads?.full_name||'Seller'];let me={name:'Damien Dupee',email:'dominionlandgroup@gmail.com'};try{me=JSON.parse(localStorage.getItem('rs_me'))||me}catch(e){}
@@ -947,14 +970,14 @@ async function rsAsgDialog(id){const {deal}=kDeal();
   const {data:d}=await sb.from('deals').select('buyer_id,as_folder_id,as_status, buyers(id,name,company,represents,email)').eq('id',id).single();
   if(d?.as_folder_id&&d.as_status!=='signed'&&!confirm('An assignment for this deal was already sent through RabbitSign. Send a new one anyway?'))return;
   const psa=await rsSignedPsa(id);let me={name:'Damien Dupee',email:'dominionlandgroup@gmail.com'};try{me=JSON.parse(localStorage.getItem('rs_me'))||me}catch(e){}
-  const b=d?.buyers||{};if(!BUYERS)BUYERS=(await sb.from('buyers').select('id,name').order('name')).data||[];
+  const b=d?.buyers||{};if(!BUYERS)BUYERS=(await sb.from('buyers').select('id,name,company,email').order('name')).data||[];
   $('k_msg').innerHTML=`<div class="card" style="margin-top:10px"><h4 style="margin:0 0 6px">Send Assignment for e-signature</h4>
     <div class="small muted" style="margin-bottom:8px">One PDF goes out: the signed purchase agreement in front, the assignment behind it. You sign first, then the buyer. When both have signed, the signed copy is saved to this deal, the deal moves to <b>Buyer Deals › Assigned to Buyer - No EMD</b> with the fee on the card, and the assignment price is filled in.</div>
     <div class="small" style="margin-bottom:8px;padding:8px;border:1px solid var(--line);border-radius:8px">${psa?`📎 Front: <b>${esc(psa.name)}</b>`:`⚠️ No signed purchase agreement found on this deal. It will go out with the assignment only, unless you upload the signed copy first (name it starting with "SIGNED -").`}</div>
     <label class="f">Title (shows in the email)</label><input id="rs_title" value="${esc(deal.property_address||'Assignment of Contract')}">
     <label class="f">Message</label><input id="rs_msg" value="Please review and approve.">
     <h4 style="margin:10px 0 4px">1. You (Assignor)</h4><div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">Name</label><input id="rs_me_name" value="${esc(me.name)}"></div><div><label class="f">Email</label><input id="rs_me_email" value="${esc(me.email)}"></div></div>
-    <h4 style="margin:10px 0 4px">2. Buyer (Assignee)</h4><label class="f">Buyer in DLG HQ</label><select id="rs_buyer" onchange="rsAsgBuyer(this.value)"><option value="">—</option>${(BUYERS||[]).map(x=>`<option value="${x.id}" ${x.id===(d?.buyer_id||b.id)?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
+    <h4 style="margin:10px 0 4px">2. Buyer (Assignee)</h4><label class="f">Buyer in DLG HQ</label>${buyerSearch('rs_buyer')}<select id="rs_buyer" onchange="rsAsgBuyer(this.value)"><option value="">—</option>${(BUYERS||[]).map(x=>buyerOpt(x,x.id===(d?.buyer_id||b.id))).join('')}</select>
     <div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">Signer name</label><input id="rs_b_name" value="${esc(b.name||'')}"></div><div><label class="f">Email</label><input id="rs_b_email" value="${esc(b.email||'')}" placeholder="buyer@email.com"></div></div>
     <button class="btn" id="rs_go" style="width:100%;margin-top:10px" onclick="rsAsgSend(${id})">Send for signature</button><div id="rs_out" class="small" style="margin-top:6px"></div></div>`;
   $('rs_title').scrollIntoView({behavior:'smooth',block:'center'})}
@@ -984,6 +1007,43 @@ async function rsAsgSend(id){const {deal}=kDeal();const v=k=>($(k)?.value||'').t
     const blob=new Blob([bytes],{type:'application/pdf'});const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
     if(!(await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/pdf'})).error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`Sent for signature - Assignment${psa?' (with signed purchase agreement)':''} - ${slug} (${new Date().toLocaleDateString()})`,storage_path:path,source:'rabbitsign'});
     $('rs_out').innerHTML=`✅ Sent. Check <b>${esc(me.email)}</b> — RabbitSign emails you first to sign, then <b>${esc(buyer.email)}</b>. When both sign, this deal moves to Assigned to Buyer automatically.`;toast('Assignment sent through RabbitSign')}
+  catch(e){$('rs_out').textContent='Not sent: '+e.message}finally{btn.disabled=false;btn.textContent='Send for signature'}}
+// ---------- Resale Purchase Agreement e-signature (SC double close: DLG sells to the buyer) ----------
+// No new DB column: the resale send goes through rabbitsign/send as doc_kind 'asg', so it is tracked in as_folder_id/as_status/as_meta
+// (as_meta.resale=true marks it). When the buyer signs, the edge function treats it like a signed assignment: deal moves to Buyer Deals
+// Escrow/Assigned stage, value = spread, assignment_price = sale price, buyer linked. One deal can track either an assignment or a resale, not both.
+// The seller's purchase agreement is NOT put in front (the buyer should not see DLG's contract price in a double close).
+async function rsResaleDialog(id){const {deal}=kDeal();
+  const {data:d}=await sb.from('deals').select('buyer_id,as_folder_id,as_status,as_meta').eq('id',id).single();
+  if(d?.as_folder_id&&d.as_status!=='signed'&&!confirm(d.as_meta?.resale?'A resale agreement for this deal was already sent through RabbitSign. Send a new one anyway?':'An assignment for this deal was already sent through RabbitSign and is not signed. Sending the resale agreement replaces its tracking on this deal. Continue?'))return;
+  let me={name:'Damien Dupee',email:'dominionlandgroup@gmail.com'};try{me=JSON.parse(localStorage.getItem('rs_me'))||me}catch(e){}
+  $('k_msg').innerHTML=`<div class="card" style="margin-top:10px"><h4 style="margin:0 0 6px">Send Resale Purchase Agreement for e-signature</h4>
+    <div class="small muted" style="margin-bottom:8px">Dominion Land Group sells to the buyer (SC double close). You sign first as Seller, then the buyer. When both have signed, the signed copy is saved to this deal and it moves to Buyer Deals with the sale price filled in.</div>
+    <label class="f">Title (shows in the email)</label><input id="rs_title" value="${esc(deal.property_address||'Purchase Agreement')}">
+    <label class="f">Message</label><input id="rs_msg" value="Please review and approve.">
+    <h4 style="margin:10px 0 4px">1. You (Seller, Dominion Land Group)</h4><div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">Name</label><input id="rs_me_name" value="${esc(me.name)}"></div><div><label class="f">Email</label><input id="rs_me_email" value="${esc(me.email)}"></div></div>
+    <h4 style="margin:10px 0 4px">2. Buyer</h4><div class="row" style="flex-wrap:nowrap;gap:8px"><div><label class="f">Signer name</label><input id="rs_b_name" value="${esc(deal.resale.buyer||'')}"></div><div><label class="f">Email</label><input id="rs_b_email" value="${esc(deal.resale.email||'')}" placeholder="buyer@email.com"></div></div>
+    <button class="btn" id="rs_go" style="width:100%;margin-top:10px" onclick="rsResaleSend(${id},${d?.buyer_id||'null'})">Send for signature</button><div id="rs_out" class="small" style="margin-top:6px"></div></div>`;
+  $('rs_title').scrollIntoView({behavior:'smooth',block:'center'})}
+async function rsResaleSend(id,bid){const {deal}=kDeal();const v=k=>($(k)?.value||'').trim();const em=x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
+  const me={name:v('rs_me_name'),email:v('rs_me_email').toLowerCase()};const buyer={name:v('rs_b_name'),email:v('rs_b_email').toLowerCase()};
+  if(!em(me.email))return toast('Enter your email');if(!em(buyer.email))return toast("Enter the buyer's email");if(buyer.email===me.email)return toast("The buyer's email can't be the same as yours");
+  if(!deal.resale.buyer)return toast('Fill in the Buyer name');if(!Number.isFinite(deal.resale.price))return toast('Fill in the Sale price');
+  const btn=$('rs_go');btn.disabled=true;btn.textContent='Building the PDF…';
+  try{try{localStorage.setItem('rs_me',JSON.stringify(me))}catch(e){}await docxLib();
+    const {bytes,sigs}=await contractPdf(deal,'resale');const g1=sigs.find(g=>/dominion/i.test(g.name)),g2=sigs.filter(g=>g!==g1).pop();if(!g1||!g2)throw new Error('Could not find the signature lines in the resale agreement');
+    const signers=[{...me,order:1,fields:[RS_FIELD(g1,'SIGNATURE'),RS_FIELD(g1,'LOCAL_DATE')]},{...buyer,order:2,fields:[RS_FIELD(g2,'SIGNATURE'),RS_FIELD(g2,'LOCAL_DATE')]}];
+    let bin='';const u8=new Uint8Array(bytes);for(let i=0;i<u8.length;i+=32768)bin+=String.fromCharCode.apply(null,u8.subarray(i,i+32768));
+    const slug=(deal.property_address||deal.apn||'deal').replace(/[^\w]+/g,' ').trim().slice(0,40);const fname=`Resale Purchase Agreement - ${slug}.pdf`;
+    const price=deal.resale.price,fee=Number.isFinite(deal.purchase_price)?price-deal.purchase_price:null;
+    const {data:_am}=await sb.from('deals').select('as_meta').eq('id',id).single();const _jv={jv_partner:_am?.as_meta?.jv_partner||null,jv_cut:_am?.as_meta?.jv_cut??null,esc_max:_am?.as_meta?.esc_max??null,esc_step:_am?.as_meta?.esc_step??null};
+    const asg_meta={..._jv,resale:true,assignee:deal.resale.buyer,fee,buyer_id:bid,assignment_price:price,signed_psa_in_front:false,close_date:(()=>{const t=new Date(deal.close_date||'');return isNaN(t)?(_am?.as_meta?.close_date||null):t.toISOString().slice(0,10)})()};
+    btn.textContent='Sending…';const {data,error}=await sb.functions.invoke('rabbitsign/send',{body:{deal_id:id,doc_kind:'asg',asg_meta,pdf_base64:btoa(bin),file_name:fname,title:v('rs_title'),summary:v('rs_msg'),signers}});
+    if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}if(data?.error)throw new Error(data.error);
+    if(bid)await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);
+    const blob=new Blob([bytes],{type:'application/pdf'});const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
+    if(!(await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/pdf'})).error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`Sent for signature - Resale Purchase Agreement - ${slug} (${new Date().toLocaleDateString()})`,storage_path:path,source:'rabbitsign'});
+    $('rs_out').innerHTML=`✅ Sent. Check <b>${esc(me.email)}</b> — RabbitSign emails you first to sign, then <b>${esc(buyer.email)}</b>.`;toast('Resale agreement sent through RabbitSign')}
   catch(e){$('rs_out').textContent='Not sent: '+e.message}finally{btn.disabled=false;btn.textContent='Send for signature'}}
 async function rsRefresh(id,remind,kind){toast(remind?'Sending reminder…':'Checking RabbitSign…');const {data,error}=await sb.functions.invoke('rabbitsign/status',{body:{deal_id:id,remind:!!remind,kind:kind||'psa'}});
   if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}return toast(m)}if(data?.error)return toast(data.error);
