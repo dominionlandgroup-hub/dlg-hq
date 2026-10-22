@@ -1064,7 +1064,7 @@ async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem')
      <input id="esubj" placeholder="Subject" value="${esc(lastSubj)}" style="display:none">
      <textarea id="reply" class="replybox" placeholder="Write a text" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,320)+'px'"></textarea>
      <div class="crow" style="justify-content:flex-end">${micBtn('reply')}<button class="btn" id="sendbtn" style="flex:0 0 auto;padding:8px 18px" onclick="IST2.cmode==='email'?sendEmailT(${tid}):sendTextT(${tid})">Send Now</button></div></div>`;
-  setCMode((msgs||[]).filter(m=>m.channel!=='call').slice(-1)[0]?.channel==='email'?'email':'text');hydrateRec();
+  setCMode((msgs||[]).filter(m=>m.channel!=='call').slice(-1)[0]?.channel==='email'?'email':'text');if(window._wantEmail){window._wantEmail=false;setCMode('email');setTimeout(()=>($('esubj')||$('reply'))?.focus(),50)}hydrateRec();
   $('msgs').scrollTop=1e9;drawCPanel(t,l);
   if((msgs||[]).some(m=>m.direction==='in'&&!m.is_read)){await sb.from('messages').update({is_read:true}).eq('thread_id',tid).eq('direction','in').eq('is_read',false);refreshBadges();loadThreads()}}
 async function drawCPanel(t,l){const {data:deals}=l.id?await sb.from('deals').select('id,board,stage_id,property_label,value,status').eq('lead_id',l.id).order('id',{ascending:false}):{data:[]};
@@ -1201,6 +1201,7 @@ async function startConversation(box){const q=prompt('Phone number or contact na
   let lid=c?.id;if(!lid){const {data:n,error}=await sb.from('leads').insert({phone:q,source:'hq',status:'new',inbox:box}).select().single();if(error)return toast(error.message);lid=n.id}
   const {data:tid,error}=await sb.rpc('thread_for_lead',{lid,box});if(error)return toast(error.message);IST2.tid=tid;loadThreads();openThreadT(tid)}
 // legacy helpers used elsewhere
+function emailLead(leadId,box){window._wantEmail=true;closeDrawer();openThread(leadId,box||'seller')}
 async function openThread(leadId,box){const {data:tid}=await sb.rpc('thread_for_lead',{lid:leadId,box:box||'seller'});go('inbox-'+(box||'seller'));setTimeout(()=>openThreadT(tid),400)}
 let _tl=null;
 function fillTpl(b,l){return String(b||'').replace(/{{\s*(\w+)\s*}}/g,(m,k)=>({first_name:l.first_name||(l.full_name||'').split(' ')[0],contact_name:leadName(l),property_address:l.prop_address,contact_address:l.mail_address,county:l.county,county_name:l.county,your_name:'Damien',your_company:'Dominion Land Group',your_phone_number:'(980) 990-2356',your_website:'dominionlandgroup.land'}[k]??''))}
@@ -1552,7 +1553,7 @@ async function openLead(id){
     sb.from('activity').select('*').eq('lead_id',id).order('created_at',{ascending:false}).limit(40),sb.from('property_owners').select('properties(*)').eq('lead_id',id)]);
   const [{data:fam},{data:lc}]=await Promise.all([sb.rpc('lead_family',{lid:id}),sb.from('legacy_codes').select('code,source,list').eq('lead_id',id).limit(50)]);
   openDrawer(head(esc(leadName(l)))+`
-  <div class="card"><div class="kv"><div>Phone</div><div>${[l.phone,l.phone2,l.phone3].filter(Boolean).map(p=>phoneLine(p,l.id,l.inbox||'seller')).join('')||'—'} <a href="#" class="small" onclick="editPhones(${l.id});return false">${l.phone?'edit':'+ add phone'}</a></div><div>Email</div><div>${esc(l.email||'—')} <a href="#" class="small" onclick="editLeadField(${l.id},'email','Email address','${esc(l.email||'')}');return false">${l.email?'edit':'+ add email'}</a></div>
+  <div class="card"><div class="kv"><div>Phone</div><div>${[l.phone,l.phone2,l.phone3].filter(Boolean).map(p=>phoneLine(p,l.id,l.inbox||'seller')).join('')||'—'} <a href="#" class="small" onclick="editPhones(${l.id});return false">${l.phone?'edit':'+ add phone'}</a></div><div>Email</div><div>${esc(l.email||'—')} ${l.email?`<button type="button" class="pbtn" onclick="event.stopPropagation();emailLead(${l.id},'${l.inbox||'seller'}')" title="Email ${esc(l.email)}">✉ Email</button> `:''}<a href="#" class="small" onclick="editLeadField(${l.id},'email','Email address','${esc(l.email||'')}');return false">${l.email?'edit':'+ add email'}</a></div>
    <div>Mailing</div><div>${esc([l.mail_address,l.mail_city,l.mail_state,l.mail_zip].filter(Boolean).join(', ')||'—')}</div><div>Offer code</div><div>${esc(l.offer_code||'—')}</div><div>Source</div><div>${esc([l.source,l.lead_source].filter(Boolean).join(' / ')||'—')}</div><div>Category</div><div>${esc(l.category||'—')}</div></div>
    <div class="row" style="margin-top:12px"><select onchange="setStatus(${l.id},this.value)">${STATUSES.map(s=>`<option ${s===l.status?'selected':''} value="${s}">${s.replace('_',' ')}</option>`).join('')}</select>
    <button class="btn ghost" style="flex:0" onclick="dealFromLead(${l.id},'seller')">+ Seller deal</button><button class="btn ghost" style="flex:0" onclick="dealFromLead(${l.id},'buyer')">+ Buyer deal</button></div></div>
