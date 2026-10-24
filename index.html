@@ -1748,7 +1748,7 @@ async function vBuyers(){
   const warmLeft=data.filter(b=>b.bb_group==='Past buyer'&&b.bb_status==='not sent').length;
   window._buyers=data;
   $('view').innerHTML=`<div class="card"><div class="row" style="align-items:center;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:240px"><h3 class="sec" style="margin:0">Buy-box emails</h3>
-     <div class="small muted">From dominionlandgroup@gmail.com, weekdays at 9:30am. Up to 50 first emails a day (past buyers first), follow-ups on day 3, 7 and 14, stops when they reply or fill out the form.</div></div>
+     <div class="small muted">From buyers@dominionlandgroup.land, weekdays at 9:30am. Warm-up: 20 emails a day the first week, 40 the second, then 75 (follow-ups included). Agents first, follow-ups on day 3, 7 and 14, stops when they reply or fill out the form.</div></div>
      <span class="chip" style="flex:0 0 auto;${sw==='on'?'background:#e6f4ec;color:#1a7a48':''}">${sw==='on'?'Sending is ON':'Sending is OFF'}</span>
      <button class="btn ghost" style="flex:0 0 auto" onclick="bbPreview()">Preview emails</button>
      <button class="btn ${sw==='on'?'ghost':''}" style="flex:0 0 auto" onclick="bbSwitch('${sw==='on'?'off':'on'}')">${sw==='on'?'Turn off':'Turn on sending'}</button></div>
@@ -1768,7 +1768,7 @@ async function vBuyers(){
       <td class="small">${b.phone?`<a href="tel:${esc(b.phone)}" onclick="event.stopPropagation()">${esc(b.phone)}</a>`:''}<br>${esc(b.email||'')}</td>
       <td><span class="chip" style="${b.bb_status==='got buy box'?'background:#e6f4ec;color:#1a7a48':''}">${esc(b.bb_status==='got buy box'?'got buy box':b.bb_status==='sent'?'sent · step '+((b.bb_step||0)+1)+' of 4':(b.bb_group||b.bb_status!=='not sent')?(b.bb_status||'not sent'):'not on send list')}</span></td></tr>`).join('')+(rows.length>500?`<tr><td colspan="5" class="muted small">Showing 500 of ${rows.length}. Filter to narrow.</td></tr>`:'')+(!rows.length?'<tr><td colspan="5" class="muted">No buyers match.</td></tr>':'')};
   ['bq','bm'].forEach(k=>$(k).oninput=draw);$('bs').onchange=draw;draw()}
-async function bbSwitch(turn){if(turn==='on'&&!confirm('Start sending buy-box emails from dominionlandgroup@gmail.com?\n\nUp to 50 first emails go out each weekday at 9:30am (past buyers first), plus follow-ups on day 3, 7 and 14.'))return;
+async function bbSwitch(turn){if(turn==='on'&&!confirm('Start sending buy-box emails from buyers@dominionlandgroup.land?\n\nWeekdays at 9:30am: 20 a day the first week, 40 the second, then 75 (agents first, follow-ups on day 3, 7 and 14 included).'))return;
   const {data,error}=await sb.rpc('buybox_switch',{turn});if(error)return toast(error.message);toast('Sending is '+data);vBuyers()}
 async function bbPreview(id){const pick=id||(_buyers.find(b=>b.bb_group==='Past buyer'&&b.last_lot)||_buyers.find(b=>b.bb_group))?.id;const cold=_buyers.find(b=>b.bb_group==='Buyers list');
   const [{data:w},{data:c}]=await Promise.all([sb.rpc('buybox_preview',{bid:pick}),cold?sb.rpc('buybox_preview',{bid:cold.id}):{data:null}]);
