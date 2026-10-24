@@ -587,7 +587,7 @@ async function openDealForm(d){
      <div class="row" style="margin-top:10px"><input id="d_task" placeholder="New task"><input id="d_taskdue" type="date" style="flex:0 0 150px"><button class="btn ghost" style="flex:0" onclick="addTask(${d.id},${d.lead_id||'null'})">Add</button></div></div>
    <div class="card"><h3 class="sec" style="margin-top:0">Notes</h3><textarea id="d_newnote" placeholder="Add a note" style="min-height:70px"></textarea>
      <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn" style="flex:0" onclick="addDealNote(${d.id})">Save note</button></div>
-     <div id="d_notes_list">${notes.map((n,i)=>`<div class="note"><div class="row" style="align-items:baseline"><b>${esc(n.who||'Note')}</b><span class="small muted" style="margin-left:8px">${esc(n.when||'')}</span><button class="ico" style="margin-left:auto" title="Delete note" onclick="delDealNote(${d.id},${i})">🗑</button></div><div class="nb">${linkify(esc(n.body))}</div></div>`).join('')||'<div class="muted small" style="margin-top:8px">No notes yet.</div>'}</div></div>`
+     <div id="d_notes_list">${notes.map((n,i)=>`<div class="note"><div class="row" style="align-items:baseline"><b>${esc(n.who||'Note')}</b><span class="small muted" style="margin-left:8px">${esc(n.when||'')}</span><button class="ico" style="margin-left:auto" title="Edit note" onclick="editDealNote(${d.id},${i})">✏️</button><button class="ico" title="Delete note" onclick="delDealNote(${d.id},${i})">🗑</button></div><div class="nb" id="dn_${i}">${linkify(esc(n.body))}</div></div>`).join('')||'<div class="muted small" style="margin-top:8px">No notes yet.</div>'}</div></div>`
    :`<div class="card muted small">Save the deal first, then add tasks, notes and contracts.</div>`}
    </div></div>`);
   if(d.id)loadDealFiles(d.id);
@@ -605,6 +605,10 @@ function nowStamp(){const d=new Date();return d.toLocaleDateString('en-US',{mont
 function linkify(h){return h.replace(/(\(?\d{3}\)?[ .-]?\d{3}-\d{4})/g,'<a href="tel:$1">$1</a>').replace(/([\w.+-]+@[\w-]+\.[\w.]+)/g,'<a href="mailto:$1">$1</a>')}
 async function addDealNote(id){const b=$('d_newnote').value.trim();if(!b)return;const {data:x}=await sb.from('deals').select('notes').eq('id',id).single();
   const a=parseNotes(x?.notes);a.unshift({who:'Damien Dupee',when:nowStamp(),body:b});const {error}=await sb.from('deals').update({notes:joinNotes(a)}).eq('id',id);if(error)return toast(error.message);toast('Note saved');openDeal(id)}
+async function editDealNote(id,i){const {data:x}=await sb.from('deals').select('notes').eq('id',id).single();const a=parseNotes(x?.notes);const el=$('dn_'+i);if(!el||!a[i])return;
+  el.innerHTML=`<textarea id="dn_edit_${i}" rows="${Math.min(30,Math.max(5,a[i].body.split('\n').length+2))}" style="width:100%;font:inherit">${esc(a[i].body)}</textarea><div class="row" style="gap:8px;margin-top:6px"><button class="btn" style="flex:0" onclick="saveDealNote(${id},${i})">Save</button><button class="btn ghost" style="flex:0" onclick="openDeal(${id})">Cancel</button></div>`;$('dn_edit_'+i).focus()}
+async function saveDealNote(id,i){const v=$('dn_edit_'+i).value.trim();const {data:x}=await sb.from('deals').select('notes').eq('id',id).single();const a=parseNotes(x?.notes);if(!a[i])return;
+  if(!v)a.splice(i,1);else a[i].body=v;const {error}=await sb.from('deals').update({notes:joinNotes(a)||null}).eq('id',id);if(error)return toast(error.message);toast('Note saved');openDeal(id)}
 async function delDealNote(id,i){if(!confirm('Delete this note?'))return;const {data:x}=await sb.from('deals').select('notes').eq('id',id).single();const a=parseNotes(x?.notes);a.splice(i,1);
   await sb.from('deals').update({notes:joinNotes(a)||null}).eq('id',id);openDeal(id)}
 function gcalLink(title,due,who){const d=String(due).slice(0,10).replace(/-/g,'');const n=new Date(String(due).slice(0,10)+'T12:00:00');n.setDate(n.getDate()+1);const e=n.toISOString().slice(0,10).replace(/-/g,'');
