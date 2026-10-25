@@ -20,6 +20,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="listbuilder.js?v=22"></script>
+<script src="owner-check.js?v=2"></script>
 <style>
 .impsteps{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}.impsteps span{font-size:12px;padding:4px 10px;border-radius:999px;background:#eee;color:#666}.impsteps span.on{background:#efe7fb;color:#4b2a7b;font-weight:700}.impsteps span.done{background:#e3f1e6;color:#2f6b3a}
 .tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.tagchip{display:inline-flex;align-items:center;gap:4px;background:#efe7fb;color:#4b2a7b;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;font-weight:600}.tagchip.sm{padding:2px 8px;font-size:11px}.tagchip button{border:0;background:none;color:#4b2a7b;cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.tagadd{border:1px dashed #b9a6d6;background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#4b2a7b}.linkres{position:absolute;left:0;right:0;z-index:20;background:var(--card,#fff);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:8px;max-height:300px;overflow:auto}.linkres .pitem{padding:8px 10px;border-bottom:1px solid var(--line,#eee);cursor:pointer}.linkres .pitem:hover{background:#f5f1fb}
@@ -1424,7 +1425,7 @@ async function startMailing(id){
    <div class="card"><p style="margin-top:0"><b>${esc(c.name)}</b></p>
    <label class="f">Letter template</label><select id="m_tpl">${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}" ${c.template===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
    <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Remove opt-outs, "not selling" and do-not-mail</label>
-   <p class="small muted">Saves the mail-house list (no download) and opens a draft email to Brandon, cc Paul, with a link to the list. Every merge field (Owner name, first and last name, mailing address, city, state, zip, property address, city, state, zip, county, FIPS, APN, acres, offer code), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. The list is in the draft as a link. The email includes download links for the letter and the handwriting font, so nothing to attach. Just send it (works from your phone too).</p>
+   <p class="small muted"><b>Before anything is sent, every record is checked against the county's current owner records.</b> Anyone who sold or whose owner changed is taken off and marked do-not-mail. Saves the mail-house list (no download) and opens a draft email to Brandon, cc Paul, with a link to the list. Every merge field (Owner name, first and last name, mailing address, city, state, zip, property address, city, state, zip, county, FIPS, APN, acres, offer code), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. The list is in the draft as a link. The email includes download links for the letter and the handwriting font, so nothing to attach. Just send it (works from your phone too).</p>
    <div class="card" id="m_pray" style="margin:12px 0;background:#f7f3ea;border-left:4px solid #b8963e"><b>Pray before you send</b>
     <p style="font-style:italic;line-height:1.6;margin:8px 0">${esc(PRAYERS[(id||0)%PRAYERS.length].replace('{n}',(c.records||0).toLocaleString()))}</p>
     <button class="btn ghost" onclick="amen(${id})">🙏 Amen</button></div>
@@ -1436,12 +1437,37 @@ const PRAYERS=['Lord, this business is Yours before it is mine. Give me wisdom f
 async function amen(id){const {data:c}=await sb.from('campaigns').select('name').eq('id',id).single();await sb.from('activity').insert({kind:'note',body:'Prayed over campaign: '+(c?.name||id)});
   $('m_send').disabled=false;$('m_send').title='';$('m_pray').innerHTML='<b>🙏 Amen.</b> <span class="small muted">Prayed over this campaign. You can send it now.</span>'}
 async function buildMailList(id){
-  $('m_msg').textContent='Building list…';const all=[];
-  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('offer_code, lead_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status), properties(apn,address,city,state,zip,county,fips,acres,fields)').eq('campaign_id',id).range(from,from+999);
+  $('m_send').disabled=true;$('m_msg').textContent='Building list…';const all=[];
+  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('id, offer_code, lead_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status,tags,notes), properties(apn,address,city,state,zip,county,fips,acres,fields)').eq('campaign_id',id).order('id').range(from,from+999);
     if(error){$('m_msg').textContent=error.message;return}all.push(...data);if(data.length<1000)break}
   const sup=new Set(),on=$('m_sup').checked;if(on){const {data:s}=await sb.from('suppression').select('phone,apn');(s||[]).forEach(x=>{if(x.phone)sup.add(x.phone);if(x.apn)sup.add('A'+x.apn)})}
+  const kept0=all.filter(r=>!on||(!r.leads?.do_not_mail&&r.leads?.status!=='not_selling'&&!sup.has(r.leads?.phone)&&!sup.has('A'+r.properties?.apn)));
+  // CURRENT OWNER CHECK (Oct 2026): every record is checked against the county's live ownership record.
+  // Sold / changed-owner records are taken off the list and the lead is marked Sold + do not mail.
+  const {data:_cn}=await sb.from('campaigns').select('name').eq('id',id).single();
+  const estate=/estate|heir|probate|\bPR\b/i.test(_cn?.name||'');
+  $('m_msg').textContent=`Checking current owners with the county (0 of ${kept0.length})…`;
+  let chk;try{chk=await OwnerCheck.run(kept0.map(r=>({lead:r.leads||{},prop:r.properties||{}})),{estateCampaign:estate,onProgress:(d,t)=>{$('m_msg').textContent=`Checking current owners with the county (${d.toLocaleString()} of ${t.toLocaleString()})…`}})}
+  catch(e){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">Owner check failed: ${esc(e.message)}</b> Nothing was sent. Try again.`}
+  const gone=[],unv=[],kept=[];kept0.forEach((r,i)=>{const c=chk[i];r._chk=c;if(c.status==='sold'||c.status==='changed')gone.push(r);else{kept.push(r);if(c.status==='unverified')unv.push(r)}});
+  const today=new Date().toISOString().slice(0,10);
+  for(const r of gone){const l=r.leads||{};const tags=[...new Set([...(l.tags||[]),'Sold'])];
+    await sb.from('leads').update({status:'dead',do_not_mail:true,tags,notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Removed from campaign "${_cn?.name||id}". Do not mail.`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);
+    await sb.from('campaign_records').delete().eq('id',r.id)}
+  window._ml={id,all,kept,unv:new Set(unv)};$('m_send').style.display='none';
+  if(gone.length)await sb.from('campaigns').update({records:all.length-gone.length}).eq('id',id);
+  const line=r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: ${esc(r._chk.reason)}</li>`;
+  const ok=kept.length-unv.length;
+  $('m_msg').innerHTML=`<b>Owner check done.</b> ${ok.toLocaleString()} confirmed with the county${kept.filter(r=>r._chk.status==='heir').length?` (${kept.filter(r=>r._chk.status==='heir').length} addressed to an heir / PR)`:''}.`
+   +(gone.length?`<br><b style="color:var(--red)">${gone.length} removed: sold or a different owner now.</b> Marked Sold and do-not-mail.<details><summary class="small">See who</summary><ul class="small">${gone.map(line).join('')}</ul></details>`:'<br>Nobody on this list has sold.')
+   +(unv.length?`<br><b style="color:#b26a00">${unv.length} couldn't be checked.</b><details><summary class="small">See why</summary><ul class="small">${unv.slice(0,300).map(line).join('')}</ul></details><label class="small"><input type="checkbox" id="m_unv" style="width:auto"> Mail these ${unv.length} anyway</label>`:'')
+   +`<br><br><button class="btn" onclick="finishMailList(${id})">Draft email with the checked list</button>`;
+}
+async function finishMailList(id){
+  const st=window._ml;if(!st||st.id!==id)return buildMailList(id);
+  const all=st.all,kept=st.kept.filter(r=>!st.unv.has(r)||$('m_unv')?.checked);
+  if(!kept.length)return $('m_msg').innerHTML+='<br><b style="color:var(--red)">No records left to mail.</b>';
   const {data:_c0}=await sb.from('campaigns').select('drop_date').eq('id',id).single();const _mdate=new Date(((_c0&&_c0.drop_date)||new Date().toISOString().slice(0,10))+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-  const kept=all.filter(r=>!on||(!r.leads?.do_not_mail&&r.leads?.status!=='not_selling'&&!sup.has(r.leads?.phone)&&!sup.has('A'+r.properties?.apn)));
   // Teardown letter: one letter per owner; the owner's other properties go in Other_Property_Line
   const tplName=($('m_tpl')?.value||'');const perOwner=/teardown/i.test(tplName);
   const tc=x=>String(x||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
