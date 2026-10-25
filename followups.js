@@ -35,7 +35,7 @@
   const fill = (t, v) => String(t || '').replace(/\{\{(\w+)\}\}/g, (_, k) => v[k] ?? '');
 
   async function planFor(dealId, stageId) {
-    const st = (window.STAGES || []).find(s => s.id === stageId); if (!st) return null;
+    const st = (typeof STAGES !== 'undefined' ? STAGES : []).find(s => s.id === stageId); if (!st) return null;
     const key = Object.keys(STAGE_PLAN).find(k => st.name.toLowerCase().startsWith(k)); if (!key) return null;
     let prefix = STAGE_PLAN[key];
     const { data: d } = await sb.from('deals').select('id,lead_id,buyer_id,leads(tags,status,do_not_mail)').eq('id', dealId).single();
