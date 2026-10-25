@@ -101,8 +101,13 @@
     for (let i = 0; i < keys.length; i += size) {
       const where = `${cfg.field} in ('${keys.slice(i, i + size).map(k => k.replace(/'/g, "''")).join("','")}')`;
       const url = `${cfg.url}?where=${encodeURIComponent(where)}&outFields=${cfg.out}&returnGeometry=false&f=json`;
-      const j = cfg.jsonp ? await jsonp(url) : await fetchJSON(url);
-      if (j.error) throw new Error(j.error.message || 'county query failed');
+      let j, err;
+      for (let tries = 0; tries < 3 && !j; tries++) { // county servers are slow sometimes: retry twice
+        try { j = cfg.jsonp ? await jsonp(url, 30000) : await fetchJSON(url, 30000); if (j.error) { err = new Error(j.error.message || 'county query failed'); j = null; } }
+        catch (e) { err = new Error(e.name === 'AbortError' ? 'timed out' : e.message); }
+        if (!j && tries < 2) await new Promise(r => setTimeout(r, 1500));
+      }
+      if (!j) throw err || new Error('county query failed');
       for (const f of j.features || []) { const r = cfg.rec(f.attributes); out[String(r.k).trim()] = r; }
     }
     return out;
