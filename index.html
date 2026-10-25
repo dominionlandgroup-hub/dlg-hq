@@ -1454,7 +1454,8 @@ async function buildMailList(id){
   for(const r of gone){const l=r.leads||{};const tags=[...new Set([...(l.tags||[]),'Sold'])];
     await sb.from('leads').update({status:'dead',do_not_mail:true,tags,notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Removed from campaign "${_cn?.name||id}". Do not mail.`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);
     await sb.from('campaign_records').delete().eq('id',r.id)}
-  window._ml={id,all,kept,unv:new Set(unv)};
+  window._ml={id,all,kept,unv:new Set(unv)};$('m_send').style.display='none';
+  if(gone.length)await sb.from('campaigns').update({records:all.length-gone.length}).eq('id',id);
   const line=r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: ${esc(r._chk.reason)}</li>`;
   const ok=kept.length-unv.length;
   $('m_msg').innerHTML=`<b>Owner check done.</b> ${ok.toLocaleString()} confirmed with the county${kept.filter(r=>r._chk.status==='heir').length?` (${kept.filter(r=>r._chk.status==='heir').length} addressed to an heir / PR)`:''}.`
