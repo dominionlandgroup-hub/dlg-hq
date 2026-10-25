@@ -1437,6 +1437,7 @@ const PRAYERS=['Lord, this business is Yours before it is mine. Give me wisdom f
  'Lord, guide these {n} letters to the right homes. Give me a clear mind, a fair heart, and the wisdom to do right by every family I talk to. Amen.'];
 async function amen(id){const {data:c}=await sb.from('campaigns').select('name').eq('id',id).single();await sb.from('activity').insert({kind:'note',body:'Prayed over campaign: '+(c?.name||id)});
   $('m_send').disabled=false;$('m_send').title='';$('m_pray').innerHTML='<b>🙏 Amen.</b> <span class="small muted">Prayed over this campaign. You can send it now.</span>'}
+const MAIL_PIECE=0.55; // cost per letter at the mail house
 async function buildMailList(id){
   $('m_send').disabled=true;$('m_msg').textContent='Building list…';const all=[];
   for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('id, offer_code, lead_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status,tags,notes), properties(apn,address,city,state,zip,county,fips,acres,fields)').eq('campaign_id',id).order('id').range(from,from+999);
@@ -1456,7 +1457,7 @@ async function buildMailList(id){
     await sb.from('leads').update({status:'dead',do_not_mail:true,tags,notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Removed from campaign "${_cn?.name||id}". Do not mail.`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);
     await sb.from('campaign_records').delete().eq('id',r.id)}
   window._ml={id,all,kept,unv:new Set(unv)};$('m_send').style.display='none';
-  if(gone.length)await sb.from('campaigns').update({records:all.length-gone.length}).eq('id',id);
+  if(gone.length)await sb.from('campaigns').update({records:all.length-gone.length,cost:+((all.length-gone.length)*MAIL_PIECE).toFixed(2)}).eq('id',id);
   const line=r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: ${esc(r._chk.reason)}</li>`;
   const ok=kept.length-unv.length;
   $('m_msg').innerHTML=`<b>Owner check done.</b> ${ok.toLocaleString()} confirmed with the county${kept.filter(r=>r._chk.status==='heir').length?` (${kept.filter(r=>r._chk.status==='heir').length} addressed to an heir / PR)`:''}.`
@@ -1491,7 +1492,7 @@ async function finishMailList(id){
   if(upErr)return $('m_msg').textContent='Could not save the list: '+upErr.message;
   const {data:sl,error:slErr}=await sb.storage.from('deal-files').createSignedUrl(path,604800);
   if(slErr)return $('m_msg').textContent='Could not create the list link: '+slErr.message;
-  await sb.from('campaigns').update({template:$('m_tpl').value,mail_status:'to_house',mail_to_house_at:new Date().toISOString(),records:rows.length}).eq('id',id);
+  await sb.from('campaigns').update({template:$('m_tpl').value,mail_status:'to_house',mail_to_house_at:new Date().toISOString(),records:rows.length,cost:+(rows.length*MAIL_PIECE).toFixed(2)}).eq('id',id);
   $('m_msg').innerHTML=`${rows.length.toLocaleString()} records (${all.length-rows.length} removed).${missing?` <b style="color:var(--red)">${missing} have no offer code.</b> Add codes before sending; Brandon flags lists without them.`:''}`;
   const body=`Hello,\n\nHere is a new list for "${c.name}" (${rows.length} records). Download it here (link valid 7 days):\n${sl.signedUrl}\n\nLetter template (Word merge file):
 ${location.origin}/mail-templates/${encodeURIComponent($('m_tpl').value)}
