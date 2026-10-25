@@ -117,11 +117,14 @@
   async function run(records, opts = {}) {
     const res = new Array(records.length); const groups = {};
     records.forEach((r, i) => {
+      // Not a property mailing (e.g. letters to estate attorneys): nothing to check against the county.
+      if (!r.prop || (!r.prop.apn && !r.prop.address)) { res[i] = { status: 'ok', reason: 'No property on this record (not a property mailing)' }; return; }
       const st = String(r.prop?.state || '').toUpperCase() || 'NC'; const co = String(r.prop?.county || '').replace(/ county$/i, '').trim().toUpperCase();
       (groups[co + '|' + st] = groups[co + '|' + st] || []).push(i);
     });
     const now = Date.now(); let done = 0; const total = records.length;
     const tick = n => { done += n; opts.onProgress && opts.onProgress(done, total); };
+    tick(res.filter(Boolean).length);
     for (const [g, idx] of Object.entries(groups)) {
       const cfg = COUNTIES[g]; const county = g.split('|')[0];
       const titled = county ? county[0] + county.slice(1).toLowerCase() : 'Unknown';
