@@ -76,9 +76,12 @@
 
   async function run(opts = {}) {
     const dry = !!opts.dry, now = etNow();
-    const textWindow = now.dow !== 'Sun' && now.hour >= 9 && now.hour < 19;
+    // opts.leadId limits a run to one contact (testing); opts.ignoreHours only works together with leadId
+    const textWindow = (opts.leadId && opts.ignoreHours) || (now.dow !== 'Sun' && now.hour >= 9 && now.hour < 19);
     const rep = { when: now.ymd + ' ' + now.hm + ' ET', dry, texts: [], calls: [], emails: [], mail: [], stopped: [], waiting: [], errors: [], textWindow };
-    const { data: enr, error } = await sb.from('followup_enrollments').select('*, followup_plans(id,name,stop_on_reply)').eq('status', 'active').order('started_at');
+    let eq = sb.from('followup_enrollments').select('*, followup_plans(id,name,stop_on_reply)').eq('status', 'active');
+    if (opts.leadId) eq = eq.eq('lead_id', opts.leadId);
+    const { data: enr, error } = await eq.order('started_at');
     if (error) throw error;
     if (!enr?.length) return rep;
     const planIds = [...new Set(enr.map(e => e.plan_id))];
