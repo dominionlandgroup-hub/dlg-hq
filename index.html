@@ -1481,7 +1481,7 @@ async function buildMailList(id){
   const ok=kept.length-unv.length;
   $('m_msg').innerHTML=`<b>Owner check done.</b> ${ok.toLocaleString()} confirmed with the county${kept.filter(r=>r._chk.status==='heir').length?` (${kept.filter(r=>r._chk.status==='heir').length} addressed to an heir / PR)`:''}.`
    +((window._notTd||[]).length?`<br><b style="color:var(--red)">${window._notTd.length} removed: house too new or recently renovated for a teardown.</b><details><summary class="small">See which</summary><ul class="small">${window._notTd.map(line).join('')}</ul></details>`:'')+(gone.length?`<br><b style="color:var(--red)">${gone.length} removed: sold or a different owner now.</b> Marked Sold and do-not-mail.<details><summary class="small">See who</summary><ul class="small">${gone.map(line).join('')}</ul></details>`:'<br>Nobody on this list has sold.')
-   +(unv.length?`<br><b style="color:#b26a00">${unv.length} couldn't be checked.</b><details><summary class="small">See why</summary><ul class="small">${unv.slice(0,300).map(line).join('')}</ul></details><label class="small"><input type="checkbox" id="m_unv" style="width:auto"> Mail these ${unv.length} anyway</label>`:'')
+   +(unv.length?`<br><b style="color:#b26a00">${unv.length} couldn't be checked.</b><details><summary class="small">See why</summary><ul class="small">${unv.slice(0,300).map(line).join('')}</ul></details><label class="small"><input type="checkbox" id="m_unv" style="width:auto" ${unv.every(r=>/connected to the owner check|only publishes qualified sales/.test(r._chk?.reason||''))?'checked':''}> Mail these ${unv.length} anyway</label>`:'')
    +`<br><br><button class="btn" onclick="finishMailList(${id})">Draft email with the checked list</button>`;
 }
 async function finishMailList(id){
@@ -1523,6 +1523,8 @@ ${location.origin}/mail-templates/PatrickHand-Regular.ttf\n\nPlease use this lin
   const url=mobile?`mailto:${MAIL_HOUSE.to}?cc=${MAIL_HOUSE.cc}&subject=${su}&body=${bd}`:`https://mail.google.com/mail/u/${encodeURIComponent(MAIL_FROM)}/?view=cm&fs=1&tf=1&to=${MAIL_HOUSE.to}&cc=${MAIL_HOUSE.cc}&su=${su}&body=${bd}`;
   // Phones block pop-ups opened after loading, so always show a tap-to-open button too
   $('m_msg').innerHTML+=`<br><br><a class="btn" href="${url}" ${mobile?'':'target="_blank"'}>✉️ Open email to the mail house</a>`;
+  window._mhBody={to:MAIL_HOUSE.to,cc:MAIL_HOUSE.cc,subject:'NEW DATA - '+c.name,body};
+  $('m_msg').innerHTML+=` <button class="btn ghost" onclick="navigator.clipboard.writeText(_mhBody.body).then(()=>toast('Email text copied - paste it into Gmail'))">Copy email text</button><div class="small muted" style="margin-top:6px">If Gmail opens without the email filled in, click Copy email text and paste it. To: ${MAIL_HOUSE.to} · Cc: ${MAIL_HOUSE.cc}</div>`;
   if(!mobile)window.open(url,'_blank');
 }
 async function editCampaign(id){const {data:c}=id?await sb.from('campaigns').select('*').eq('id',id).single():{data:{channel:'mail'}};
