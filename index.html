@@ -1457,6 +1457,20 @@ async function buildMailList(id){
   let chk;try{chk=await OwnerCheck.run(kept0.map(r=>({lead:r.leads||{},prop:r.properties||{}})),{estateCampaign:estate,onProgress:(d,t)=>{$('m_msg').textContent=`Checking current owners with the county (${d.toLocaleString()} of ${t.toLocaleString()})…`}})}
   catch(e){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">Owner check failed: ${esc(e.message)}</b> Nothing was sent. Try again.`}
   const gone=[],unv=[],kept=[];kept0.forEach((r,i)=>{const c=chk[i];r._chk=c;if(c.status==='sold'||c.status==='changed')gone.push(r);else{kept.push(r);if(c.status==='unverified')unv.push(r)}});
+  // TEARDOWN HOUSE-AGE CHECK (Oct 2026): a teardown mailing only goes to older houses. Each Mecklenburg house is checked
+  // against the county's building record; built 1990 or later, or renovated 2010 or later (effective year), comes off the list.
+  const tdMail=/teardown/i.test((_cn?.name||'')+' '+($('m_tpl')?.value||''));const notTd=[];
+  if(tdMail){$('m_msg').textContent='Checking house ages with the county (teardown list)…';
+    const meck=kept.filter(r=>/mecklenburg/i.test(r.properties?.county||'')&&r.properties?.apn);const pid=a=>String(a).replace(/\D/g,'').padStart(8,'0');
+    const ids=[...new Set(meck.map(r=>pid(r.properties.apn)))],yb={};
+    try{for(let i=0;i<ids.length;i+=150){const fd=new URLSearchParams({where:"pid IN ("+ids.slice(i,i+150).map(x=>"'"+x+"'").join(',')+")",outFields:'pid,yearbuilt,effyearblt',returnGeometry:'false',f:'json'});
+      const j=await fetch('https://meckgis.mecklenburgcountync.gov/server/rest/services/TaxParcel_camadata/FeatureServer/0/query',{method:'POST',body:fd}).then(x=>x.json());
+      (j.features||[]).forEach(f=>{const a=f.attributes,o=yb[a.pid];if(!o||a.yearbuilt>o.yearbuilt||a.effyearblt>o.effyearblt)yb[a.pid]={y:Math.max(a.yearbuilt||0,o?.y||0),e:Math.max(a.effyearblt||0,o?.e||0)}})}}
+    catch(e){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">House-age check failed: ${esc(e.message)}</b> Nothing was sent. Try again.`}
+    for(const r of meck){const h=yb[pid(r.properties.apn)];if(h&&(h.y>=1990||h.e>=2010)){r._chk={status:'not_teardown',reason:h.y>=1990?`house built ${h.y} - not a teardown`:`house renovated (effective year ${h.e}) - not a teardown`};notTd.push(r)}}
+    for(const r of notTd){kept.splice(kept.indexOf(r),1);const u=unv.indexOf(r);if(u>=0)unv.splice(u,1);await sb.from('campaign_records').delete().eq('id',r.id)}
+    }
+  window._notTd=notTd;
   const today=new Date().toISOString().slice(0,10);
   for(const r of gone){const l=r.leads||{};const tags=[...new Set([...(l.tags||[]),'Sold'])];
     await sb.from('leads').update({status:'dead',do_not_mail:true,tags,notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Removed from campaign "${_cn?.name||id}". Do not mail.`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);
@@ -1466,7 +1480,7 @@ async function buildMailList(id){
   const line=r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: ${esc(r._chk.reason)}</li>`;
   const ok=kept.length-unv.length;
   $('m_msg').innerHTML=`<b>Owner check done.</b> ${ok.toLocaleString()} confirmed with the county${kept.filter(r=>r._chk.status==='heir').length?` (${kept.filter(r=>r._chk.status==='heir').length} addressed to an heir / PR)`:''}.`
-   +(gone.length?`<br><b style="color:var(--red)">${gone.length} removed: sold or a different owner now.</b> Marked Sold and do-not-mail.<details><summary class="small">See who</summary><ul class="small">${gone.map(line).join('')}</ul></details>`:'<br>Nobody on this list has sold.')
+   +((window._notTd||[]).length?`<br><b style="color:var(--red)">${window._notTd.length} removed: house too new or recently renovated for a teardown.</b><details><summary class="small">See which</summary><ul class="small">${window._notTd.map(line).join('')}</ul></details>`:'')+(gone.length?`<br><b style="color:var(--red)">${gone.length} removed: sold or a different owner now.</b> Marked Sold and do-not-mail.<details><summary class="small">See who</summary><ul class="small">${gone.map(line).join('')}</ul></details>`:'<br>Nobody on this list has sold.')
    +(unv.length?`<br><b style="color:#b26a00">${unv.length} couldn't be checked.</b><details><summary class="small">See why</summary><ul class="small">${unv.slice(0,300).map(line).join('')}</ul></details><label class="small"><input type="checkbox" id="m_unv" style="width:auto"> Mail these ${unv.length} anyway</label>`:'')
    +`<br><br><button class="btn" onclick="finishMailList(${id})">Draft email with the checked list</button>`;
 }
