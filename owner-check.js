@@ -37,7 +37,14 @@
       out: 'pid,full_owner_name,secownerfirstname,secownerlastname,dte_dateofsale,amt_price',
       rec: a => ({ k: a.pid, owner: join(a.full_owner_name, a.secownerfirstname, a.secownerlastname), sale: ep(a.dte_dateofsale), price: a.amt_price })
     },
+    // Gaston: our lists store the NC PIN (3592-01-7044); older imports may hold the 6-digit county PID (193621).
     'GASTON|NC': {
+      url: 'https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Parcels/MapServer/11/query', jsonp: true,
+      field: 'PIN', key: a => { const d = String(a).replace(/\D/g, '').slice(0, 10); return d.length === 10 ? d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6) : d; },
+      out: 'PIN,CURR_NAME1,CURR_NAME2,SALEDATE,SALESAMT',
+      rec: a => ({ k: a.PIN, owner: join(a.CURR_NAME1, a.CURR_NAME2), sale: ep(a.SALEDATE), price: a.SALESAMT })
+    },
+    'GASTON-PID|NC': {
       url: 'https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Parcels/MapServer/11/query', jsonp: true,
       field: 'PID', key: a => String(a).replace(/\D/g, ''),
       out: 'PID,CURR_NAME1,CURR_NAME2,SALEDATE,SALESAMT',
@@ -120,13 +127,14 @@
       // Not a property mailing (e.g. letters to estate attorneys): nothing to check against the county.
       if (!r.prop || (!r.prop.apn && !r.prop.address)) { res[i] = { status: 'ok', reason: 'No property on this record (not a property mailing)' }; return; }
       const st = String(r.prop?.state || '').toUpperCase() || 'NC'; const co = String(r.prop?.county || '').replace(/ county$/i, '').trim().toUpperCase();
-      (groups[co + '|' + st] = groups[co + '|' + st] || []).push(i);
+      const gk = (co === 'GASTON' && String(r.prop.apn || '').replace(/\D/g, '').length < 10 ? 'GASTON-PID' : co) + '|' + st;
+      (groups[gk] = groups[gk] || []).push(i);
     });
     const now = Date.now(); let done = 0; const total = records.length;
     const tick = n => { done += n; opts.onProgress && opts.onProgress(done, total); };
     tick(res.filter(Boolean).length);
     for (const [g, idx] of Object.entries(groups)) {
-      const cfg = COUNTIES[g]; const county = g.split('|')[0];
+      const cfg = COUNTIES[g]; const county = g.split('|')[0].replace('-PID', '');
       const titled = county ? county[0] + county.slice(1).toLowerCase() : 'Unknown';
       if (g === 'UNION|NC') {
         try {
