@@ -90,7 +90,7 @@
     const { data: leads } = await sb.from('leads').select('id,full_name,first_name,last_name,phone,email,prop_address,prop_city,county,status,tags,do_not_mail').in('id', leadIds);
     const L = Object.fromEntries((leads || []).map(l => [l.id, l]));
     const dealIds = [...new Set(enr.map(e => e.deal_id).filter(Boolean))];
-    const { data: deals } = dealIds.length ? await sb.from('deals').select('id,buyer_id,property_label,properties(address,city)').in('id', dealIds) : { data: [] };
+    const { data: deals } = dealIds.length ? await sb.from('deals').select('id,buyer_id,status,property_label,properties(address,city)').in('id', dealIds) : { data: [] };
     const D = Object.fromEntries((deals || []).map(d => [d.id, d]));
     const buyerIds = [...new Set((deals || []).map(d => d.buyer_id).filter(Boolean))];
     const { data: buyers } = buyerIds.length ? await sb.from('buyers').select('id,name,company,phone,email').in('id', buyerIds) : { data: [] };
@@ -107,6 +107,8 @@
       if (!isBuyer) {
         const blocked = (l.tags || []).find(t => BLOCK_TAGS.test(t));
         const deadOk = /^8\. /.test(plan.name || '') && l.status === 'dead';
+        if (!deadOk && e.deal_id && (d.status === 'lost' || d.status === 'won' || !D[e.deal_id])) { if (!dry) await stopEnr(e, !D[e.deal_id] ? 'deal deleted' : d.status === 'won' ? 'deal closed' : 'deal dead'); rep.stopped.push(name + ': deal ' + (d.status || 'deleted')); continue; }
+        if (['under_contract', 'assigned', 'closed'].includes(l.status)) { if (!dry) await stopEnr(e, 'status ' + l.status); rep.stopped.push(name + ': ' + l.status); continue; }
         if (blocked || (['not_selling'].includes(l.status)) || (l.status === 'dead' && !deadOk)) { if (!dry) await stopEnr(e, blocked ? 'tagged ' + blocked : 'status ' + l.status); rep.stopped.push(name + ': ' + (blocked || l.status)); continue; }
       }
       const ph = d10(isBuyer ? who?.phone : l.phone);
@@ -115,20 +117,23 @@
       const { data: inbound } = await iq.order('created_at', { ascending: false }).limit(5);
       if (inbound?.length) {
         const opt = inbound.find(m => STOP_WORDS.test(m.body || ''));
-        if (opt) { if (!dry) await stopEnr(e, 'texted STOP', true); rep.stopped.push(name + ': texted STOP (tagged Opted out)'); continue; }
+        if (opt) { if (!dry) await stopEnr(e, 'texted STOP', !isBuyer); rep.stopped.push(name + ': texted STOP (tagged Opted out)'); continue; }
         if (plan.stop_on_reply) { if (!dry) await stopEnr(e, 'replied'); rep.stopped.push(name + ': replied - your turn'); continue; }
       }
-      const due = addDays(etDate(e.started_at), step.day), at = (step.send_time || '09:00').slice(0, 5);
+      let due = addDays(etDate(e.started_at), step.day); const at = (step.send_time || '09:00').slice(0, 5);
+      if (e.last_sent_at && e.next_step > 0 && st[e.next_step - 1]) { const gapDue = addDays(etDate(e.last_sent_at), Math.max(1, step.day - st[e.next_step - 1].day)); if (gapDue > due) due = gapDue; }
       if (now.ymd < due || (now.ymd === due && now.hm < at)) { rep.waiting.push(`${name}: ${step.kind} on ${due} ${at}`); continue; }
       const vars = { first_name: isBuyer ? firstName(null, who?.name) : firstName(l), contact_name: name,
         property_address: d.properties?.address || l.prop_address || d.property_label || 'your property', county_name: l.county || '' };
       const label = `${name} - ${plan.name} (step ${e.next_step + 1}/${st.length})`;
+      if (!dry) { const { data: claim } = await sb.from('followup_enrollments').update({ last_attempt_at: new Date().toISOString(), next_step: e.next_step + 1 }).eq('id', e.id).eq('next_step', e.next_step).eq('status', 'active').select('id');
+        if (!claim?.length) { rep.waiting.push(`${name}: already handled by another run`); continue; } }
       try {
         if (step.kind === 'text') {
           const phone = d10(isBuyer ? who?.phone : l.phone);
           if (!phone) throw new Error('no phone number');
-          if (!textWindow) { rep.waiting.push(`${name}: text waits for 9am-7pm Mon-Sat`); continue; }
-          if (sent >= 40) { rep.waiting.push(`${name}: text waits (40 per run limit)`); continue; }
+          if (!textWindow) { rep.waiting.push(`${name}: text waits for 9am-7pm Mon-Sat`); if (!dry) await sb.from('followup_enrollments').update({ next_step: e.next_step }).eq('id', e.id); continue; }
+          if (sent >= 40) { rep.waiting.push(`${name}: text waits (40 per run limit)`); if (!dry) await sb.from('followup_enrollments').update({ next_step: e.next_step }).eq('id', e.id); continue; }
           const text = fill(step.body, vars);
           rep.texts.push({ to: name, phone, text });
           if (!dry) {
@@ -159,7 +164,7 @@
         }
       } catch (err) {
         rep.errors.push(`${label}: ${err.message || err}`);
-        if (!dry) await sb.from('followup_enrollments').update({ last_error: String(err.message || err).slice(0, 300), last_attempt_at: new Date().toISOString() }).eq('id', e.id);
+        if (!dry) await sb.from('followup_enrollments').update({ next_step: e.next_step, last_error: String(err.message || err).slice(0, 300), last_attempt_at: new Date().toISOString() }).eq('id', e.id);
       }
     }
     return rep;
