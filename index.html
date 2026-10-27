@@ -261,6 +261,10 @@ const MAIL_HOUSE={to:'brandon@impactmailingservices.com',cc:'paul@impactmailings
 let sb=null, CUR='dashboard', STAGES=[], BUYERS=null, map=null, mapLayer=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// today's date in the user's own time zone (toISOString is UTC, so after 8pm ET it gave tomorrow)
+const localISO=(d=new Date())=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
+// for a value inside a quoted JS string in an onclick (names like O'Neal): escape for JS first, then for HTML
+const jsa=s=>esc(String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,'\\n'));
 const money=n=>n==null||n===''?'—':(Number(n)<0?'$-':'$')+Math.abs(Number(n)).toLocaleString('en-US',{minimumFractionDigits:Number(n)%1?2:0,maximumFractionDigits:2});
 const ago=d=>{if(!d)return'';const s=(Date.now()-new Date(d))/1e3;if(s<3600)return Math.max(1,Math.round(s/60))+'m ago';if(s<86400)return Math.round(s/3600)+'h ago';if(s<86400*30)return Math.round(s/86400)+'d ago';return new Date(d).toLocaleDateString()};
 const toast=m=>{const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)};
@@ -287,7 +291,7 @@ const e164=p=>{const d=String(p||'').replace(/\D/g,'');return d.length===10?'+1'
 function phoneLine(ph,leadId,box){if(!ph)return '';const n=e164(ph),en=encodeURIComponent(n);
   const call=IS_MOBILE?`openphone://dial?number=${en}&action=call`:`tel:${n}`;
   const text=IS_MOBILE?`href="openphone://message?number=${en}"`:(leadId?`href="#" onclick="event.stopPropagation();closeDrawer();openThread(${leadId},'${box||'seller'}');return false"`:`href="sms:${n}"`);
-  return `<div class="pline"><span class="pn">${esc(ph)}</span><a class="pbtn" href="${call}" onclick="event.stopPropagation()" title="Call ${esc(ph)}">📞 Call</a><a class="pbtn" ${text} title="Text ${esc(ph)}">💬 Text</a><button type="button" class="pbtn" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(ph)}');toast('Copied ${esc(ph)}')" title="Copy">⧉ Copy</button></div>`}
+  return `<div class="pline"><span class="pn">${esc(ph)}</span><a class="pbtn" href="${call}" onclick="event.stopPropagation()" title="Call ${esc(ph)}">📞 Call</a><a class="pbtn" ${text} title="Text ${esc(ph)}">💬 Text</a><button type="button" class="pbtn" onclick="event.stopPropagation();navigator.clipboard.writeText('${jsa(ph)}');toast('Copied ${esc(ph)}')" title="Copy">⧉ Copy</button></div>`}
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const head=t=>`<div class="row" style="align-items:center;flex-wrap:nowrap"><h2 style="margin:0;flex:1">${t}</h2><button class="btn ghost sm" style="flex:0" onclick="closeDrawer()">Close</button></div><br>`;
 function closeDrawer(){$('drawer').style.display='none'}
@@ -303,7 +307,7 @@ async function boot(){
   $('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=data.session.user.email;
   const {data:st}=await sb.from('board_stages').select('*').order('position');STAGES=st||[];
   if(!STAGES.length) toast('Database update needed: run schema_v2.sql in Supabase');
-  go(location.hash.slice(1)||store.get('view')||'dashboard');refreshBadges();setInterval(refreshBadges,60000);setInterval(livePoll,15000);livePoll();
+  go(location.hash.slice(1)||store.get('view')||'dashboard');refreshBadges();setInterval(refreshBadges,60000);setInterval(livePoll,15000);livePoll();setTimeout(rsSweep,8000);
 }
 async function signIn(){const {error}=await sb.auth.signInWithPassword({email:$('email').value,password:$('pw').value});if(error){$('loginErr').textContent=error.message;return}boot()}
 async function signUp(){const {error}=await sb.auth.signUp({email:$('email').value,password:$('pw').value});$('loginErr').textContent=error?error.message:'Login created. Confirm the email Supabase sent, then sign in.'}
@@ -407,7 +411,7 @@ async function vDashboard(){
   const isAssignedD=d=>{const s=STAGES.find(x=>x.id===d.stage_id);return !!(s&&(s.closed||/^closed$/i.test(s.name)||/assign/i.test(s.name)))};
   // Under contract = buyer-board deals in an "Assigned to Buyer" stage that are not closed yet (current, not date-limited).
   // Closed = deals in the Closed stage, last updated in the date range. Fee = the deal's value (saved assignment fee).
-  const inRangeD=d=>inR((d.updated_at||'').slice(0,10));
+  const inRangeD=d=>inR(d.updated_at?localISO(d.updated_at):'');
   const stNameD=d=>(STAGES.find(x=>x.id===d.stage_id)?.name||'');
   const isClosedD=d=>{const s=STAGES.find(x=>x.id===d.stage_id);return !!(s&&(s.closed||/^closed$/i.test(s.name)))};
   const buyerD=(allDeals||[]).filter(d=>d.board==='buyer');
@@ -415,8 +419,8 @@ async function vDashboard(){
   // the assignment's closing date wins over the purchase contract's
   const closeOf=d=>d.as_meta?.close_date||d.closing_date||null;
   // a closed deal counts on the day it closed: the recorded sale date, else its closing date (never a future date), else last update
-  const todayS=new Date().toISOString().slice(0,10);
-  const closedDate=d=>{const s=T.find(t=>t.kind==='sale'&&t.deal_id===d.id);if(s?.tx_date)return s.tx_date.slice(0,10);const c=(closeOf(d)||'').slice(0,10);return c&&c<=todayS?c:(d.updated_at||'').slice(0,10)};
+  const todayS=localISO();
+  const closedDate=d=>{const s=T.find(t=>t.kind==='sale'&&t.deal_id===d.id);if(s?.tx_date)return s.tx_date.slice(0,10);const c=(closeOf(d)||'').slice(0,10);return c&&c<=todayS?c:(d.updated_at?localISO(d.updated_at):'')};
   const closedD=buyerD.filter(d=>isClosedD(d)&&inR(closedDate(d)));
   const assignedD=[...underD,...closedD];
   const feeOf=d=>+d.value||0;
@@ -425,8 +429,10 @@ async function vDashboard(){
   const txOf=(d,k)=>firstTxOf(d.property_id,k,d.id,d.properties?.apn);
   const bpOf=d=>d.purchase_price!=null?+d.purchase_price:(txOf(d,'purchase')?.price!=null?+txOf(d,'purchase').price:null);
   const spOf=d=>d.assignment_price!=null?+d.assignment_price:(txOf(d,'sale')?.price!=null?+txOf(d,'sale').price:null);
-  const feeTotal=assignedD.reduce((s,d)=>s+feeOf(d),0);
-  const contractTotal=assignedD.reduce((s,d)=>s+(bpOf(d)||0),0);
+  // fees only count once a deal is closed; under-contract fees show separately as pending
+  const feeTotal=closedD.reduce((s,d)=>s+feeOf(d),0);
+  const pendingFee=underD.reduce((s,d)=>s+feeOf(d),0);
+  const contractTotal=closedD.reduce((s,d)=>s+(bpOf(d)||0),0);
   const underContract=underD.length;
   const roi=contractTotal?feeTotal/contractTotal*100:0;
   const dRows=[...underD.map(d=>({d,st:'Under contract'})),...closedD.map(d=>({d,st:'Closed'}))];
@@ -437,7 +443,7 @@ async function vDashboard(){
   if(cIds.size){const pids=rows.filter(r=>r.buy&&r.sell&&r.p?.id).map(r=>r.p.id);if(pids.length){const {data:crs}=await sb.from('campaign_records').select('property_id,campaign_id').in('property_id',pids);
     const hit=new Set((crs||[]).filter(x=>cIds.has(x.campaign_id)).map(x=>x.property_id));rows.forEach(r=>{if(r.buy&&r.sell&&hit.has(r.p?.id))attrProfit+=(+r.sell.price)-(+r.buy.price)-(+r.buy.costs||0)-(+r.sell.costs||0)})}}
   // ROAS: assignment fees from this range's assigned/closed deals, over the cost of the campaigns those deals came from (whenever they dropped)
-  const campD=assignedD.filter(d=>d.campaign_id);const campFee=campD.reduce((s,d)=>s+feeOf(d),0);
+  const campD=closedD.filter(d=>d.campaign_id);const campFee=campD.reduce((s,d)=>s+feeOf(d),0);
   const campCost=[...new Set(campD.map(d=>d.campaign_id))].reduce((s,id)=>s+(+((camps||[]).find(c=>c.id===id)?.cost)||0),0);
   const roas=campCost?campFee/campCost*100:0;
   const conv=deals?assignedD.length/deals*100:0;
@@ -446,7 +452,7 @@ async function vDashboard(){
   const stat=(l,v)=>`<div class="pst"><div class="l">${l}</div><div class="v">${v}</div></div>`;
   $('view').innerHTML=`<div class="vbanner"><svg class="ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 207.27 203.63"><defs><style>.cls-1{fill:#d5a940;}.cls-2{fill:#5c2977;}</style></defs><g id="Capa_2" data-name="Capa 2"><g id="Capa_4" data-name="Capa 4"><path class="cls-1" d="M134.08,106l73.19,18.29-53.77-8q-11-2.23-22.73-3.49a28.62,28.62,0,1,0-54.26,0c-7.83.83-15.43,2-22.72,3.49L0,124.25l72.25-18L22.4,104l50.79-2.69L0,83,73.66,94,28.45,72.9l48,16.94L15.78,44.93,79.63,83.25,45.93,46.46l37.82,34L44.93,15.78,89.25,75.62l-17-46.89,21.93,45.9L83,0l18,72.25,2.19-49.85L106,73.2,124.25,0l-11,73.66,21.1-45.22-16.94,48,44.9-60.62L124,79.63l36.79-33.69-34,37.82,64.68-38.83L131.66,89.26l46.89-17.05-45.9,21.93L207.27,83,135,101.08l49.84,2.19Z"/><path class="cls-2" d="M141,185v0c-1.31-.3-2.62-.58-3.94-.83v0C138.34,184.45,139.66,184.72,141,185Z"/><path class="cls-2" d="M146.88,186.23q-2.94-.79-5.91-1.47V160.57a3.14,3.14,0,0,0-1.26-2.5l-16.23-11.92V118.43a3.11,3.11,0,0,0-1.06-2.33l-5-4.4-11.8-10.29a3.08,3.08,0,0,0-4.11,0L90.18,111.69l-4.89,4.44a3.05,3.05,0,0,0-1,2.29v9.06L67.47,140.85a3.07,3.07,0,0,0-1.16,2.41v41.5c-2,.45-4,.94-5.91,1.47a132.1,132.1,0,0,0-39.61,17.4,262.22,262.22,0,0,1,41.09-10.57c1.74-.28,3.46-.58,5.2-.79s3.45-.55,5.2-.74c3.46-.45,7-.8,10.43-1.06,7-.6,13.94-.94,20.92-.86,7-.08,14,.26,20.94.86q5.22.39,10.43,1.06c1.73.19,3.46.51,5.2.74s3.46.51,5.19.79a262.05,262.05,0,0,1,41.1,10.57A132.32,132.32,0,0,0,146.88,186.23Zm-62.6-4.45c-.82.08-1.64.16-2.46.26-1.09.15-2.17.32-3.26.48,0-.7-.09-1.4-.13-2.1q-.66-10.56-1.32-21.12l-.34,0c-.44,7.91-.89,15.81-1.28,23.72-1.48.25-3,.51-4.45.79l-.8.15V143.67l14-11.16Zm17.29-1.09h0c-1.78,0-3.55.08-5.33.17,0-1.87-.09-3.74-.16-5.6q-.63-19.55-1.28-39.06l-.33,0c-.47,15-1,29.9-1.35,44.86-1.64.1-3.28.21-4.91.35V118.79l8.09-7.34,5.27-4.78Zm18,.73h0c-1.86-.17-3.74-.31-5.6-.41,0-1.91-.09-3.83-.16-5.75q-.63-19.55-1.28-39.06l-.33,0c-.46,14.9-1,29.79-1.34,44.69h0c-1.77-.08-3.54-.14-5.3-.17V106.55l5.61,4.91,8.43,7.35ZM137,183.94h0l-.79-.15c-1.56-.3-3.12-.57-4.68-.83h0c0-.31-.07-.62-.11-.93q-.68-6.18-1.34-12.35h-.33c-.41,4.27-.82,8.54-1.18,12.81h0l-3.1-.44-2-.23V151L137,161Z"/></g></g></svg><div class="verse">${verseHTML()}</div></div>
   <div class="pgrid">
-   <div class="card"><h3 class="sec">Summary</h3><div class="pstats">${stat('Responses<br>added',kfmt(deals))}${stat('Offers<br>made',Math.round(h.offers)+offersLive)}${stat('Properties<br>under contract',underContract)}${stat('Properties<br>closed',closedD.length)}${stat('Avg. days contract<br>to assign',avgDur)}${stat('Assignment<br>fees',money(feeTotal))}<div class="pst"><div class="l big">ROI</div><div class="v">${pc(roi)}</div></div></div></div>
+   <div class="card"><h3 class="sec">Summary</h3><div class="pstats">${stat('Responses<br>added',kfmt(deals))}${stat('Offers<br>made',Math.round(h.offers)+offersLive)}${stat('Properties<br>under contract',underContract)}${stat('Properties<br>closed',closedD.length)}${stat('Avg. days contract<br>to assign',avgDur)}${stat('Fees<br>closed',money(feeTotal))}${stat('Fees<br>pending',money(pendingFee))}<div class="pst"><div class="l big">ROI</div><div class="v">${pc(roi)}</div></div></div></div>
    <div class="card"><h3 class="sec">Responses added</h3><div style="height:150px"><canvas id="chDeals"></canvas></div></div>
   </div>
   <div class="grid2" style="margin-top:14px">
@@ -461,7 +467,7 @@ async function vDashboard(){
    <table class="roi"><tr><th>Property</th><th>Status</th><th class="right">Contract price</th><th class="right">Assigned for</th><th class="right">Assignment fee</th><th class="right">Days to close</th></tr>
    ${dRows.map(({d,st})=>{const bp=bpOf(d),sp=spOf(d),fee=d.value!=null?+d.value:null;const pu=txOf(d,'purchase'),sa=txOf(d,'sale');const du=st==='Closed'&&pu&&sa?Math.round((new Date(sa.tx_date)-new Date(pu.tx_date))/864e5):null;
      return `<tr><td>${esc(d.property_label||'(no address)')}</td><td>${st}</td><td class="right num">${money(bp)}</td><td class="right num">${sp!=null?money(sp):'—'}</td><td class="right num" style="color:#1a9e5a">${fee!=null?money(fee):'—'}${d.as_meta?.jv_cut?`<div class="small muted">after ${money(+d.as_meta.jv_cut)} to ${esc(d.as_meta.jv_partner||'JV')}</div>`:''}</td><td class="right">${du!=null?du+' days':(st!=='Closed'&&closeOf(d)?'closes '+closeOf(d).slice(5).replace('-','/'):'—')}</td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No deals on the Buyer Deals board.</td></tr>'}
-   ${dRows.length?`<tr class="tot"><td colspan="2"><b>Total assigned</b></td><td class="right num"><b>${money(contractTotal)}</b></td><td></td><td class="right num"><b>${money(feeTotal)}</b></td><td class="right"><b>${avgDur} days avg</b></td></tr>`:''}</table></div>`;
+   ${dRows.length?`<tr class="tot"><td colspan="2"><b>Total closed</b></td><td class="right num"><b>${money(contractTotal)}</b></td><td></td><td class="right num"><b>${money(feeTotal)}</b></td><td class="right"><b>${avgDur} days avg</b></td></tr>${underD.length?`<tr><td colspan="4" class="muted">Pending (under contract, not counted above)</td><td class="right num muted">${money(pendingFee)}</td><td></td></tr>`:''}`:''}</table></div>`;
   // charts
   CHARTS.forEach(c=>c.destroy());CHARTS=[];if(!window.Chart)return;
   const bk=buckets(a,b),L=bk.map(x=>lbl(x[0]));
@@ -505,7 +511,7 @@ async function dealMilestone(id,kind){try{const {data:d}=await sb.from('deals').
   if(kind==='sale'&&d.value!=null&&d.value!==''&&d.purchase_price!=null)d.assignment_price=Number(d.purchase_price)+Number(d.value);
   const {data:ex}=await sb.from('transactions').select('id').eq('deal_id',id).eq('kind',kind).like('notes','HQ:%').limit(1);if((ex||[]).length)return;
   const label={offer:'offer made',purchase:'under contract',sale:'closed'}[kind];
-  await sb.from('transactions').insert({deal_id:id,property_id:d.property_id||null,kind,tx_date:new Date().toISOString().slice(0,10),price:kind==='sale'?(d.assignment_price||d.purchase_price||null):(d.purchase_price||null),costs:0,notes:'HQ: '+label});
+  await sb.from('transactions').insert({deal_id:id,property_id:d.property_id||null,kind,tx_date:localISO(),price:kind==='sale'?(d.assignment_price||d.purchase_price||null):(d.purchase_price||null),costs:0,notes:'HQ: '+label});
   if(d.lead_id){const order=['record','new','contacted','interested','offer','under_contract','assigned','closed'];const to={offer:'offer',purchase:'under_contract',sale:'closed'}[kind];
     const {data:l}=await sb.from('leads').select('status').eq('id',d.lead_id).single();const cur=order.indexOf(l?.status);if(cur<order.indexOf(to)&&!['dead','not_selling'].includes(l?.status))await sb.from('leads').update({status:to,updated_at:new Date().toISOString()}).eq('id',d.lead_id);
     sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:label[0].toUpperCase()+label.slice(1)+(d.purchase_price?' · $'+Number(kind==='sale'?(d.assignment_price||d.purchase_price):d.purchase_price).toLocaleString():'')})}}catch(e){console.warn('milestone',e)}}
@@ -536,7 +542,19 @@ const buyerSearch=sid=>`<input type="search" placeholder="Search buyers by name,
 function filterBuyers(sid,q){const s=$(sid);if(!s)return;const cur=s.value;q=String(q||'').trim().toLowerCase();const L=(BUYERS||[]).filter(b=>String(b.id)===cur||!q||buyerQ(b).includes(q));
   s.innerHTML='<option value="">'+(q?L.filter(b=>String(b.id)!==cur).length+' match'+(L.filter(b=>String(b.id)!==cur).length===1?'':'es'):'—')+'</option>'+L.map(b=>buyerOpt(b,String(b.id)===cur)).join('');s.value=cur}
 function newDeal(board,stageId){openDealForm({board,stage_id:stageId||STAGES.find(s=>s.board===board)?.id})}
-async function openDeal(id){const {data:d,error}=await sb.from('deals').select('*, leads(*), properties(*)').eq('id',id).single();if(error)return toast(error.message);openDealForm(d)}
+async function openDeal(id){const {data:d,error}=await sb.from('deals').select('*, leads(*), properties(*)').eq('id',id).single();if(error)return toast(error.message);openDealForm(d);rsAuto(d)}
+// RabbitSign: if the signing webhook was missed, a contract stays "sent" after everyone signs.
+// Opening the deal quietly re-checks RabbitSign (once per deal per session) and reopens it if anything changed.
+const RS_CHECKED=new Set();
+async function rsAuto(d){const jobs=[];if(d.rs_folder_id&&d.rs_status!=='signed')jobs.push('psa');if(d.as_folder_id&&d.as_status!=='signed')jobs.push('asg');
+  let changed=false;for(const k of jobs){const key=d.id+':'+k;if(RS_CHECKED.has(key))continue;RS_CHECKED.add(key);
+    try{const {data}=await sb.functions.invoke('rabbitsign/status',{body:{deal_id:d.id,remind:false,kind:k}});if(data?.allSigned)changed=true}catch(e){}}
+  if(changed){toast('RabbitSign: signed by everyone — deal updated');if($('d_stage_id'))openDeal(d.id)}}
+// once per session, re-check contracts still showing "sent" (catches missed RabbitSign webhooks)
+async function rsSweep(){if(RS_CHECKED.has('sweep'))return;RS_CHECKED.add('sweep');
+  const {data}=await sb.from('deals').select('id,rs_folder_id,rs_status,as_folder_id,as_status').or('and(rs_folder_id.not.is.null,rs_status.neq.signed),and(as_folder_id.not.is.null,as_status.neq.signed)').limit(25);
+  for(const d of data||[]){const jobs=[];if(d.rs_folder_id&&d.rs_status!=='signed')jobs.push('psa');if(d.as_folder_id&&d.as_status!=='signed')jobs.push('asg');
+    for(const k of jobs){RS_CHECKED.add(d.id+':'+k);try{await sb.functions.invoke('rabbitsign/status',{body:{deal_id:d.id,remind:false,kind:k}})}catch(e){}}}}
 async function openDealForm(d){
   const xp=(d?.extra_property_ids||[]).length?((await sb.from('properties').select('id,apn,address,city,county,acres').in('id',d.extra_property_ids)).data||[]):[];
   if(!BUYERS){const {data}=await sb.from('buyers').select('id,name,company,email').order('name');BUYERS=data||[]}
@@ -553,7 +571,7 @@ async function openDealForm(d){
   const $f=(k,lab)=>`<div><label class="f">${lab}</label><div class="moneyin"><span>$</span><input id="d_${k}" type="number" step="any" value="${esc(d[k]??'')}"></div></div>`;
   const tf=(k,lab,t='text')=>`<div><label class="f">${lab}</label><input id="d_${k}" type="${t}" value="${esc(d[k]??'')}"></div>`;
   const _sn=l?splitName(l):{first:'',last:''};const fn=_sn.first||'',ln=_sn.last||'';
-  const ph=l?.phone,cp=t=>`<button class="ico" title="Copy" onclick="navigator.clipboard.writeText('${esc(t)}');toast('Copied')">⧉</button>`;
+  const ph=l?.phone,cp=t=>`<button class="ico" title="Copy" onclick="navigator.clipboard.writeText('${jsa(t)}');toast('Copied')">⧉</button>`;
   const notes=parseNotes(d.notes);
   window._wideNext=true;
   openDrawer(`<div class="dhead"><div><div class="small muted">${board==='buyer'?'Buyer Deals':'Seller Deals'}</div><h2 style="margin:2px 0 0">${esc(leadName(l)||d.property_label||'New deal')}</h2></div>
@@ -630,7 +648,7 @@ async function loadDealFiles(id,showDel){const {data:all}=await sb.from('deal_fi
   const el=$('d_files');if(!el)return;const del=(all||[]).filter(f=>f.deleted_at),data=(all||[]).filter(f=>showDel?f.deleted_at:!f.deleted_at);
   const foot=del.length?`<div class="small" style="margin-top:6px"><a href="#" onclick="loadDealFiles(${id},${!showDel});return false">${showDel?'← Back to files':'Show removed files ('+del.length+')'}</a></div>`:'';
   if(!data.length){el.innerHTML=(showDel?'<span class="muted">No removed files.</span>':'<span class="muted">No files yet.</span>')+foot;return}
-  el.innerHTML=data.map(f=>`<div class="frow"><span class="fic">${/\.docx?$/i.test(f.storage_path||'')?'W':/\.pdf$/i.test(f.storage_path||'')?'PDF':'▤'}</span><a href="#" onclick="viewDealFile('${esc(f.storage_path||'')}','${esc(f.name)}');return false">${esc(f.name)}</a><span class="muted" style="margin-left:auto;white-space:nowrap">${new Date(f.created_at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}</span>${showDel?`<a href="#" class="small" style="margin-left:10px" onclick="dealFileRemove(${f.id},${id},false);return false">Restore</a>`:`<a href="#" title="Remove this file" style="margin-left:10px;color:var(--muted);text-decoration:none" onclick="dealFileRemove(${f.id},${id},true);return false">🗑</a>`}</div>`).join('')+foot}
+  el.innerHTML=data.map(f=>`<div class="frow"><span class="fic">${/\.docx?$/i.test(f.storage_path||'')?'W':/\.pdf$/i.test(f.storage_path||'')?'PDF':'▤'}</span><a href="#" onclick="viewDealFile('${jsa(f.storage_path||'')}','${jsa(f.name)}');return false">${esc(f.name)}</a><span class="muted" style="margin-left:auto;white-space:nowrap">${new Date(f.created_at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}</span>${showDel?`<a href="#" class="small" style="margin-left:10px" onclick="dealFileRemove(${f.id},${id},false);return false">Restore</a>`:`<a href="#" title="Remove this file" style="margin-left:10px;color:var(--muted);text-decoration:none" onclick="dealFileRemove(${f.id},${id},true);return false">🗑</a>`}</div>`).join('')+foot}
 async function dealFileRemove(fid,dealId,remove){if(remove&&!confirm('Remove this file from the deal? You can bring it back from "Show removed files".'))return;
   const {error}=await sb.from('deal_files').update({deleted_at:remove?new Date().toISOString():null}).eq('id',fid);if(error)return toast(error.message);toast(remove?'File removed':'File restored');loadDealFiles(dealId,!remove)}
 async function openDealFile(path){if(!path)return toast('File is on your Desktop in DLG Contracts');const {data,error}=await sb.storage.from('deal-files').createSignedUrl(path,3600);if(error)return toast(error.message);window.open(data.signedUrl,'_blank')}
@@ -1173,7 +1191,7 @@ async function saveCPanel(tid,lid){const parts=$('cp_addr').value.split(',').map
   toast('Contact saved');openThreadT(tid);loadThreads()}
 const TAG_QUICK=['Due Diligence','Called In','Hot','Follow Up','Not Selling'];
 function tagsEditor(l){if(!l||!l.id)return '<div class="small muted">Save the contact first, then add tags.</div>';const tg=l.tags||[];
-  return `<div class="tagrow">${tg.map(x=>`<span class="tagchip">${esc(x)}<button title="Remove tag" onclick="tagRemove(${l.id},'${esc(x).replace(/'/g,"\\'")}')">×</button></span>`).join('')||'<span class="small muted">No tags yet.</span>'}</div>
+  return `<div class="tagrow">${tg.map(x=>`<span class="tagchip">${esc(x)}<button title="Remove tag" onclick="tagRemove(${l.id},'${jsa(x).replace(/'/g,"\\'")}')">×</button></span>`).join('')||'<span class="small muted">No tags yet.</span>'}</div>
    <div class="tagrow">${TAG_QUICK.filter(q=>!tg.some(x=>x.toLowerCase()===q.toLowerCase())).map(q=>`<button class="tagadd" onclick="tagAdd(${l.id},'${q}')">+ ${q}</button>`).join('')}</div>
    <div class="row" style="margin-top:6px"><input id="tagin_${l.id}" placeholder="Other tag" onkeydown="if(event.key==='Enter'){tagAdd(${l.id},this.value)}"><button class="btn ghost" style="flex:0" onclick="tagAdd(${l.id},$('tagin_${l.id}').value)">Add</button></div>`}
 async function tagSet(id,fn){const {data:l,error:e1}=await sb.from('leads').select('id,tags').eq('id',id).single();if(e1)return toast(e1.message);
@@ -1263,7 +1281,7 @@ async function emailSetup(box){const {data,error}=await sb.functions.invoke('gma
   const ago=d=>{if(!d)return 'Waiting for the first check';const m=Math.round((Date.now()-new Date(d))/60000);return 'Last checked '+(m<1?'just now':m<60?m+' min ago':Math.round(m/60)+' h ago')};
   openDrawer(`<h2>${box==='seller'?'Seller inbox email':box==='course'?'Course email':'Buyer inbox email'}</h2>
    <p class="small muted">${box==='course'?'Student emails (new logins, password resets, reminders) go out from this Gmail and show in its Sent folder. Its inbox is not pulled into DLG HQ.':'Like Pebble: only emails from people already in DLG HQ come in. Replies you write here go out from this Gmail and show in its Sent folder.'}</p>
-   ${acc.map(a=>`<div class="card" style="margin:10px 0"><b>${esc(a.email)}</b><div class="small muted">${ago(a.last_sync)}</div><button class="btn ghost" style="margin-top:8px" onclick="emailScript('${esc(a.email)}','${box}','${a.token}')">Show setup code</button></div>`).join('')||'<div class="muted small" style="margin:10px 0">No email connected yet.</div>'}
+   ${acc.map(a=>`<div class="card" style="margin:10px 0"><b>${esc(a.email)}</b><div class="small muted">${ago(a.last_sync)}</div><button class="btn ghost" style="margin-top:8px" onclick="emailScript('${jsa(a.email)}','${box}','${a.token}')">Show setup code</button></div>`).join('')||'<div class="muted small" style="margin:10px 0">No email connected yet.</div>'}
    <label class="f">Gmail address to connect</label><input id="em_addr" value="${esc(acc[0]?.email||def)}" placeholder="${box==='course'?'wearelandspecialist@gmail.com':'name@example.com'}">
    <button class="btn" style="margin-top:10px" onclick="emailConnect('${box}')">Connect this email</button><div id="em_steps"></div>`)}
 async function emailConnect(box){const {data,error}=await sb.functions.invoke('gmail/connect',{body:{email:$('em_addr').value,inbox:box}});
@@ -1312,7 +1330,7 @@ async function campDealCounts(){const {data}=await sb.rpc('campaign_deal_counts'
   // every deal (Pebble's and new) is linked to its campaign; offers/purchases/sales from Pebble came over per campaign, new ones add on
   const dc={};(data||[]).forEach(r=>{dc[r.campaign_id]={n:+r.deals,open:+r.open||0,offer:+r.offers,purchase:+r.purchases,sale:+r.sales}});return dc}
 // ---------- weekly buildable list (listbuilder.js) ----------
-function nextMonday(){const d=new Date();d.setDate(d.getDate()+((8-d.getDay())%7||7));return d.toISOString().slice(0,10)}
+function nextMonday(){const d=new Date();d.setDate(d.getDate()+((8-d.getDay())%7||7));return localISO(d)}
 function weeklyList(opt={}){const R=LB.RULES;openDrawer(head('Build weekly list')+`<div class="card">
   <p class="small" style="margin-top:0">Pulls fresh vacant lots straight from the county around your closed deals, the lots you have under contract or in escrow, and your builder buy boxes. Keeps only buildable lots and removes anyone already worked in DLG HQ. Neutral letter only.</p>
   <div class="row"><label class="f" style="flex:1">Records<input id="wl_n" type="number" value="${opt.size||(new Date()<new Date(R.rampUntil+"T00:00:00")?R.rampSize:R.size)}"></label><label class="f" style="flex:1">Mail date<input id="wl_d" type="date" value="${nextMonday()}"></label></div>
@@ -1485,7 +1503,7 @@ async function buildMailList(id){
     for(const r of notTd){kept.splice(kept.indexOf(r),1);const u=unv.indexOf(r);if(u>=0)unv.splice(u,1);await sb.from('campaign_records').delete().eq('id',r.id)}
     }
   window._notTd=notTd;
-  const today=new Date().toISOString().slice(0,10);
+  const today=localISO();
   for(const r of gone){const l=r.leads||{};const tags=[...new Set([...(l.tags||[]),'Sold'])];
     if(r._chk.status!=='sold'){await sb.from('leads').update({notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Taken off campaign "${_cn?.name||id}" (name doesn't match the county owner; lead left open).`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);await sb.from('campaign_records').delete().eq('id',r.id);continue}
     await sb.from('leads').update({status:'dead',do_not_mail:true,tags,notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Removed from campaign "${_cn?.name||id}". Do not mail.`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);
@@ -1503,7 +1521,7 @@ async function finishMailList(id){
   const st=window._ml;if(!st||st.id!==id)return buildMailList(id);
   const all=st.all,kept=st.kept.filter(r=>!st.unv.has(r)||$('m_unv')?.checked);
   if(!kept.length)return $('m_msg').innerHTML+='<br><b style="color:var(--red)">No records left to mail.</b>';
-  const {data:_c0}=await sb.from('campaigns').select('drop_date').eq('id',id).single();const _mdate=new Date(((_c0&&_c0.drop_date)||new Date().toISOString().slice(0,10))+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const {data:_c0}=await sb.from('campaigns').select('drop_date').eq('id',id).single();const _mdate=new Date(((_c0&&_c0.drop_date)||localISO())+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   // Teardown letter: one letter per owner; the owner's other properties go in Other_Property_Line
   const tplName=($('m_tpl')?.value||'');const perOwner=/teardown/i.test(tplName);
   const tc=x=>String(x||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
@@ -1548,7 +1566,7 @@ async function editCampaign(id){const {data:c}=id?await sb.from('campaigns').sel
    <label class="f">Type</label><select id="c_channel">${[['mail','Direct mail'],['text','Text'],['call','Cold call'],['other','Other']].map(([v,l])=>`<option value="${v}" ${v===c.channel?'selected':''}>${l}</option>`).join('')}</select>
    <div class="row"><div>${f('county','County')}</div><div>${f('state','State')}</div></div><div class="row"><div>${f('drop_date','Mail date (date on the letters)','date')}</div><div>${f('records','Records','number')}</div><div>${f('cost','Amount spent','number')}</div></div>
    ${f('phone_number','Tracking phone')}<br><br><button class="btn" onclick="saveCampaign(${id||0})">Save</button></div>`)}
-async function saveCampaign(id){const v=k=>$('c_'+k).value||null;const r={name:v('name')||'Untitled',channel:$('c_channel').value,county:v('county'),state:v('state'),drop_date:v('drop_date')||new Date().toISOString().slice(0,10),records:+v('records')||0,cost:+v('cost')||0,phone_number:v('phone_number')};
+async function saveCampaign(id){const v=k=>$('c_'+k).value||null;const r={name:v('name')||'Untitled',channel:$('c_channel').value,county:v('county'),state:v('state'),drop_date:v('drop_date')||localISO(),records:+v('records')||0,cost:+v('cost')||0,phone_number:v('phone_number')};
   const {error}=id?await sb.from('campaigns').update(r).eq('id',id):await sb.from('campaigns').insert({...r,source:'hq'});if(error)return toast(error.message);closeDrawer();if(id&&CUR==='campaign:'+id)vCampaign(id);else vCampaigns()}
 function openCampaign(id){closeDrawer();go('campaign:'+id)}
 
@@ -1687,7 +1705,7 @@ async function openProperty(id){
   prayerShow();prayerStart();
 }
 async function saveFields(id){const {error}=await sb.from('properties').update({tags:$('p_tags').value.split(',').map(s=>s.trim()).filter(Boolean),updated_at:new Date().toISOString()}).eq('id',id);toast(error?error.message:'Saved')}
-async function addTx(id){const p=$('tx_p').value;if(!p)return;await sb.from('transactions').insert({property_id:id,kind:$('tx_k').value,tx_date:$('tx_d').value||new Date().toISOString().slice(0,10),price:+p,costs:+$('tx_c').value||0});openProperty(id)}
+async function addTx(id){const p=$('tx_p').value;if(!p)return;await sb.from('transactions').insert({property_id:id,kind:$('tx_k').value,tx_date:$('tx_d').value||localISO(),price:+p,costs:+$('tx_c').value||0});openProperty(id)}
 async function dealFromProperty(pid,board){const {data:o}=await sb.from('property_owners').select('lead_id').eq('property_id',pid).limit(1);const {data:p}=await sb.from('properties').select('address,city').eq('id',pid).single();
   const {data,error}=await sb.from('deals').insert({board,stage_id:STAGES.find(s=>s.board===board)?.id,property_id:pid,lead_id:o?.[0]?.lead_id||null,property_label:[p.address,p.city].filter(Boolean).join(', ')||null}).select().single();if(error)return toast(error.message);openDeal(data.id)}
 function editProperty(){openDrawer(head('New property')+`<div class="card">
@@ -1715,7 +1733,7 @@ async function openLead(id){
     sb.from('activity').select('*').eq('lead_id',id).order('created_at',{ascending:false}).limit(40),sb.from('property_owners').select('properties(*)').eq('lead_id',id)]);
   const [{data:fam},{data:lc}]=await Promise.all([sb.rpc('lead_family',{lid:id}),sb.from('legacy_codes').select('code,source,list').eq('lead_id',id).limit(50)]);
   openDrawer(head(esc(leadName(l)))+`
-  <div class="card"><div class="kv"><div>Phone</div><div>${[l.phone,l.phone2,l.phone3].filter(Boolean).map(p=>phoneLine(p,l.id,l.inbox||'seller')).join('')||'—'} <a href="#" class="small" onclick="editPhones(${l.id});return false">${l.phone?'edit':'+ add phone'}</a></div><div>Email</div><div>${esc(l.email||'—')} ${l.email?`<button type="button" class="pbtn" onclick="event.stopPropagation();emailLead(${l.id},'${l.inbox||'seller'}')" title="Email ${esc(l.email)}">✉ Email</button> `:''}<a href="#" class="small" onclick="editLeadField(${l.id},'email','Email address','${esc(l.email||'')}');return false">${l.email?'edit':'+ add email'}</a></div>
+  <div class="card"><div class="kv"><div>Phone</div><div>${[l.phone,l.phone2,l.phone3].filter(Boolean).map(p=>phoneLine(p,l.id,l.inbox||'seller')).join('')||'—'} <a href="#" class="small" onclick="editPhones(${l.id});return false">${l.phone?'edit':'+ add phone'}</a></div><div>Email</div><div>${esc(l.email||'—')} ${l.email?`<button type="button" class="pbtn" onclick="event.stopPropagation();emailLead(${l.id},'${l.inbox||'seller'}')" title="Email ${esc(l.email)}">✉ Email</button> `:''}<a href="#" class="small" onclick="editLeadField(${l.id},'email','Email address','${jsa(l.email||'')}');return false">${l.email?'edit':'+ add email'}</a></div>
    <div>Mailing</div><div>${esc([l.mail_address,l.mail_city,l.mail_state,l.mail_zip].filter(Boolean).join(', ')||'—')}</div><div>Offer code</div><div>${esc(l.offer_code||'—')}</div><div>Source</div><div>${esc([l.source,l.lead_source].filter(Boolean).join(' / ')||'—')}</div><div>Category</div><div>${esc(l.category||'—')}</div></div>
    <div class="row" style="margin-top:12px"><select onchange="setStatus(${l.id},this.value)">${STATUSES.map(s=>`<option ${s===l.status?'selected':''} value="${s}">${s.replace('_',' ')}</option>`).join('')}</select>
    <button class="btn ghost" style="flex:0" onclick="dealFromLead(${l.id},'seller')">+ Seller deal</button><button class="btn ghost" style="flex:0" onclick="dealFromLead(${l.id},'buyer')">+ Buyer deal</button></div></div>
@@ -1830,7 +1848,7 @@ async function vCourse(){
      <div class="row" style="margin-top:10px"><input type="file" id="ws_up" multiple><button class="btn ghost" style="flex:0" onclick="wsUpload()">Upload</button></div></div></div>
    <div class="card" style="padding:0;overflow-x:auto"><table><tr><th>Student</th><th>Plan</th><th>From</th><th>Login</th><th class="right">Lessons done</th><th>Joined</th><th></th></tr>
      ${(st||[]).map(x=>`<tr><td><b>${esc(x.name||'')}</b><div class="small muted">${esc(x.email)}</div></td><td>${x.plan}</td><td class="small">${esc(x.source||'')}</td><td class="small">${x.pw_hash?(x.last_login?'last in '+fmtDate(x.last_login):'set'):'<span class="muted">not set yet</span>'}</td><td class="right">${cnt[x.id]||0}</td><td class="small">${fmtDate(x.created_at)}</td>
-       <td style="white-space:nowrap"><button class="btn ghost sm" onclick="wsInviteFor('${esc(x.email)}','${esc(x.name||'')}','${x.plan}')">New login link</button> <button class="btn ghost sm" onclick="wsActive(${x.id},${!x.active})">${x.active?'Turn off':'Turn on'}</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">No students yet.</td></tr>'}</table></div>`}
+       <td style="white-space:nowrap"><button class="btn ghost sm" onclick="wsInviteFor('${jsa(x.email)}','${jsa(x.name||'')}','${x.plan}')">New login link</button> <button class="btn ghost sm" onclick="wsActive(${x.id},${!x.active})">${x.active?'Turn off':'Turn on'}</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">No students yet.</td></tr>'}</table></div>`}
 async function wsCall(b){const {data,error}=await sb.functions.invoke('wals/invite',{body:b});if(error)throw new Error((await error.context?.json?.().catch(()=>null))?.error||error.message);return data}
 async function wsInvite(send){const b={email:$('ws_em').value.trim(),name:$('ws_nm').value.trim(),plan:$('ws_pl').value,send:!!send};try{const j=await wsCall(b);$('ws_out').innerHTML=`Login link (works 14 days)${j.queued?', emailed':''}: <a href="#" onclick="navigator.clipboard.writeText('${j.link}');toast('Copied');return false">copy link</a>`;setTimeout(vCourse,1500)}catch(e){toast(e.message)}}
 async function wsInviteFor(email,name,plan){try{const j=await wsCall({email,name,plan});await navigator.clipboard.writeText(j.link).catch(()=>{});toast('New login link copied')}catch(e){toast(e.message)}}
@@ -1996,12 +2014,12 @@ async function vTestimonials(){
   const st=(l,v)=>`<div><div class="small muted">${l}</div><div style="font-size:22px;font-weight:700">${v}</div></div>`;
   const row=d=>{const l=d.leads||{};const t=(by[d.id]||[]);const rec=t.find(x=>x.received_at),req=t.find(x=>x.requested_at);
     const stat=rec?`<span class="chip" style="background:#e6f4ec;color:#1a7a48">Received${rec.ok_to_publish?' · OK to publish':''}</span>`:req?`<span class="chip">Asked ${fmtDate(req.requested_at)}</span>`:'<span class="chip" style="background:#fbf4e2;color:var(--gold-d)">Not asked yet</span>';
-    return `<tr><td><b>${esc(l.full_name||'—')}</b><div class="small muted">${esc((propPhrase(d.properties)||{}).t||'')}</div></td><td class="small">${l.phone?`${esc(l.phone)} <a href="#" class="small" title="Change phone" onclick="addContactInfo(${l.id||0},0,'${esc(l.phone)}');return false">edit</a>`:`<a href="#" onclick="addContactInfo(${l.id||0});return false">+ Add phone</a>`}<br>${l.email&&!/@example\.com$/i.test(l.email)?`${esc(l.email)} <a href="#" class="small" title="Change email" onclick="addContactInfo(${l.id||0},1,'${esc(l.email)}');return false">edit</a>`:`<a href="#" onclick="addContactInfo(${l.id||0},1);return false" class="muted">+ Add email</a>`}</td><td>${stat}</td>
+    return `<tr><td><b>${esc(l.full_name||'—')}</b><div class="small muted">${esc((propPhrase(d.properties)||{}).t||'')}</div></td><td class="small">${l.phone?`${esc(l.phone)} <a href="#" class="small" title="Change phone" onclick="addContactInfo(${l.id||0},0,'${jsa(l.phone)}');return false">edit</a>`:`<a href="#" onclick="addContactInfo(${l.id||0});return false">+ Add phone</a>`}<br>${l.email&&!/@example\.com$/i.test(l.email)?`${esc(l.email)} <a href="#" class="small" title="Change email" onclick="addContactInfo(${l.id||0},1,'${jsa(l.email)}');return false">edit</a>`:`<a href="#" onclick="addContactInfo(${l.id||0},1);return false" class="muted">+ Add email</a>`}</td><td>${stat}</td>
       <td style="white-space:nowrap"><button class="btn sm" onclick="askTestimonial(${d.id})">Ask by text or email</button> <button class="btn ghost sm" onclick="addTestimonial(${d.id})">Add received</button></td></tr>`};
   $('view').innerHTML=`<div class="card"><div class="pstats" style="grid-template-columns:repeat(4,1fr)">${st('Closed deals',(deals||[]).length)}${st('Asked',asked)}${st('Received',got)}${st('OK to publish',pub)}</div>
     <p class="small muted" style="margin-bottom:0">When a deal is marked Closed, “Ask for a testimonial” lands on your Tasks. Nothing is sent until you press Send.</p></div>
    ${(ts||[]).filter(t=>t.received_at).length?`<div class="card"><h3 class="sec">Received</h3>${(ts||[]).filter(t=>t.received_at).map(t=>`<div style="border-top:1px solid var(--line);padding:10px 0"><b>${esc(t.name||'')}</b> <span class="small muted">${esc(t.location||'')} · ${t.kind}</span>
-      ${t.body?`<div style="margin-top:4px;font-style:italic">“${esc(t.body)}”</div>`:''}${t.video_url?`<div><a href="#" onclick="openDealFile('${esc(t.video_url)}');return false">▶ Watch video</a></div>`:''}
+      ${t.body?`<div style="margin-top:4px;font-style:italic">“${esc(t.body)}”</div>`:''}${t.video_url?`<div><a href="#" onclick="openDealFile('${jsa(t.video_url)}');return false">▶ Watch video</a></div>`:''}
       <label class="small" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" style="width:auto" ${t.ok_to_publish?'checked':''} onchange="sb.from('testimonials').update({ok_to_publish:this.checked}).eq('id',${t.id}).then(()=>toast('Saved'))"> OK to use on the website</label></div>`).join('')}</div>`:''}
    <div class="card" style="padding:0;overflow-x:auto"><table><tr><th>Past seller</th><th>Contact</th><th>Status</th><th></th></tr>${(deals||[]).map(row).join('')||'<tr><td colspan="4" class="muted">No closed deals yet.</td></tr>'}</table></div>`}
 function propPhrase(p){p=p||{};const st=(p.address&&/\d|\w{3,} (st|rd|ln|dr|ave|ct|loop|way|blvd|hwy|pl|cir|trl)\b/i.test(p.address)&&!/^[A-Za-z .]+, [A-Z]{2}$/.test(p.address))?p.address:'';
@@ -2015,7 +2033,7 @@ async function askTestimonial(dealId){const {data:d}=await sb.from('deals').sele
    <div class="row" style="margin-top:8px"><button class="btn" ${l.phone?'':'disabled'} onclick="sendTestimonialText(${d.id},${l.id||0})">Send text</button></div>
    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
    <label class="f">Email${l.email?' to '+esc(l.email):' (no email on file)'}</label><input id="ts_subj" value="${esc(fillTplTesti(em?.subject||'',l,pp))}"><textarea id="ts_em" style="min-height:200px;margin-top:6px">${esc(fillTplTesti(em?.body,l,pp))}</textarea>
-   <div class="row" style="margin-top:8px"><button class="btn" ${l.email&&!/@example\.com$/i.test(l.email)?'':'disabled'} onclick="emailTestimonial(${d.id},${l.id||0},'${esc(l.email||'')}')">Send email</button></div>
+   <div class="row" style="margin-top:8px"><button class="btn" ${l.email&&!/@example\.com$/i.test(l.email)?'':'disabled'} onclick="emailTestimonial(${d.id},${l.id||0},'${jsa(l.email||'')}')">Send email</button></div>
    <p class="small muted">Sends from your seller Gmail (damien@dominionlandgroup.land) and shows in the Seller Inbox.</p></div>`)}
 async function markAsked(dealId,leadId){const {data:ex}=await sb.from('testimonials').select('id').eq('deal_id',dealId).is('received_at',null).limit(1);
   if(ex&&ex[0])await sb.from('testimonials').update({requested_at:new Date().toISOString()}).eq('id',ex[0].id);
@@ -2051,7 +2069,7 @@ async function vImport(){IMP={step:1,counties:[],cols:[],rows:[],map:{}};const {
   $('view').innerHTML=`<div class="card"><h3 style="margin-top:0">Import List</h3>
    <div class="impsteps"><span id="st1" class="on">1 Campaign</span><span id="st2">2 Counties</span><span id="st3">3 Upload</span><span id="st4">4 Match fields</span><span id="st5">5 Save</span></div>
    <label class="f">Campaign name</label><input id="icName" placeholder="e.g. Gaston NC Lots Oct 2026">
-   <div class="row" style="margin-top:8px"><label class="f" style="flex:1">Mail date<input id="icDate" type="date" value="${new Date().toISOString().slice(0,10)}"></label>
+   <div class="row" style="margin-top:8px"><label class="f" style="flex:1">Mail date<input id="icDate" type="date" value="${localISO()}"></label>
     <label class="f" style="flex:1">Letter<select id="icTpl"><option value="">Pick at Start Mailing (from the campaign name)</option>${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}">${esc(t.name)}</option>`).join('')}</select></label>
     <label class="f" style="flex:1">Cost per letter<input id="icPiece" type="number" step="0.01" value="0.55"></label></div>
    <label class="f" style="margin-top:10px">Counties <span class="small muted">(pick every county on the list; more than one needs a FIPS column)</span></label>
