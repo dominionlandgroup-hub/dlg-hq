@@ -478,7 +478,7 @@ async function vDashboard(){
 // ---------- boards ----------
 async function vBoard(board){
   $('actions').innerHTML=`<input id="bf" placeholder="Filter name / address / APN" style="width:210px"><select id="bp" style="width:auto"><option value="">Any priority</option><option>hot</option><option>warm</option><option>cold</option></select><button class="btn" onclick="newDeal('${board}')">+ Add Deal</button><button class="btn ghost" onclick="addStage('${board}')">+ Stage</button>`;
-  let data=[],error=null;for(let f=0;;f+=1000){const r=await sb.from('deals').select('*, leads(id,full_name,first_name,last_name,phone), properties(apn,address,city,county,county_state,acres)').eq('board',board).order('position').range(f,f+999);if(r.error){error=r.error;break}data.push(...r.data);if(r.data.length<1000)break}
+  let data=[],error=null;for(let f=0;;f+=1000){const r=await sb.from('deals').select('*, leads(id,full_name,first_name,last_name,phone), properties(apn,address,city,county,county_state,acres)').eq('board',board).order('position').order('id').range(f,f+999);if(r.error){error=r.error;break}data.push(...r.data);if(r.data.length<1000)break}
   if(error){$('view').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
   window._deals=data||[];
   const draw=()=>{
@@ -509,15 +509,22 @@ async function dealMilestone(id,kind){try{const {data:d}=await sb.from('deals').
   if(d.lead_id){const order=['record','new','contacted','interested','offer','under_contract','assigned','closed'];const to={offer:'offer',purchase:'under_contract',sale:'closed'}[kind];
     const {data:l}=await sb.from('leads').select('status').eq('id',d.lead_id).single();const cur=order.indexOf(l?.status);if(cur<order.indexOf(to)&&!['dead','not_selling'].includes(l?.status))await sb.from('leads').update({status:to,updated_at:new Date().toISOString()}).eq('id',d.lead_id);
     sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:label[0].toUpperCase()+label.slice(1)+(d.purchase_price?' · $'+Number(kind==='sale'?(d.assignment_price||d.purchase_price):d.purchase_price).toLocaleString():'')})}}catch(e){console.warn('milestone',e)}}
-async function stageMilestone(id,sid){const s=STAGES.find(x=>x.id===sid);if(!s)return;if(s.board==='buyer'&&!/no go/i.test(s.name))await dealMilestone(id,'purchase');if(s.board==='buyer'&&(s.closed||/^closed$/i.test(s.name)))await dealMilestone(id,'sale')}
+// Keep deal status and the closed (sale) record in step with the stage: leaving Closed removes the HQ sale record.
+const stIsClosed=s=>!!(s&&(s.closed||/^closed$/i.test(s.name)));const stIsDead=s=>!!(s&&/no go|dead|lost|fell/i.test(s.name));
+async function syncDealStage(id,sid,prev){const s=STAGES.find(x=>x.id===sid);if(!s||sid===prev)return;
+  await sb.from('deals').update({status:stIsClosed(s)?'won':stIsDead(s)?'lost':'open'}).eq('id',id);
+  if(!stIsClosed(s))await sb.from('transactions').delete().eq('deal_id',id).eq('kind','sale').like('notes','HQ:%');
+  if(stIsDead(s)||stIsClosed(s)){const {data:d}=await sb.from('deals').select('lead_id').eq('id',id).single();if(d?.lead_id)await sb.from('followup_enrollments').update({status:'stopped'}).eq('lead_id',d.lead_id).eq('status','active')}
+  await stageMilestone(id,sid)}
+async function stageMilestone(id,sid){const s=STAGES.find(x=>x.id===sid);if(!s)return;if(s.board==='buyer'&&!stIsDead(s))await dealMilestone(id,'purchase');if(s.board==='buyer'&&(s.closed||/^closed$/i.test(s.name)))await dealMilestone(id,'sale')}
 function wireDnD(board){let dragId=null;
   document.querySelectorAll('.dcard').forEach(c=>{c.ondragstart=e=>{dragId=+c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c.dataset.id)};c.ondragend=()=>c.classList.remove('dragging')});
   document.querySelectorAll('.col').forEach(col=>{col.ondragover=e=>{e.preventDefault();col.classList.add('over')};col.ondragleave=()=>col.classList.remove('over');
     col.ondrop=async e=>{e.preventDefault();col.classList.remove('over');if(!dragId)return;const sid=+col.dataset.stage;const d=_deals.find(x=>x.id===dragId);if(!d||d.stage_id===sid)return;
       const s=STAGES.find(x=>x.id===sid);
-      const upd={stage_id:sid,updated_at:new Date().toISOString(),status:s.closed?'won':/dead|no go/i.test(s.name)?'lost':'open'};
+      const upd={stage_id:sid,updated_at:new Date().toISOString(),status:stIsClosed(s)?'won':stIsDead(s)?'lost':'open'};
       const {error}=await sb.from('deals').update(upd).eq('id',dragId);
-      if(error)toast(error.message);else{toast('Moved to '+s.name);stageMilestone(dragId,sid);if(d.lead_id)sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:'Deal moved to '+s.name})}
+      if(error)toast(error.message);else{toast('Moved to '+s.name);await syncDealStage(dragId,sid,d.stage_id);if(d.lead_id)sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:'Deal moved to '+s.name})}
       vBoard(board)}});}
 async function addStage(board){const n=prompt('New stage name');if(!n)return;const pos=Math.max(0,...STAGES.filter(s=>s.board===board).map(s=>s.position))+1;
   const {data,error}=await sb.from('board_stages').insert({board,name:n,position:pos}).select().single();if(error)return toast(error.message);STAGES.push(data);vBoard(board)}
@@ -589,7 +596,7 @@ async function openDealForm(d){
      <div id="d_files" class="small" style="margin-top:10px">Loading…</div>
      <div class="row" style="margin-top:10px"><input type="file" id="d_up" multiple><button class="btn ghost" style="flex:0" onclick="uploadDealFiles(${d.id},${d.property_id||'null'})">Upload</button></div></div>`:''}
    </div><div>
-   ${d.id?`<div class="card"><h3 class="sec" style="margin-top:0">Tasks</h3>${(tasks||[]).map(t=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked)"><span style="flex:1;${t.status==='done'?'text-decoration:line-through;color:var(--muted)':''}">${esc(t.title)}</span><span class="small muted">${t.due_at?new Date(t.due_at).toLocaleDateString():''}</span>${t.due_at?`<a class="ico" title="Add to Google Calendar" target="_blank" href="${gcalLink(t.title,t.due_at,leadName(l))}">📅</a>`:''}</div>`).join('')||'<div class="muted small" style="margin-top:6px">No tasks.</div>'}
+   ${d.id?`<div class="card"><h3 class="sec" style="margin-top:0">Tasks</h3>${(tasks||[]).map(t=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked)"><span style="flex:1;${t.status==='done'?'text-decoration:line-through;color:var(--muted)':''}">${esc(t.title)}</span><span class="small muted">${t.due_at?fmtDate(t.due_at):''}</span>${t.due_at?`<a class="ico" title="Add to Google Calendar" target="_blank" href="${gcalLink(t.title,t.due_at,leadName(l))}">📅</a>`:''}</div>`).join('')||'<div class="muted small" style="margin-top:6px">No tasks.</div>'}
      <div class="row" style="margin-top:10px"><input id="d_task" placeholder="New task"><input id="d_taskdue" type="date" style="flex:0 0 150px"><button class="btn ghost" style="flex:0" onclick="addTask(${d.id},${d.lead_id||'null'})">Add</button></div></div>
    <div class="card"><h3 class="sec" style="margin-top:0">Notes</h3><textarea id="d_newnote" placeholder="Add a note" style="min-height:70px"></textarea>
      <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn" style="flex:0" onclick="addDealNote(${d.id})">Save note</button></div>
@@ -645,7 +652,7 @@ async function moveToBuyer(id){const s=STAGES.find(x=>x.board==='buyer');if(!s)r
   const {data:d,error}=await sb.from('deals').update({board:'buyer',stage_id:s.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id).select().single();if(error)return toast(error.message);
   await dealMilestone(id,'purchase');
   toast('Moved to Buyer Deals → '+s.name);closeDrawer();go('board-buyer')}
-async function moveToSeller(id){const s=STAGES.find(x=>x.board==='seller');const {error}=await sb.from('deals').update({board:'seller',stage_id:s.id,updated_at:new Date().toISOString()}).eq('id',id);if(error)return toast(error.message);toast('Moved back to Seller Deals');closeDrawer();go('board-seller')}
+async function moveToSeller(id){const s=STAGES.find(x=>x.board==='seller');const {error}=await sb.from('deals').update({board:'seller',stage_id:s.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id);if(error)return toast(error.message);await sb.from('transactions').delete().eq('deal_id',id).eq('kind','sale').like('notes','HQ:%');toast('Moved back to Seller Deals');closeDrawer();go('board-seller')}
 async function saveDeal(id,board){
   const n=k=>{const v=$('d_'+k).value;return v===''?null:Number(v)};
   const r={board,stage_id:n('stage_id'),priority:$('d_priority').value||null,value:n('value'),property_label:$('d_property_label').value||null,campaign_id:$('d_campaign_id').value==='sms'?null:n('campaign_id'),
@@ -654,14 +661,20 @@ async function saveDeal(id,board){
   const put=r=>id?sb.from('deals').update(r).eq('id',id).select().single():sb.from('deals').insert(r).select().single();
   let {data,error}=await put(r);let note='Saved';
   if(error&&/dd_days/.test(error.message)){delete r.dd_days;({data,error}=await put(r));note='Saved (due diligence days will save once the database is updated)'}
-  if(error)return toast(error.message);if(r.stage_id)stageMilestone(data.id,r.stage_id);toast(note);openDeal(id||data.id);if(CUR.startsWith('board'))vBoard(board)}
-async function delDeal(id,board){if(!confirm('Delete this deal?'))return;await sb.from('deals').delete().eq('id',id);closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
+  if(error)return toast(error.message);const prevSid=id&&window._dl&&window._dl.id===id?window._dl.stage_id:null;if(r.stage_id&&r.stage_id!==prevSid)await syncDealStage(data.id,r.stage_id,prevSid);toast(note);openDeal(id||data.id);if(CUR.startsWith('board'))vBoard(board)}
+async function delDeal(id,board){if(!confirm('Delete this deal?'))return;await sb.from('transactions').delete().eq('deal_id',id).like('notes','HQ:%');const {error}=await sb.from('deals').delete().eq('id',id);if(error)return toast('Could not delete: '+error.message);closeDrawer();if(CUR.startsWith('board'))vBoard(board)}
 async function pickLead(dealId){const q=$('d_lq').value.trim();if(!q)return;const {data}=await sb.rpc('search_leads',{q,lim:8});
   $('d_lres').innerHTML=(data||[]).map(l=>`<div class="pitem" onclick="linkLead(${dealId},${l.id})">${esc(leadName(l))} <span class="small muted">${esc(l.phone||'')} ${esc(l.prop_address||'')}</span></div>`).join('')||'<div class="muted small">No match.</div>'}
 async function linkLead(dealId,leadId){await sb.from('deals').update({lead_id:leadId}).eq('id',dealId);openDeal(dealId)}
-async function addTask(dealId,leadId){const t=$('d_task').value.trim();if(!t)return;await sb.from('tasks').insert({deal_id:dealId,lead_id:leadId,title:t,due_at:$('d_taskdue').value||null});openDeal(dealId)}
+async function addTask(dealId,leadId){const t=$('d_task').value.trim();if(!t)return;await sb.from('tasks').insert({deal_id:dealId,lead_id:leadId,title:t,due_at:$('d_taskdue').value?$('d_taskdue').value+'T12:00:00':null});openDeal(dealId)}
 async function toggleTask(id,done){await sb.from('tasks').update({status:done?'done':'todo'}).eq('id',id)}
-async function enroll(leadId,dealId){const p=$('d_plan').value;if(!p)return;await sb.from('followup_enrollments').insert({plan_id:+p,lead_id:leadId,deal_id:dealId});toast('Enrolled');openDeal(dealId)}
+async function enroll(leadId,dealId){const p=$('d_plan').value;if(!p)return;
+  const {data:l}=await sb.from('leads').select('status,tags,do_not_mail').eq('id',leadId).single();
+  if(l&&(['dead','not_selling'].includes(l.status)||(l.tags||[]).some(t=>/opted out|dnc|not interested|not selling|sold|listed/i.test(t))))return toast('Not enrolled: this contact is marked '+(l.status==='dead'||l.status==='not_selling'?l.status.replace('_',' '):'do not contact'));
+  const {data:ex}=await sb.from('followup_enrollments').select('id').eq('lead_id',leadId).eq('status','active');
+  if((ex||[]).length&&!confirm('This contact is already on an active follow-up plan. Stop that plan and start this one?'))return;
+  if((ex||[]).length)await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'replaced by another plan'}).eq('lead_id',leadId).eq('status','active');
+  const {error}=await sb.from('followup_enrollments').insert({plan_id:+p,lead_id:leadId,deal_id:dealId});if(error)return toast('Could not enroll: '+error.message);toast('Enrolled');openDeal(dealId)}
 async function stopEnroll(id,dealId){await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'manual'}).eq('id',id);openDeal(dealId)}
 // ---------- contracts: DLG one-page documents (wording verbatim; only blanks get filled) ----------
 let _docxLib=null;
@@ -1145,16 +1158,16 @@ async function drawCPanel(t,l){const {data:deals}=l.id?await sb.from('deals').se
     <div style="position:relative"><input id="cp_link" placeholder="Search name, phone, address or APN" autocomplete="off" oninput="cpLinkSearch(${t.id})"><div id="cp_linkres" class="linkres"></div></div>
     <div class="small muted" style="margin-top:4px">Picking a contact moves this conversation, its calls and any deal onto them, and saves ${esc(t.phone||'this number')} to their phone numbers.</div>
     <label class="f">Tags</label><div id="tags_${l.id||0}">${tagsEditor(l)}</div>
-    <label class="f">Full Name (Required) <span style="float:right"><input type="checkbox" id="cp_dnm" style="width:auto" ${l.do_not_mail?'checked':''}> Do Not Mail</span></label><input id="cp_name" value="${esc(l.full_name||'')}">
+    <label class="f">Full Name (Required) <span style="float:right"><input type="checkbox" id="cp_dnm" style="width:auto" ${l.do_not_mail?'checked':''}> Do Not Mail</span></label><input id="cp_name" data-orig="${esc(l.full_name||'')}" value="${esc(l.full_name||'')}">
     <label class="f">Contact Category</label><select id="cp_cat"><option value="">None</option>${['seller','buyer','real_estate_agent','builder','attorney','other'].map(c=>`<option ${l.category===c?'selected':''} value="${c}">${c.replace(/_/g,' ')}</option>`).join('')}</select>
     <label class="f">Email</label><input id="cp_email" value="${esc(l.email||'')}"><label class="f">Phone - Primary</label><input id="cp_phone" value="${esc(l.phone||t.phone||'')}">
-    <label class="f">Phone - Secondary</label><input id="cp_phone2" value="${esc(l.phone2||'')}"><label class="f">Address</label><input id="cp_addr" value="${esc([l.mail_address,l.mail_city,l.mail_state,l.mail_zip].filter(Boolean).join(', '))}">
+    <label class="f">Phone - Secondary</label><input id="cp_phone2" value="${esc(l.phone2||'')}"><label class="f">Address</label><input id="cp_addr" data-orig="${esc([l.mail_address,l.mail_city,l.mail_state,l.mail_zip].filter(Boolean).join(', '))}" value="${esc([l.mail_address,l.mail_city,l.mail_state,l.mail_zip].filter(Boolean).join(', '))}">
     <label class="f">Description</label><textarea id="cp_desc" placeholder="Looking to sell by, wants an offer of...">${esc(l.notes||'')}</textarea><br><br><button class="btn" style="width:100%" onclick="saveCPanel(${t.id},${l.id||'null'})">Save</button></div>
    <div class="card" style="margin:0"><div style="display:flex;justify-content:space-between"><b>Deal</b><a href="#" class="small" onclick="dealFromThread(${t.id});return false">+ Add deal</a></div>
     ${(deals||[]).map(d=>`<div class="small" style="padding:6px 0;border-top:1px solid var(--line)"><a href="#" onclick="openDeal(${d.id});return false">${esc(d.property_label||'Deal')}</a><br><span class="muted">${d.board==='buyer'?'Buyer Deals':'Seller Deals'} · ${esc(STAGES.find(s=>s.id===d.stage_id)?.name||'')}${d.value?' · '+money(d.value):''}</span></div>`).join('')||'<div class="muted small" style="margin-top:6px">No deal yet.</div>'}</div>`}
 async function saveCPanel(tid,lid){const parts=$('cp_addr').value.split(',').map(x=>x.trim());const st=(parts[2]||'').split(' ');
-  const r={full_name:$('cp_name').value.trim()||null,category:$('cp_cat').value||null,email:$('cp_email').value.trim()||null,phone:$('cp_phone').value.trim()||null,phone2:$('cp_phone2').value.trim()||null,do_not_mail:$('cp_dnm').checked,notes:$('cp_desc').value||null,
-    mail_address:parts[0]||null,mail_city:parts[1]||null,mail_state:st[0]||null,mail_zip:st[1]||parts[3]||null,updated_at:new Date().toISOString()};
+  const _nm=$('cp_name').value.trim();const _nmCh=_nm!==($('cp_name').dataset.orig||'').trim();const _sp=splitName({full_name:_nm});const r={full_name:_nm||null,...(_nmCh?{first_name:_sp.first||null,last_name:_sp.last||null}:{}),category:$('cp_cat').value||null,email:$('cp_email').value.trim()||null,phone:$('cp_phone').value.trim()||null,phone2:$('cp_phone2').value.trim()||null,do_not_mail:$('cp_dnm').checked,notes:$('cp_desc').value||null,
+    ...($('cp_addr').value.trim()!==($('cp_addr').dataset.orig||'').trim()?(()=>{const a=$('cp_addr').value.split(',').map(x=>x.trim()).filter(Boolean);const z=a.length&&/^\d{5}(-\d{4})?$/.test(a[a.length-1])?a.pop():(a.length&&/\b\d{5}$/.test(a[a.length-1])?(()=>{const m=a[a.length-1].match(/^(.*?)\s*(\d{5})$/);a[a.length-1]=m[1];return m[2]})():null);const stt=a.length>2&&/^[A-Za-z]{2}$/.test(a[a.length-1])?a.pop():null;const city=a.length>1?a.pop():null;return {mail_address:a.join(', ')||null,mail_city:city,mail_state:stt,mail_zip:z}})():{}),updated_at:new Date().toISOString()};
   if(!r.full_name)return toast('Full name is required');
   if(lid){const {error}=await sb.from('leads').update(r).eq('id',lid);if(error)return toast(error.message)}else{const {data,error}=await sb.from('leads').insert({...r,source:'hq',status:'new',inbox:IST2.box}).select().single();if(error)return toast(error.message);await sb.from('threads').update({lead_id:data.id}).eq('id',tid)}
   toast('Contact saved');openThreadT(tid);loadThreads()}
@@ -1426,6 +1439,7 @@ async function vInsights(){const [a,b,k]=dashRange();
 
 async function startMailing(id){
   const [{data:c},{data:tpls}]=await Promise.all([sb.from('campaigns').select('*').eq('id',id).single(),sb.from('templates').select('*').eq('kind','mail').order('name')]);
+  if(c&&c.mail_status&&c.mail_status!=='not_sent'&&prompt(`"${c.name}" was already sent to the mail house (${c.mail_status.replace('_',' ')}). Sending it again could get it printed twice. Type RESEND to send it again.`)!=='RESEND')return;
   openDrawer(head('Start Mailing')+`
    <div class="card"><p style="margin-top:0"><b>${esc(c.name)}</b></p>
    <label class="f">Letter template</label><select id="m_tpl">${(()=>{const L=tpls||[];const nm=(c.name||'').toLowerCase();const pick=L.find(t=>t.file_name===c.template)||L.find(t=>{const n=t.name.toLowerCase();return /letter 2/.test(nm)?/letter 2/.test(n):/teardown/.test(nm)?(/nashville/.test(nm)?/nashville/.test(n):/teardown/.test(n)&&!/nashville/.test(n)):/church/.test(nm)?/church/.test(n):/attorney/.test(nm)?/attorney/.test(n):/estate pr/.test(nm)?/estate pr/.test(n):/house/.test(nm)?/as-is house/.test(n):/letter 1/.test(n)});return L.map(t=>`<option value="${esc(t.file_name)}" ${pick&&pick.file_name===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')})()}</select>
@@ -1447,7 +1461,7 @@ async function buildMailList(id){
   $('m_send').disabled=true;$('m_msg').textContent='Building list…';const all=[];
   for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('id, offer_code, lead_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status,tags,notes), properties(apn,address,city,state,zip,county,fips,acres,fields)').eq('campaign_id',id).order('id').range(from,from+999);
     if(error){$('m_msg').textContent=error.message;return}all.push(...data);if(data.length<1000)break}
-  const sup=new Set(),on=$('m_sup').checked;if(on){const {data:s}=await sb.from('suppression').select('phone,apn');(s||[]).forEach(x=>{if(x.phone)sup.add(x.phone);if(x.apn)sup.add('A'+x.apn)})}
+  const sup=new Set(),on=$('m_sup').checked;if(on){const s=[];for(let f=0;;f+=1000){const r=await sb.from('suppression').select('phone,apn').order('apn').range(f,f+999);if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not load the opt-out list: '+esc(r.error.message)+'</b> Nothing was sent.'}s.push(...r.data);if(r.data.length<1000)break}(s||[]).forEach(x=>{if(x.phone)sup.add(x.phone);if(x.apn)sup.add('A'+x.apn)})}
   const kept0=all.filter(r=>!on||(!r.leads?.do_not_mail&&r.leads?.status!=='not_selling'&&!sup.has(r.leads?.phone)&&!sup.has('A'+r.properties?.apn)));
   // CURRENT OWNER CHECK (Oct 2026): every record is checked against the county's live ownership record.
   // Sold / changed-owner records are taken off the list and the lead is marked Sold + do not mail.
@@ -1465,7 +1479,7 @@ async function buildMailList(id){
     const ids=[...new Set(meck.map(r=>pid(r.properties.apn)))],yb={};
     try{for(let i=0;i<ids.length;i+=150){const fd=new URLSearchParams({where:"pid IN ("+ids.slice(i,i+150).map(x=>"'"+x+"'").join(',')+")",outFields:'pid,yearbuilt,effyearblt',returnGeometry:'false',f:'json'});
       const j=await fetch('https://meckgis.mecklenburgcountync.gov/server/rest/services/TaxParcel_camadata/FeatureServer/0/query',{method:'POST',body:fd}).then(x=>x.json());
-      (j.features||[]).forEach(f=>{const a=f.attributes,o=yb[a.pid];if(!o||a.yearbuilt>o.yearbuilt||a.effyearblt>o.effyearblt)yb[a.pid]={y:Math.max(a.yearbuilt||0,o?.y||0),e:Math.max(a.effyearblt||0,o?.e||0)}})}}
+      (j.features||[]).forEach(f=>{const a=f.attributes,o=yb[a.pid];if(!o||(a.yearbuilt||0)>o.y||(a.effyearblt||0)>o.e)yb[a.pid]={y:Math.max(a.yearbuilt||0,o?.y||0),e:Math.max(a.effyearblt||0,o?.e||0)}})}}
     catch(e){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">House-age check failed: ${esc(e.message)}</b> Nothing was sent. Try again.`}
     for(const r of meck){const h=yb[pid(r.properties.apn)];if(h&&(h.y>=1990||h.e>=2010)){r._chk={status:'not_teardown',reason:h.y>=1990?`house built ${h.y} - not a teardown`:`house renovated (effective year ${h.e}) - not a teardown`};notTd.push(r)}}
     for(const r of notTd){kept.splice(kept.indexOf(r),1);const u=unv.indexOf(r);if(u>=0)unv.splice(u,1);await sb.from('campaign_records').delete().eq('id',r.id)}
@@ -1473,6 +1487,7 @@ async function buildMailList(id){
   window._notTd=notTd;
   const today=new Date().toISOString().slice(0,10);
   for(const r of gone){const l=r.leads||{};const tags=[...new Set([...(l.tags||[]),'Sold'])];
+    if(r._chk.status!=='sold'){await sb.from('leads').update({notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Taken off campaign "${_cn?.name||id}" (name doesn't match the county owner; lead left open).`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);await sb.from('campaign_records').delete().eq('id',r.id);continue}
     await sb.from('leads').update({status:'dead',do_not_mail:true,tags,notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Removed from campaign "${_cn?.name||id}". Do not mail.`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);
     await sb.from('campaign_records').delete().eq('id',r.id)}
   window._ml={id,all,kept,unv:new Set(unv)};$('m_send').style.display='none';
@@ -1941,7 +1956,7 @@ async function delTpl(id){if(!confirm('Delete template?'))return;await sb.from('
 // ---------- tasks ----------
 async function vTasks(){const {data}=await sb.from('tasks').select('*, deals(id,property_label), leads(full_name)').order('due_at',{nullsFirst:false}).limit(500);
   const open=(data||[]).filter(t=>t.status==='todo'),done=(data||[]).filter(t=>t.status==='done').slice(0,30);
-  const row=t=>`<tr><td style="width:30px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked).then(vTasks)"></td><td>${esc(t.title)}<div class="small muted">${t.deals?`<a href="#" onclick="openDeal(${t.deals.id});return false">${esc(t.deals.property_label||'deal')}</a>`:''} ${esc(t.leads?.full_name||'')}</div></td><td class="small" style="color:${t.due_at&&new Date(t.due_at)<new Date()&&t.status==='todo'?'var(--red)':'inherit'}">${t.due_at?new Date(t.due_at).toLocaleDateString():''}</td></tr>`;
+  const row=t=>`<tr><td style="width:30px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked).then(vTasks)"></td><td>${esc(t.title)}<div class="small muted">${t.deals?`<a href="#" onclick="openDeal(${t.deals.id});return false">${esc(t.deals.property_label||'deal')}</a>`:''} ${esc(t.leads?.full_name||'')}</div></td><td class="small" style="color:${t.due_at&&String(t.due_at).slice(0,10)<new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date())&&t.status==='todo'?'var(--red)':'inherit'}">${t.due_at?fmtDate(t.due_at):''}</td></tr>`;
   $('view').innerHTML=`<div class="card" style="padding:0"><table><tr><th></th><th>To do (${open.length})</th><th>Due</th></tr>${open.map(row).join('')||'<tr><td colspan="3" class="muted">All clear.</td></tr>'}</table></div><div class="card" style="padding:0"><table><tr><th></th><th>Done recently</th><th></th></tr>${done.map(row).join('')}</table></div>`}
 
 // ---------- Ask Claude (read-only assistant) + voice dictation ----------
@@ -1991,15 +2006,15 @@ async function vTestimonials(){
    <div class="card" style="padding:0;overflow-x:auto"><table><tr><th>Past seller</th><th>Contact</th><th>Status</th><th></th></tr>${(deals||[]).map(row).join('')||'<tr><td colspan="4" class="muted">No closed deals yet.</td></tr>'}</table></div>`}
 function propPhrase(p){p=p||{};const st=(p.address&&/\d|\w{3,} (st|rd|ln|dr|ave|ct|loop|way|blvd|hwy|pl|cir|trl)\b/i.test(p.address)&&!/^[A-Za-z .]+, [A-Z]{2}$/.test(p.address))?p.address:'';
   if(st)return {at:true,t:[st,p.city].filter(Boolean).join(', ')};if(p.city)return {at:false,t:p.city+(p.state?', '+p.state:'')};if(p.county)return {at:false,t:p.county.replace(/ county$/i,'')+' County'+(p.apn?' (parcel '+p.apn+')':'')};return null}
-function fillTpl(b,l,p){const ph=propPhrase(p);let t=(b||'').replace(/\{first_name\}/g,(l.first_name||(l.full_name||'').split(/[\s&,]/)[0]||'there').trim());
+function fillTplTesti(b,l,p){const ph=propPhrase(p);let t=(b||'').replace(/\{first_name\}/g,(l.first_name||(l.full_name||'').split(/[\s&,]/)[0]||'there').trim());
   t=ph?t.replace(/ at \{property\}/g,(ph.at?' at ':' in ')+ph.t).replace(/\{property\}/g,ph.t):t.replace(/ at \{property\}/g,'').replace(/ ?\(\{property\}\)/g,'').replace(/\{property\}/g,'your property');return t}
 async function askTestimonial(dealId){const {data:d}=await sb.from('deals').select('id,lead_id,leads(*),properties(address,city,state,county,apn)').eq('id',dealId).single();const l=d.leads||{},pp=d.properties;
   const {data:tp}=await sb.from('templates').select('kind,subject,body').eq('name','Testimonial request');const tx=(tp||[]).find(x=>x.kind==='text'),em=(tp||[]).find(x=>x.kind==='email');
   openDrawer(head('Ask '+esc(l.full_name||'seller')+' for a testimonial')+`<div class="card">
-   <label class="f">Text message${l.phone?' to '+esc(l.phone):''}</label><textarea id="ts_txt" style="min-height:150px">${esc(fillTpl(tx?.body,l,pp))}</textarea>
+   <label class="f">Text message${l.phone?' to '+esc(l.phone):''}</label><textarea id="ts_txt" style="min-height:150px">${esc(fillTplTesti(tx?.body,l,pp))}</textarea>
    <div class="row" style="margin-top:8px"><button class="btn" ${l.phone?'':'disabled'} onclick="sendTestimonialText(${d.id},${l.id||0})">Send text</button></div>
    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
-   <label class="f">Email${l.email?' to '+esc(l.email):' (no email on file)'}</label><input id="ts_subj" value="${esc(fillTpl(em?.subject||'',l,pp))}"><textarea id="ts_em" style="min-height:200px;margin-top:6px">${esc(fillTpl(em?.body,l,pp))}</textarea>
+   <label class="f">Email${l.email?' to '+esc(l.email):' (no email on file)'}</label><input id="ts_subj" value="${esc(fillTplTesti(em?.subject||'',l,pp))}"><textarea id="ts_em" style="min-height:200px;margin-top:6px">${esc(fillTplTesti(em?.body,l,pp))}</textarea>
    <div class="row" style="margin-top:8px"><button class="btn" ${l.email&&!/@example\.com$/i.test(l.email)?'':'disabled'} onclick="emailTestimonial(${d.id},${l.id||0},'${esc(l.email||'')}')">Send email</button></div>
    <p class="small muted">Sends from your seller Gmail (damien@dominionlandgroup.land) and shows in the Seller Inbox.</p></div>`)}
 async function markAsked(dealId,leadId){const {data:ex}=await sb.from('testimonials').select('id').eq('deal_id',dealId).is('received_at',null).limit(1);
@@ -2037,7 +2052,7 @@ async function vImport(){IMP={step:1,counties:[],cols:[],rows:[],map:{}};const {
    <div class="impsteps"><span id="st1" class="on">1 Campaign</span><span id="st2">2 Counties</span><span id="st3">3 Upload</span><span id="st4">4 Match fields</span><span id="st5">5 Save</span></div>
    <label class="f">Campaign name</label><input id="icName" placeholder="e.g. Gaston NC Lots Oct 2026">
    <div class="row" style="margin-top:8px"><label class="f" style="flex:1">Mail date<input id="icDate" type="date" value="${new Date().toISOString().slice(0,10)}"></label>
-    <label class="f" style="flex:1">Letter<select id="icTpl">${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}">${esc(t.name)}</option>`).join('')}</select></label>
+    <label class="f" style="flex:1">Letter<select id="icTpl"><option value="">Pick at Start Mailing (from the campaign name)</option>${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}">${esc(t.name)}</option>`).join('')}</select></label>
     <label class="f" style="flex:1">Cost per letter<input id="icPiece" type="number" step="0.01" value="0.55"></label></div>
    <label class="f" style="margin-top:10px">Counties <span class="small muted">(pick every county on the list; more than one needs a FIPS column)</span></label>
    <div id="icCtys" class="tagrow"></div><div class="row" style="margin-top:6px"><input id="icCtyIn" list="ctyList" placeholder="Type a county, e.g. Gaston, NC" onkeydown="if(event.key==='Enter'){impAddCounty();event.preventDefault()}"><button class="btn ghost" style="flex:0" onclick="impAddCounty()">Add county</button></div>
