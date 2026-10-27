@@ -1428,7 +1428,7 @@ async function startMailing(id){
   const [{data:c},{data:tpls}]=await Promise.all([sb.from('campaigns').select('*').eq('id',id).single(),sb.from('templates').select('*').eq('kind','mail').order('name')]);
   openDrawer(head('Start Mailing')+`
    <div class="card"><p style="margin-top:0"><b>${esc(c.name)}</b></p>
-   <label class="f">Letter template</label><select id="m_tpl">${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}" ${c.template===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
+   <label class="f">Letter template</label><select id="m_tpl">${(()=>{const L=tpls||[];const nm=(c.name||'').toLowerCase();const pick=L.find(t=>t.file_name===c.template)||L.find(t=>{const n=t.name.toLowerCase();return /letter 2/.test(nm)?/letter 2/.test(n):/teardown/.test(nm)?(/nashville/.test(nm)?/nashville/.test(n):/teardown/.test(n)&&!/nashville/.test(n)):/church/.test(nm)?/church/.test(n):/attorney/.test(nm)?/attorney/.test(n):/estate pr/.test(nm)?/estate pr/.test(n):/house/.test(nm)?/as-is house/.test(n):/letter 1/.test(n)});return L.map(t=>`<option value="${esc(t.file_name)}" ${pick&&pick.file_name===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')})()}</select>
    <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Remove opt-outs, "not selling" and do-not-mail</label>
    <p class="small muted"><b>Before anything is sent, every record is checked against the county's current owner records.</b> Anyone who sold or whose owner changed is taken off and marked do-not-mail. Saves the mail-house list (no download) and opens a draft email to Brandon, cc Paul, with a link to the list. Every merge field (Owner name, first and last name, mailing address, city, state, zip, property address, city, state, zip, county, FIPS, APN, acres, offer code), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. The list is in the draft as a link. The email includes download links for the letter and the handwriting font, so nothing to attach. Just send it (works from your phone too).</p>
    <div class="card" id="m_pray" style="margin:12px 0;background:#f7f3ea;border-left:4px solid #b8963e"><b>Pray before you send</b>
@@ -1481,7 +1481,7 @@ async function buildMailList(id){
   const ok=kept.length-unv.length;
   $('m_msg').innerHTML=`<b>Owner check done.</b> ${ok.toLocaleString()} confirmed with the county${kept.filter(r=>r._chk.status==='heir').length?` (${kept.filter(r=>r._chk.status==='heir').length} addressed to an heir / PR)`:''}.`
    +((window._notTd||[]).length?`<br><b style="color:var(--red)">${window._notTd.length} removed: house too new or recently renovated for a teardown.</b><details><summary class="small">See which</summary><ul class="small">${window._notTd.map(line).join('')}</ul></details>`:'')+(gone.length?`<br><b style="color:var(--red)">${gone.length} removed: sold or a different owner now.</b> Marked Sold and do-not-mail.<details><summary class="small">See who</summary><ul class="small">${gone.map(line).join('')}</ul></details>`:'<br>Nobody on this list has sold.')
-   +(unv.length?`<br><b style="color:#b26a00">${unv.length} couldn't be checked.</b><details><summary class="small">See why</summary><ul class="small">${unv.slice(0,300).map(line).join('')}</ul></details><label class="small"><input type="checkbox" id="m_unv" style="width:auto"> Mail these ${unv.length} anyway</label>`:'')
+   +(unv.length?`<br><b style="color:#b26a00">${unv.length} couldn't be checked.</b><details><summary class="small">See why</summary><ul class="small">${unv.slice(0,300).map(line).join('')}</ul></details><label class="small"><input type="checkbox" id="m_unv" style="width:auto" ${unv.every(r=>/connected to the owner check|only publishes qualified sales/.test(r._chk?.reason||''))?'checked':''}> Mail these ${unv.length} anyway</label>`:'')
    +`<br><br><button class="btn" onclick="finishMailList(${id})">Draft email with the checked list</button>`;
 }
 async function finishMailList(id){
@@ -1520,9 +1520,11 @@ Handwriting font (please install before printing so the letter prints right):
 ${location.origin}/mail-templates/PatrickHand-Regular.ttf\n\nPlease use this link to mark the job Received, Processing and Sent as it moves along:\n${mailLink(c)}\n\nPlease send a sample and postage when ready.\n\nThanks!\nDamien Dupee\nDominion Land Group`;
   const su=encodeURIComponent('NEW DATA - '+c.name),bd=encodeURIComponent(body);
   const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const url=mobile?`mailto:${MAIL_HOUSE.to}?cc=${MAIL_HOUSE.cc}&subject=${su}&body=${bd}`:`https://mail.google.com/mail/?authuser=${encodeURIComponent(MAIL_FROM)}&view=cm&fs=1&to=${MAIL_HOUSE.to}&cc=${MAIL_HOUSE.cc}&su=${su}&body=${bd}`;
+  const url=mobile?`mailto:${MAIL_HOUSE.to}?cc=${MAIL_HOUSE.cc}&subject=${su}&body=${bd}`:`https://mail.google.com/mail/u/${encodeURIComponent(MAIL_FROM)}/?view=cm&fs=1&tf=1&to=${MAIL_HOUSE.to}&cc=${MAIL_HOUSE.cc}&su=${su}&body=${bd}`;
   // Phones block pop-ups opened after loading, so always show a tap-to-open button too
   $('m_msg').innerHTML+=`<br><br><a class="btn" href="${url}" ${mobile?'':'target="_blank"'}>✉️ Open email to the mail house</a>`;
+  window._mhBody={to:MAIL_HOUSE.to,cc:MAIL_HOUSE.cc,subject:'NEW DATA - '+c.name,body};
+  $('m_msg').innerHTML+=` <button class="btn ghost" onclick="navigator.clipboard.writeText(_mhBody.body).then(()=>toast('Email text copied - paste it into Gmail'))">Copy email text</button><div class="small muted" style="margin-top:6px">If Gmail opens without the email filled in, click Copy email text and paste it. To: ${MAIL_HOUSE.to} · Cc: ${MAIL_HOUSE.cc}</div>`;
   if(!mobile)window.open(url,'_blank');
 }
 async function editCampaign(id){const {data:c}=id?await sb.from('campaigns').select('*').eq('id',id).single():{data:{channel:'mail'}};
