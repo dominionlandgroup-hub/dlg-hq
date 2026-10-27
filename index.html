@@ -1437,6 +1437,7 @@ const PRAYERS=['Lord, this business is Yours before it is mine. Give me wisdom f
  'Lord, guide these {n} letters to the right homes. Give me a clear mind, a fair heart, and the wisdom to do right by every family I talk to. Amen.'];
 async function amen(id){const {data:c}=await sb.from('campaigns').select('name').eq('id',id).single();await sb.from('activity').insert({kind:'note',body:'Prayed over campaign: '+(c?.name||id)});
   $('m_send').disabled=false;$('m_send').title='';$('m_pray').innerHTML='<b>🙏 Amen.</b> <span class="small muted">Prayed over this campaign. You can send it now.</span>'}
+const MAIL_FROM='dominionlandgroup@gmail.com'; // Gmail account the mail-house email opens in (skips the account picker, which drops the To/Subject/Body)
 const MAIL_PIECE=0.55; // cost per letter at the mail house
 async function buildMailList(id){
   $('m_send').disabled=true;$('m_msg').textContent='Building list…';const all=[];
@@ -1501,7 +1502,7 @@ Handwriting font (please install before printing so the letter prints right):
 ${location.origin}/mail-templates/PatrickHand-Regular.ttf\n\nPlease use this link to mark the job Received, Processing and Sent as it moves along:\n${mailLink(c)}\n\nPlease send a sample and postage when ready.\n\nThanks!\nDamien Dupee\nDominion Land Group`;
   const su=encodeURIComponent('NEW DATA - '+c.name),bd=encodeURIComponent(body);
   const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const url=mobile?`mailto:${MAIL_HOUSE.to}?cc=${MAIL_HOUSE.cc}&subject=${su}&body=${bd}`:`https://mail.google.com/mail/?view=cm&fs=1&to=${MAIL_HOUSE.to}&cc=${MAIL_HOUSE.cc}&su=${su}&body=${bd}`;
+  const url=mobile?`mailto:${MAIL_HOUSE.to}?cc=${MAIL_HOUSE.cc}&subject=${su}&body=${bd}`:`https://mail.google.com/mail/?authuser=${encodeURIComponent(MAIL_FROM)}&view=cm&fs=1&to=${MAIL_HOUSE.to}&cc=${MAIL_HOUSE.cc}&su=${su}&body=${bd}`;
   // Phones block pop-ups opened after loading, so always show a tap-to-open button too
   $('m_msg').innerHTML+=`<br><br><a class="btn" href="${url}" ${mobile?'':'target="_blank"'}>✉️ Open email to the mail house</a>`;
   if(!mobile)window.open(url,'_blank');
