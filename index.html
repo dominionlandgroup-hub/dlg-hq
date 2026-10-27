@@ -414,7 +414,9 @@ async function vDashboard(){
   const underD=buyerD.filter(d=>/assigned to buyer/i.test(stNameD(d))&&!isClosedD(d));
   // the assignment's closing date wins over the purchase contract's
   const closeOf=d=>d.as_meta?.close_date||d.closing_date||null;
-  const closedDate=d=>(closeOf(d)||d.updated_at||'').slice(0,10);
+  // a closed deal counts on the day it closed: the recorded sale date, else its closing date (never a future date), else last update
+  const todayS=new Date().toISOString().slice(0,10);
+  const closedDate=d=>{const s=T.find(t=>t.kind==='sale'&&t.deal_id===d.id);if(s?.tx_date)return s.tx_date.slice(0,10);const c=(closeOf(d)||'').slice(0,10);return c&&c<=todayS?c:(d.updated_at||'').slice(0,10)};
   const closedD=buyerD.filter(d=>isClosedD(d)&&inR(closedDate(d)));
   const assignedD=[...underD,...closedD];
   const feeOf=d=>+d.value||0;
