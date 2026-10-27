@@ -498,7 +498,9 @@ function card(d){const p=d.properties||{},l=d.leads;
    ${p.county?`<div class="s">${esc(p.county)}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' ac':''}</div>`:''}
    <div class="s" style="display:flex;gap:6px;align-items:center;margin-top:6px">${d.priority?`<span class="pill ${d.priority}">${d.priority}</span>`:''}${d.closing_date?`<span>Close ${d.closing_date}</span>`:''}<span style="margin-left:auto">${ago(d.updated_at||d.created_at)}</span></div></div>`}
 // ---------- deal milestones: offer made / under contract / closed, counted on each campaign ----------
-async function dealMilestone(id,kind){try{const {data:d}=await sb.from('deals').select('property_id,purchase_price,assignment_price,lead_id').eq('id',id).single();if(!d)return;
+async function dealMilestone(id,kind){try{const {data:d}=await sb.from('deals').select('property_id,purchase_price,assignment_price,value,lead_id').eq('id',id).single();if(!d)return;
+  // Closed: the sale price is purchase price + the deal's Estimated Value (your fee), so dashboard profit = Estimated Value
+  if(kind==='sale'&&d.value!=null&&d.value!==''&&d.purchase_price!=null)d.assignment_price=Number(d.purchase_price)+Number(d.value);
   const {data:ex}=await sb.from('transactions').select('id').eq('deal_id',id).eq('kind',kind).like('notes','HQ:%').limit(1);if((ex||[]).length)return;
   const label={offer:'offer made',purchase:'under contract',sale:'closed'}[kind];
   await sb.from('transactions').insert({deal_id:id,property_id:d.property_id||null,kind,tx_date:new Date().toISOString().slice(0,10),price:kind==='sale'?(d.assignment_price||d.purchase_price||null):(d.purchase_price||null),costs:0,notes:'HQ: '+label});
