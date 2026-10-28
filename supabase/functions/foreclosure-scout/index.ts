@@ -137,17 +137,19 @@ async function fetchBrock(state: "NC" | "SC"): Promise<Row[]> {
     if (r.status !== 200) throw new Error("Brock & Scott " + state + " page " + p + " HTTP " + r.status + " (pulled " + out.length + " so far; nothing changed)");
     const rows: Row[] = [];
     for (const m of r.text.matchAll(/<tr[\s\S]*?<\/tr>/gi)) {
-      const t = strip(m[0]);
-      const x = t.match(/^(.+?) (\d{1,2}\/\d{1,2}\/\d{4}) ?(\d{1,2}:\d{2} [AP]M)? (NC|SC) (\S+) (\S+) (.+?) \$([\d,]+\.\d{2}) (.*)$/);
-      if (!x) continue;
-      const [, county, date, time, st, sp, caseNo, address, bid, tail] = x;
+      // cells: county | date · time | state | court SP # | case # | address | opening bid | book/page
+      const cells = [...m[0].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((c) => strip(c[1]));
+      if (cells.length < 7) continue;
+      const [county, when, st, sp, caseNo, address, bid, book] = cells;
+      const date = isoDate(when);
+      if (!date || !/^(NC|SC)$/.test(st) || !address) continue;
       const zip = (address.match(/(\d{5})(?:-\d{4})?$/) || [])[1] || null;
       rows.push({
         dedupe_key: keyOf("brock", county, caseNo, address),
         source: "brock", state: st, county: county.trim(), address, zip, parcel: null,
-        case_no: sp + " / " + caseNo, owner_name: null, is_heirs: false, property_type: null,
-        sale_date: isoDate(date), sale_time: time ?? null, upset_last_day: null, opening_bid: money(bid), current_bid: null,
-        source_status: "Scheduled", is_paid_or_dismissed: false, is_commercial: false, book_page: tail.trim() || null,
+        case_no: [sp, caseNo].filter(Boolean).join(" / "), owner_name: null, is_heirs: false, property_type: null,
+        sale_date: date, sale_time: timeOf(when), upset_last_day: null, opening_bid: money(bid), current_bid: null,
+        source_status: "Scheduled", is_paid_or_dismissed: false, is_commercial: false, book_page: (book || "").trim() || null,
       });
     }
     if (!rows.length) break; // past the last page
@@ -171,10 +173,10 @@ async function resolveMeckParcels(sb: any, log: string[]) {
   if (error) throw new Error("parcel lookup select: " + error.message);
   let found = 0, missed = 0;
   for (const c of rows ?? []) {
-    const m = String(c.address ?? "").toUpperCase().match(/^(\d+)\s+([A-Z0-9]+)/);
+    const m = String(c.address ?? "").toUpperCase().match(/^(\d+)\s+(?:(?:N|S|E|W|NE|NW|SE|SW)\s+)?([A-Z0-9]+)/);
     if (!m || m[2].length < 2) { missed++; continue; }
     const u = new URL(MECK);
-    u.searchParams.set("where", "situsaddress1 LIKE '" + m[1] + " " + m[2].replace(/'/g, "''") + "%'");
+    u.searchParams.set("where", "situsaddress1 LIKE '" + m[1] + " %" + m[2].replace(/'/g, "''") + "%'");
     u.searchParams.set("outFields", "pid,situsaddress1");
     u.searchParams.set("returnGeometry", "false");
     u.searchParams.set("f", "json");
