@@ -364,7 +364,7 @@ function dashRange(){const k=store.get('dashRange')||'30d';const t=new Date();t.
   return [iso(a),iso(b),k]}
 const dnum=s=>{if(s==null)return 0;s=String(s).replace(/,/g,'');return /k$/i.test(s)?parseFloat(s)*1000:parseFloat(s)||0};
 const talkSec=s=>{if(!s)return 0;const p=String(s).split(':').map(Number);return p.length===2?p[0]*60+p[1]:+p[0]||0};
-const fmtTalk=sec=>`${Math.floor(sec/60)}:${String(Math.round(sec%60)).padStart(2,'0')}`;
+const fmtTalk=sec=>{sec=Math.round(sec||0);const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60);return h?`${h}h ${m}m`:`${m}m ${sec%60}s`};
 const kfmt=n=>n>=1000?(n/1000).toFixed(1).replace(/\.0$/,'')+'k':String(Math.round(n));
 // Pebble history comes in month rows (older) and day rows (recent); a partly covered month counts pro rata.
 function histSum(H,a,b){const A=new Date(a+'T12:00:00'),B=new Date(b+'T12:00:00'),o={deals:0,seller:0,buyer:0,offers:0,conv:0,calls:0,missed:0,talk:0,texts:0,emails:0};
@@ -384,19 +384,26 @@ async function vDashboard(){
   $('dr').onchange=e=>{store.set('dashRange',e.target.value);vDashboard()};
   if($('dra')){const f=()=>{store.set('dashA',$('dra').value);store.set('dashB',$('drb').value);vDashboard()};$('dra').onchange=f;$('drb').onchange=f}
   const end=b+'T23:59:59';
-  const [{data:H},{data:tx},{data:camps},{data:dl0},{data:msgs}]=await Promise.all([
+  const [{data:H},{data:tx},{data:camps},{data:dl0}]=await Promise.all([
     sb.from('pebble_history').select('*'),
     sb.from('transactions').select('id,property_id,deal_id,kind,tx_date,price,costs,notes,properties(id,apn,address,city)').order('tx_date',{ascending:false}).limit(5000),
     sb.from('campaigns').select('id,name,drop_date,records,cost').limit(2000),
-    sb.from('deals').select('id,board,created_at,source,campaign_id,lead_id,property_id,property_label').or('source.is.null,source.neq.pebble').gte('created_at',a).lte('created_at',end).limit(5000),
-    sb.from('messages').select('lead_id,channel,direction,duration_s,created_at').gte('created_at',a).lte('created_at',end).limit(10000)]);
+    sb.from('deals').select('id,board,created_at,source,campaign_id,lead_id,property_id,property_label').or('source.is.null,source.neq.pebble').gte('created_at',a).lte('created_at',end).limit(5000)]);
   const inR=d=>d&&d>=a&&d<=b;
   const h=histSum(H||[],a,b);
+  // Activity: Pebble's own report covers every day through its last day; DLG HQ messages count only after that
+  // (the messages table also holds the imported Pebble/Quo history, so counting both double-counted those days).
+  // Paged in 1,000-row pages: the server returns at most 1,000 rows per request.
+  const hEnd=(H||[]).reduce((m,x)=>x.end_date>m?x.end_date:m,'');
+  const liveFrom=(()=>{if(!hEnd)return a;const d=new Date(hEnd+'T12:00:00');d.setDate(d.getDate()+1);const s=localISO(d);return s>a?s:a})();
+  const msgs=[];if(liveFrom<=b){for(let off=0;off<100000;off+=1000){const {data:pg}=await sb.from('messages').select('lead_id,channel,direction,duration_s,created_at').gte('created_at',new Date(liveFrom+'T00:00:00').toISOString()).lte('created_at',new Date(end).toISOString()).order('id').range(off,off+999);if(!pg||!pg.length)break;msgs.push(...pg);if(pg.length<1000)break}}
   // Live numbers made in DLG HQ after the move
   // one lead per person per board; skip rows marked DUPLICATE and blank rows
   const _seen=new Set();const dl=(dl0||[]).filter(d=>{if(/^duplicate/i.test(d.property_label||''))return false;if(!d.lead_id&&!d.property_label)return false;if(d.lead_id){const k=d.board+':'+d.lead_id+':'+(d.property_id||'');if(_seen.has(k))return false;_seen.add(k)}return true});
   const liveDeals=dl.length,liveSeller=(dl||[]).filter(d=>d.board==='seller').length;
-  const M=msgs||[];const live={conv:new Set(M.map(m=>m.lead_id)).size,calls:M.filter(m=>m.channel==='call'&&m.direction==='out').length,missed:M.filter(m=>m.channel==='call'&&m.direction==='in'&&!m.duration_s).length,
+  // Conversations = people you actually traded words with that day (texts, calls, replies), counted per day like Pebble did.
+  // Cold builder/agent emails nobody answered are left out; they still count under Emails sent.
+  const M=msgs;const live={conv:new Set(M.filter(m=>m.lead_id&&!(m.channel==='email'&&m.direction==='out')).map(m=>m.lead_id+'|'+localISO(m.created_at))).size,calls:M.filter(m=>m.channel==='call'&&m.direction==='out').length,missed:M.filter(m=>m.channel==='call'&&m.direction==='in'&&!m.duration_s).length,
     talk:M.filter(m=>m.channel==='call').reduce((s,m)=>s+(m.duration_s||0),0),texts:M.filter(m=>m.channel==='sms'&&m.direction==='out').length,emails:M.filter(m=>m.channel==='email'&&m.direction==='out').length};
   const T=tx||[];const offersLive=T.filter(t=>t.kind==='offer'&&inR(t.tx_date)).length;
   // ROI rows: a purchase and its sale on the same property; shown when the sale (or purchase if unsold) falls in range
