@@ -269,14 +269,14 @@ const YORKSC = "https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/servic
 const digits = (s: unknown) => String(s ?? "").replace(/\D/g, "");
 const HEIRS_RE = /\bHEIRS?\b|\bESTATE\b|\bEST OF\b|\bDECEASED\b|\bDECD\b|\bUNKNOWN HEIRS\b/i;
 async function arcQuery(url: string, where: string, out: string): Promise<any[]> {
-  const u = new URL(url);
-  u.searchParams.set("where", where); u.searchParams.set("outFields", out);
-  u.searchParams.set("returnGeometry", "false"); u.searchParams.set("f", "json");
+  // POST, not GET: long parcel lists make the URL too long and the county server answers 404
+  const body = new URLSearchParams({ where, outFields: out, returnGeometry: "false", f: "json" });
   let last = "";
   for (let t = 0; t < 3; t++) {
     try {
-      const r = await getText(u);
-      if (r.status === 200) { const j = JSON.parse(r.text); if (!j.error) return j.features ?? []; last = JSON.stringify(j.error).slice(0, 200); }
+      const r = await fetch(url, { method: "POST", headers: { "User-Agent": UA, "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" }, body });
+      const text = await r.text();
+      if (r.status === 200) { const j = JSON.parse(text); if (!j.error) return j.features ?? []; last = JSON.stringify(j.error).slice(0, 200); }
       else last = "HTTP " + r.status;
     } catch (e) { last = String((e as Error).message ?? e); }
     await sleep(1500);
@@ -324,13 +324,15 @@ async function enrichOther(sb: any, log: string[], deadline: number, area: strin
   const nc = (rows ?? []).filter((c: any) => c.state === "NC");
   const byCounty = new Map<string, any[]>();
   for (const c of nc) byCounty.set(c.county, [...(byCounty.get(c.county) ?? []), c]);
+  const failed: string[] = [];
   for (const [county, list] of byCounty) {
     if (outOfTime()) { left += list.length; continue; }
+    try {
     const cq = String(county).replace(/'/g, "''");
     const withParcel = list.filter((c: any) => c.parcel);
     const found = new Map<number, any>();
-    for (let i = 0; i < withParcel.length; i += 40) {
-      const chunk = withParcel.slice(i, i + 40);
+    for (let i = 0; i < withParcel.length; i += 25) {
+      const chunk = withParcel.slice(i, i + 25);
       const vals = [...new Set(chunk.flatMap((c: any) => [String(c.parcel).trim(), digits(c.parcel)]).filter((v: string) => v.length >= 3))].map((v) => "'" + v.replace(/'/g, "''") + "'");
       if (!vals.length) continue;
       const feats = await arcQuery(NC1, "cntyname='" + cq + "' AND (parno IN (" + vals.join(",") + ") OR altparno IN (" + vals.join(",") + "))", NCOUT);
@@ -355,6 +357,7 @@ async function enrichOther(sb: any, log: string[], deadline: number, area: strin
       if (a) { await save(c, fromNC(c, a)); matched++; }
       else { await save(c, { county_data_status: "not found in NC statewide parcel map" }); missed++; }
     }
+    } catch (e) { failed.push(county + ": " + String((e as Error).message ?? e).slice(0, 120)); } // one county's map trouble doesn't stop the others
   }
   // York County SC (Brock & Scott SC cases)
   const york = (rows ?? []).filter((c: any) => c.state === "SC" && /^york$/i.test(c.county || ""));
@@ -362,7 +365,9 @@ async function enrichOther(sb: any, log: string[], deadline: number, area: strin
     if (outOfTime()) { left++; continue; }
     const sp = streetParts(c.address);
     if (!sp) { await save(c, { county_data_status: "address not usable for York lookup" }); missed++; continue; }
-    const feats = await arcQuery(YORKSC, "PropertyAddress LIKE '" + sp.num + " %" + sp.word + "%'", "ParcelID,Owner1,Owner2,MailAddr1,MailAddr2,MailCity,MailState,MailZip,AprLandVal,AprBldgVal,GISSizeAC,LandUseDesc,DateSold,PropertyAddress");
+    let feats: any[] = [];
+    try { feats = await arcQuery(YORKSC, "PropertyAddress LIKE '" + sp.num + " %" + sp.word + "%'", "ParcelID,Owner1,Owner2,MailAddr1,MailAddr2,MailCity,MailState,MailZip,AprLandVal,AprBldgVal,GISSizeAC,LandUseDesc,DateSold,PropertyAddress"); }
+    catch (e) { failed.push("York: " + String((e as Error).message ?? e).slice(0, 120)); continue; }
     const pids = [...new Set(feats.map((f: any) => f.attributes.ParcelID))];
     if (pids.length !== 1) { await save(c, { county_data_status: pids.length ? "several county parcels match this address - check" : "address not found in York County data" }); missed++; continue; }
     const a = feats[0].attributes; const owner = [a.Owner1, a.Owner2].filter(Boolean).join(" & ");
@@ -379,6 +384,7 @@ async function enrichOther(sb: any, log: string[], deadline: number, area: strin
   skipped = (rows ?? []).length - nc.length - york.length;
   // other SC counties are not connected yet; give them an explicit status once
   for (const c of (rows ?? []).filter((c: any) => c.state === "SC" && !/^york$/i.test(c.county || ""))) if (!outOfTime()) await save(c, { county_data_status: "county data not connected yet (SC " + (c.county || "?") + ")" });
+  if (failed.length) log.push("county lookups that failed this run (retried next run): " + failed.join("; "));
   log.push("other counties: " + matched + " matched, " + missed + " not matched, " + skipped + " SC cases outside York, " + left + " left for the next run");
   return { matched, missed, skipped, left };
 }
