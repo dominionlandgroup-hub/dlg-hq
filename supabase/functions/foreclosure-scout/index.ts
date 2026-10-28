@@ -279,6 +279,15 @@ function underwrite(c: any, minFee: number, today: string) {
       parts.push(estDebt === bid ? "lender opening bid " + usd(bid) : "loan: 80% of " + (saleYear ?? "last") + " sale price = " + usd(loanProxy));
     }
   }
+  // Brock & Scott lists the deed of trust book. If it isn't the loan recorded with the owner's purchase deed,
+  // the purchase price says nothing about the loan amount (refinance / equity loan, or an older owner's loan).
+  let loanFlag = "";
+  if (c.source === "brock" && c.book_page && c.county_deed_book) {
+    const dotBook = parseInt(String(c.book_page).replace(/^\D+/, ""), 10), deedBook = parseInt(String(c.county_deed_book), 10);
+    if (dotBook && deedBook && dotBook !== deedBook) loanFlag = dotBook > deedBook
+      ? "Loan was recorded after the purchase (refinance or equity loan) - amount unknown, check the Register of Deeds"
+      : "Loan is older than the current owner's deed - check the Register of Deeds";
+  }
   const debtMethod = estDebt !== null ? "est: " + parts.join(" + ") : null;
   const value = c.county_value != null ? Number(c.county_value) : null;
   const spread = value !== null && estDebt !== null ? Math.round(value * 0.7 - estDebt) : null;
@@ -295,6 +304,7 @@ function underwrite(c: any, minFee: number, today: string) {
   else if (spread === null) { verdict = "Review"; reason = "No county value or debt estimate yet - can't size equity"; }
   else if (spread < minFee) { verdict = "Skip"; reason = "Est. room " + usd(spread) + " is below your " + usd(minFee) + " minimum"; }
   else if (c.current_bid != null && c.upset_last_day) { verdict = "Review"; reason = "Auction already held (bid " + usd(c.current_bid) + "); upset period ends " + c.upset_last_day + ". Est. room " + usd(spread); }
+  else if (loanFlag) { verdict = "Review"; reason = loanFlag + ". Est. room if the loan is small: " + usd(spread); }
   else if (past(c.sale_date)) { verdict = "Review"; reason = "Sale date " + c.sale_date + " has passed - check if it sold. Est. room " + usd(spread); }
   else { verdict = "Pursue"; reason = "Est. room " + usd(spread) + " clears your " + usd(minFee) + " minimum" + (c.is_heirs ? ". Heirs/estate: heir research needed before any offer" : ""); }
   return { est_debt: estDebt, est_debt_method: debtMethod, est_spread: spread, est_spread_note: note, verdict, verdict_reason: reason };
