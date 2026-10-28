@@ -267,7 +267,9 @@ async function enrichMeck(sb: any, log: string[]) {
 const NC1 = "https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query";
 const YORKSC = "https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0/query";
 const digits = (s: unknown) => String(s ?? "").replace(/\D/g, "");
-const HEIRS_RE = /\bHEIRS?\b|\bESTATE\b|\bEST OF\b|\bDECEASED\b|\bDECD\b|\bUNKNOWN HEIRS\b/i;
+// "ESTATE OF" / "EST OF" / "HEIRS" only - a plain "ESTATE" also matches company names like "S&B REAL ESTATE INVESTMENTS"
+const HEIRS_RE = /\bHEIRS?\b|\bESTATE OF\b|\bEST OF\b|\bDECEASED\b|\bDECD\b|\bESTATE$|\bEST$/i;
+const COMPANY_RE = /\b(LLC|L L C|INC|CORP|CORPORATION|COMPANY|CO|INVESTMENTS?|HOLDINGS|PROPERTIES|PARTNERS|PARTNERSHIP|LP|LTD|GROUP|BANK|CHURCH|MINISTRIES|ASSOCIATION|ASSOC|REALTY|DEVELOPMENT|BUILDERS|HOMES)\b/i;
 async function arcQuery(url: string, where: string, out: string): Promise<any[]> {
   // POST, not GET: long parcel lists make the URL too long and the county server answers 404
   const body = new URLSearchParams({ where, outFields: out, returnGeometry: "false", f: "json" });
@@ -436,6 +438,7 @@ function underwrite(c: any, minFee: number, today: string) {
   else if (!/^connected/.test(c.county_data_status || "") && !/differs|several|not found/.test(c.county_data_status || "")) { verdict = "Review"; reason = "County data not connected yet for " + (c.county || "this county") + " - can't size equity"; }
   else if (/differs|several|not found/.test(c.county_data_status || "")) { verdict = "Review"; reason = "County record: " + c.county_data_status; }
   else if (spread === null) { verdict = "Review"; reason = "No county value or debt estimate yet - can't size equity"; }
+  else if (COMPANY_RE.test(c.county_owner || "") && !/heirs/i.test(c.owner_name || "")) { verdict = "Review"; reason = "Owned by a company (" + c.county_owner + ") - not an individual. Est. room " + usd(spread); }
   else if (spread < minFee) { verdict = "Skip"; reason = "Est. room " + usd(spread) + " is below your " + usd(minFee) + " minimum"; }
 
   else if (loanFlag) { verdict = "Review"; reason = loanFlag + ". Est. room if the loan is small: " + usd(spread); }
