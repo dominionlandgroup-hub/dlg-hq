@@ -1,4 +1,5 @@
 // DLG HQ <-> Quo (OpenPhone) bridge
+// NOTE: the deployed copy also logs rejected webhook signatures to quo_events (added in the dashboard); keep that when redeploying.
 //  POST /quo            Quo webhook (texts, calls, recordings, transcripts, summaries) -> inbox
 //  POST /quo/send       Send a text from the DLG HQ inbox (signed-in user only)
 // Secrets (set in Supabase > Edge Functions > Secrets): QUO_API_KEY, QUO_WEBHOOK_SECRET
@@ -58,9 +59,13 @@ async function thread(theirs: string, ours: string) {
 }
 
 async function upsertMsg(row: Record<string, unknown>) {
+  // Blocked numbers (thread muted in DLG HQ): keep the text, but mark it read and leave the thread archived.
+  const { data: thr } = await sb.from("threads").select("muted").eq("id", row.thread_id as number).maybeSingle();
+  const blocked = !!thr?.muted;
+  if (blocked && row.direction === "in") row.is_read = true;
   const { error } = await sb.from("messages").upsert(row, { onConflict: "external_id", ignoreDuplicates: false });
   if (error) throw error;
-  await sb.from("threads").update({ last_at: row.created_at, archived: false }).eq("id", row.thread_id as number);
+  await sb.from("threads").update(blocked ? { last_at: row.created_at } : { last_at: row.created_at, archived: false }).eq("id", row.thread_id as number);
   if (row.lead_id) await sb.from("leads").update({ last_contact_at: row.created_at }).eq("id", row.lead_id as number);
 }
 
@@ -99,7 +104,7 @@ async function handle(ev: any) {
     const rec = r.recordings?.[0]?.url || (Array.isArray(r.media) ? r.media[0]?.url : null) || r.voicemail?.url;
     if (rec) row.recording_url = await saveRecording(rec, r.id);
     const { data: ex } = await sb.from("messages").select("id,body").eq("external_id", "quo-" + r.id).maybeSingle();
-    if (ex) { delete row.created_at; if (ex.body) delete row.body; await sb.from("messages").update(row).eq("id", ex.id); await sb.from("threads").update({ last_at: new Date().toISOString(), archived: false }).eq("id", th.thread_id); }
+    if (ex) { delete row.created_at; if (ex.body) delete row.body; await sb.from("messages").update(row).eq("id", ex.id); const { data: thr2 } = await sb.from("threads").select("muted").eq("id", th.thread_id).maybeSingle(); await sb.from("threads").update(thr2?.muted ? { last_at: new Date().toISOString() } : { last_at: new Date().toISOString(), archived: false }).eq("id", th.thread_id); }
     else await upsertMsg({ ...row, body: missed ? "Missed call" : null });
     const { data: pend } = await sb.from("quo_events").select("id,payload").like("id", "pending-" + r.id + "-%");
     for (const p of pend || []) { await handle(p.payload); await sb.from("quo_events").delete().eq("id", p.id); }
