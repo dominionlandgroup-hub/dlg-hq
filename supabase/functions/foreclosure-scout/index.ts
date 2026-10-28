@@ -287,14 +287,18 @@ const streetParts = (addr: unknown) => {
   const m = String(addr ?? "").toUpperCase().match(/^(\d+)\s+(?:(?:N|S|E|W|NE|NW|SE|SW)\s+)?([A-Z0-9]+)/);
   return m && m[2].length >= 2 ? { num: m[1], word: m[2].replace(/'/g, "''") } : null;
 };
-async function enrichOther(sb: any, log: string[]) {
+async function enrichOther(sb: any, log: string[], deadline: number, area: string[]) {
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
   const { data: rows, error } = await sb.from("foreclosure_cases")
     .select("id, state, county, parcel, address, owner_name, is_heirs, county_checked_at")
     .neq("county", "Mecklenburg").is("gone_since", null)
     .or("county_checked_at.is.null,county_checked_at.lt." + weekAgo).range(0, 4999);
   if (error) throw new Error("other-county select: " + error.message);
-  let matched = 0, missed = 0, skipped = 0;
+  // Damien's counties first; stop before Supabase's 150-second request limit (the rest continue on the next run)
+  const inArea = (c: any) => area.some((a) => a.toLowerCase() === String(c.county || "").toLowerCase());
+  (rows ?? []).sort((a: any, b: any) => Number(inArea(b)) - Number(inArea(a)));
+  let matched = 0, missed = 0, skipped = 0, left = 0;
+  const outOfTime = () => Date.now() > deadline;
   const save = async (c: any, upd: Record<string, unknown>) => {
     const { error: ue } = await sb.from("foreclosure_cases").update({ ...upd, county_checked_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", c.id);
     if (ue) throw new Error("other-county update: " + ue.message);
@@ -321,6 +325,7 @@ async function enrichOther(sb: any, log: string[]) {
   const byCounty = new Map<string, any[]>();
   for (const c of nc) byCounty.set(c.county, [...(byCounty.get(c.county) ?? []), c]);
   for (const [county, list] of byCounty) {
+    if (outOfTime()) { left += list.length; continue; }
     const cq = String(county).replace(/'/g, "''");
     const withParcel = list.filter((c: any) => c.parcel);
     const found = new Map<number, any>();
@@ -336,6 +341,7 @@ async function enrichOther(sb: any, log: string[]) {
       }
     }
     for (const c of list) {
+      if (outOfTime()) { left++; continue; }
       let a = found.get(c.id);
       if (!a) {
         const sp = streetParts(c.address);
@@ -353,6 +359,7 @@ async function enrichOther(sb: any, log: string[]) {
   // York County SC (Brock & Scott SC cases)
   const york = (rows ?? []).filter((c: any) => c.state === "SC" && /^york$/i.test(c.county || ""));
   for (const c of york) {
+    if (outOfTime()) { left++; continue; }
     const sp = streetParts(c.address);
     if (!sp) { await save(c, { county_data_status: "address not usable for York lookup" }); missed++; continue; }
     const feats = await arcQuery(YORKSC, "PropertyAddress LIKE '" + sp.num + " %" + sp.word + "%'", "ParcelID,Owner1,Owner2,MailAddr1,MailAddr2,MailCity,MailState,MailZip,AprLandVal,AprBldgVal,GISSizeAC,LandUseDesc,DateSold,PropertyAddress");
@@ -371,9 +378,9 @@ async function enrichOther(sb: any, log: string[]) {
   }
   skipped = (rows ?? []).length - nc.length - york.length;
   // other SC counties are not connected yet; give them an explicit status once
-  for (const c of (rows ?? []).filter((c: any) => c.state === "SC" && !/^york$/i.test(c.county || ""))) await save(c, { county_data_status: "county data not connected yet (SC " + (c.county || "?") + ")" });
-  log.push("other counties: " + matched + " matched, " + missed + " not matched, " + skipped + " SC cases outside York");
-  return { matched, missed, skipped };
+  for (const c of (rows ?? []).filter((c: any) => c.state === "SC" && !/^york$/i.test(c.county || ""))) if (!outOfTime()) await save(c, { county_data_status: "county data not connected yet (SC " + (c.county || "?") + ")" });
+  log.push("other counties: " + matched + " matched, " + missed + " not matched, " + skipped + " SC cases outside York, " + left + " left for the next run");
+  return { matched, missed, skipped, left };
 }
 
 // ---------- first-pass underwriting (ESTIMATES; every number is labeled) ----------
@@ -461,6 +468,7 @@ async function syncSource(sb: any, source: string, rows: Row[], detailLog: strin
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  const started = Date.now();
   const url = new URL(req.url);
   const onlyParam = url.searchParams.get("only") || "ruff,kania,county";
   const only = new Set(onlyParam.split(",").map((s) => s.trim()).filter(Boolean));
@@ -510,7 +518,8 @@ Deno.serve(async (req) => {
     try {
       await resolveMeckParcels(sb, detail);
       const c = await enrichMeck(sb, detail);
-      const o = await enrichOther(sb, detail);
+      const { data: areaRow } = await sb.from("foreclosure_settings").select("value").eq("key", "counties").maybeSingle();
+      const o = await enrichOther(sb, detail, started + 95000, Array.isArray(areaRow?.value) ? areaRow.value : []);
       (c as any).other = o;
       results.county = { ok: true, ...c };
       await sb.from("foreclosure_scout_runs").insert({ started_at: startedAt, finished_at: new Date().toISOString(), source: "county", trigger, ok: true, rows_found: c.parcels, detail: { matched: c.matched, unmatched: c.unmatched } });
