@@ -268,7 +268,7 @@ const NC1 = "https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/F
 const YORKSC = "https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0/query";
 const digits = (s: unknown) => String(s ?? "").replace(/\D/g, "");
 // "ESTATE OF" / "EST OF" / "HEIRS" only - a plain "ESTATE" also matches company names like "S&B REAL ESTATE INVESTMENTS"
-const HEIRS_RE = /\bHEIRS?\b|\bESTATE OF\b|\bEST OF\b|\bDECEASED\b|\bDECD\b|\bESTATE$|\bEST$/i;
+const HEIRS_RE = { test: (s: string) => /\bHEIRS?\b|\bESTATE OF\b|\bEST OF\b|\bDECEASED\b|\bDECD\b|\bEST$/i.test(s) || (/\bESTATE\b/i.test(s) && !/\bREAL ESTATE\b/i.test(s)) };
 const COMPANY_RE = /\b(LLC|L L C|INC|CORP|CORPORATION|COMPANY|CO|INVESTMENTS?|HOLDINGS|PROPERTIES|PARTNERS|PARTNERSHIP|LP|LTD|GROUP|BANK|CHURCH|MINISTRIES|ASSOCIATION|ASSOC|REALTY|DEVELOPMENT|BUILDERS|HOMES)\b/i;
 async function arcQuery(url: string, where: string, out: string): Promise<any[]> {
   // POST, not GET: long parcel lists make the URL too long and the county server answers 404
