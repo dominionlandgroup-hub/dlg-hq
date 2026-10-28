@@ -165,6 +165,37 @@ const fromArcDate = (v: unknown): string | null => {
   if (typeof v === "number") return new Date(v).toISOString().slice(0, 10);
   return isoDate(v);
 };
+// Mecklenburg cases without a parcel (Brock & Scott lists only addresses): find the parcel by street number + street name.
+async function resolveMeckParcels(sb: any, log: string[]) {
+  const { data: rows, error } = await sb.from("foreclosure_cases").select("id, address").eq("county", "Mecklenburg").is("parcel", null).is("gone_since", null);
+  if (error) throw new Error("parcel lookup select: " + error.message);
+  let found = 0, missed = 0;
+  for (const c of rows ?? []) {
+    const m = String(c.address ?? "").toUpperCase().match(/^(\d+)\s+([A-Z0-9]+)/);
+    if (!m || m[2].length < 2) { missed++; continue; }
+    const u = new URL(MECK);
+    u.searchParams.set("where", "situsaddress1 LIKE '" + m[1] + " " + m[2].replace(/'/g, "''") + "%'");
+    u.searchParams.set("outFields", "pid,situsaddress1");
+    u.searchParams.set("returnGeometry", "false");
+    u.searchParams.set("f", "json");
+    const r = await getText(u);
+    if (r.status !== 200) throw new Error("Mecklenburg GIS HTTP " + r.status);
+    let j: any; try { j = JSON.parse(r.text); } catch { throw new Error("Mecklenburg GIS: not JSON"); }
+    const pids = [...new Set((j.features ?? []).map((f: any) => pid8(f.attributes?.pid)).filter(Boolean))];
+    if (pids.length === 1) {
+      const { error: ue } = await sb.from("foreclosure_cases").update({ parcel: pids[0] }).eq("id", c.id);
+      if (ue) throw new Error("parcel update: " + ue.message);
+      found++;
+    } else {
+      const { error: ue } = await sb.from("foreclosure_cases").update({ county_data_status: pids.length ? "several county parcels match this address - check" : "address not found in county data" }).eq("id", c.id);
+      if (ue) throw new Error("parcel status update: " + ue.message);
+      missed++;
+    }
+  }
+  log.push("county: " + found + " parcel(s) found by address, " + missed + " not matched");
+  return { found, missed };
+}
+
 async function enrichMeck(sb: any, log: string[]) {
   const { data: cases, error } = await sb.from("foreclosure_cases").select("id, parcel, address").eq("county", "Mecklenburg").not("parcel", "is", null);
   if (error) throw new Error("county select: " + error.message);
@@ -214,7 +245,12 @@ async function enrichMeck(sb: any, log: string[]) {
         matched++;
       }
     }
-    unmatched += chunk.filter((p) => !seenPid.has(p)).length;
+    const miss = chunk.filter((p) => !seenPid.has(p));
+    unmatched += miss.length;
+    for (const p of miss) for (const c of byPid.get(p)!) {
+      const { error: ue } = await sb.from("foreclosure_cases").update({ county_data_status: "parcel not found in county data" }).eq("id", c.id);
+      if (ue) throw new Error("county status update: " + ue.message);
+    }
   }
   // parcels not in county data get an explicit status (not the "not connected" default)
   if (unmatched) log.push("county: " + unmatched + " parcel(s) not found in county data");
@@ -223,35 +259,55 @@ async function enrichMeck(sb: any, log: string[]) {
 }
 
 // ---------- first-pass underwriting (ESTIMATES; every number is labeled) ----------
-function underwrite(c: any, minFee: number) {
-  let estDebt: number | null = null, debtMethod: string | null = null;
+function underwrite(c: any, minFee: number, today: string) {
+  const usd = (n: number) => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocaleString("en-US");
+  let estDebt: number | null = null; const parts: string[] = [];
+  const saleYear = c.county_last_sale_date ? Number(String(c.county_last_sale_date).slice(0, 4)) : null;
+  const recentLoan = c.county_last_sale_price > 0 && saleYear && Number(today.slice(0, 4)) - saleYear < 15 ? Math.round(c.county_last_sale_price * 0.8) : 0;
   if (c.source === "ruff" || c.source === "kania") {
-    const base = c.opening_bid ?? c.current_bid ?? null;
-    estDebt = base;
-    debtMethod = base !== null ? "est: tax sale " + (c.opening_bid != null ? "opening" : "current") + " bid used as back-tax proxy" : null;
+    const taxes = c.opening_bid != null && c.opening_bid > 0 ? Number(c.opening_bid) : null;
+    estDebt = (taxes ?? 15000) + recentLoan;
+    parts.push(taxes != null ? "back taxes = opening bid " + usd(taxes) : "back taxes assumed " + usd(15000) + " (bid not posted yet)");
+    if (recentLoan) parts.push("possible mortgage: 80% of " + saleYear + " sale price = " + usd(recentLoan));
   } else if (c.source === "brock") {
-    const loanProxy = c.county_last_sale_price ? Math.round(c.county_last_sale_price * 0.8) : null;
-    estDebt = loanProxy !== null ? Math.max(loanProxy, c.opening_bid ?? 0) : (c.opening_bid ?? null);
-    debtMethod = loanProxy !== null ? "est: 80% of county last sale price (loan proxy)" : (c.opening_bid != null ? "est: opening bid only (no county data)" : null);
+    const bid = c.opening_bid != null && c.opening_bid > 0 ? Number(c.opening_bid) : 0;
+    const loanProxy = c.county_last_sale_price > 0 ? Math.round(c.county_last_sale_price * 0.8) : 0;
+    if (loanProxy || bid) {
+      estDebt = Math.max(loanProxy, bid);
+      parts.push(estDebt === bid ? "lender opening bid " + usd(bid) : "loan: 80% of " + (saleYear ?? "last") + " sale price = " + usd(loanProxy));
+    }
   }
-  const value = c.county_value ?? null;
-  const spread = value !== null && estDebt !== null ? Math.round(value - estDebt) : null;
+  const debtMethod = estDebt !== null ? "est: " + parts.join(" + ") : null;
+  const value = c.county_value != null ? Number(c.county_value) : null;
+  const spread = value !== null && estDebt !== null ? Math.round(value * 0.7 - estDebt) : null;
+  const note = spread !== null ? "Room = 70% of county value (" + usd(value!) + ") minus est. debt. That is what is left for the seller's payout and your fee. County value is not market value - verify with comps." : null;
   let verdict = "Review", reason = "";
-  if (c.is_paid_or_dismissed) { verdict = "Skip"; reason = "Paid or dismissed per source"; }
-  else if (c.is_commercial) { verdict = "Skip"; reason = "Commercial / non-residential (Damien does not buy commercial)"; }
-  else if (c.county_data_status !== "connected" && c.county !== "Mecklenburg") { verdict = "Review"; reason = "County data not connected yet - can't size equity"; }
-  else if (spread === null) { verdict = "Review"; reason = "No county value or debt estimate - can't size equity"; }
-  else if (c.is_heirs) { verdict = "Review"; reason = "Heirs/estate owner - heir research needed before any offer"; }
-  else if (spread < minFee) { verdict = "Skip"; reason = "Est. spread $" + spread.toLocaleString("en-US") + " is below the $" + minFee.toLocaleString("en-US") + " minimum fee"; }
-  else { verdict = "Pursue"; reason = "Est. spread $" + spread.toLocaleString("en-US") + " clears the $" + minFee.toLocaleString("en-US") + " minimum (estimate)"; }
-  const note = value !== null ? "Spread = county assessed value (not market value) minus est. debt. Verify with comps." : null;
+  const past = (d: unknown) => !!d && String(d).slice(0, 10) < today;
+  if (c.gone_since) { verdict = "Skip"; reason = "No longer on the firm's list"; }
+  else if (c.is_paid_or_dismissed) { verdict = "Skip"; reason = "Paid or dismissed per the firm's list"; }
+  else if (c.is_commercial) { verdict = "Skip"; reason = "Commercial / non-residential"; }
+  else if (past(c.upset_last_day)) { verdict = "Skip"; reason = "Auction finished (upset period ended " + c.upset_last_day + ")"; }
+  else if (value !== null && value < 60000) { verdict = "Skip"; reason = "Too cheap: county value " + usd(value); }
+  else if (c.county !== "Mecklenburg") { verdict = "Review"; reason = "County data not connected yet for " + (c.county || "this county") + " - can't size equity"; }
+  else if (/differs|several|not found/.test(c.county_data_status || "")) { verdict = "Review"; reason = "County record: " + c.county_data_status; }
+  else if (spread === null) { verdict = "Review"; reason = "No county value or debt estimate yet - can't size equity"; }
+  else if (spread < minFee) { verdict = "Skip"; reason = "Est. room " + usd(spread) + " is below your " + usd(minFee) + " minimum"; }
+  else if (c.current_bid != null && c.upset_last_day) { verdict = "Review"; reason = "Auction already held (bid " + usd(c.current_bid) + "); upset period ends " + c.upset_last_day + ". Est. room " + usd(spread); }
+  else if (past(c.sale_date)) { verdict = "Review"; reason = "Sale date " + c.sale_date + " has passed - check if it sold. Est. room " + usd(spread); }
+  else { verdict = "Pursue"; reason = "Est. room " + usd(spread) + " clears your " + usd(minFee) + " minimum" + (c.is_heirs ? ". Heirs/estate: heir research needed before any offer" : ""); }
   return { est_debt: estDebt, est_debt_method: debtMethod, est_spread: spread, est_spread_note: note, verdict, verdict_reason: reason };
 }
 
 // ---------- source sync ----------
-async function syncSource(sb: any, source: string, rows: Row[], detailLog: string[]) {
+async function syncSource(sb: any, source: string, rows: Row[], detailLog: string[], state?: string) {
+  // the same case listed twice in one pull would make the upsert fail, so keep the first copy
+  const uniq = new Map<string, Row>(); for (const r of rows) if (!uniq.has(r.dedupe_key)) uniq.set(r.dedupe_key, r);
+  rows = [...uniq.values()];
   const keys = new Set(rows.map((r) => r.dedupe_key));
-  const { data: existing, error: se } = await sb.from("foreclosure_cases").select("dedupe_key, gone_since").eq("source", source);
+  // Brock & Scott runs one state at a time, so only that state's cases can be marked gone.
+  let q = sb.from("foreclosure_cases").select("dedupe_key, gone_since").eq("source", source);
+  if (state) q = q.eq("state", state);
+  const { data: existing, error: se } = await q;
   if (se) throw new Error("select existing: " + se.message);
   const existingKeys = new Set((existing ?? []).map((e: any) => e.dedupe_key));
   const added = rows.filter((r) => !existingKeys.has(r.dedupe_key)).length;
@@ -267,7 +323,7 @@ async function syncSource(sb: any, source: string, rows: Row[], detailLog: strin
     const { error } = await sb.from("foreclosure_cases").update({ gone_since: now }).in("dedupe_key", gone.slice(i, i + 200));
     if (error) throw new Error("mark gone " + source + ": " + error.message);
   }
-  detailLog.push(source + ": " + rows.length + " rows, " + added + " new, " + gone.length + " gone");
+  detailLog.push(source + (state ? " " + state : "") + ": " + rows.length + " rows, " + added + " new, " + gone.length + " gone");
   return { rows_found: rows.length, added, updated, disappeared: gone.length };
 }
 
@@ -307,7 +363,7 @@ Deno.serve(async (req) => {
     const dbSource = name.startsWith("brock") ? "brock" : name;
     try {
       const rows = await fetcher();
-      const counts = await syncSource(sb, dbSource, rows, detail);
+      const counts = await syncSource(sb, dbSource, rows, detail, name === "brock_nc" ? "NC" : name === "brock_sc" ? "SC" : undefined);
       results[name] = { ok: true, ...counts };
       await sb.from("foreclosure_scout_runs").insert({ started_at: startedAt, finished_at: new Date().toISOString(), source: name, trigger, ok: true, rows_found: counts.rows_found, added: counts.added, updated: counts.updated, disappeared: counts.disappeared });
     } catch (e) {
@@ -320,6 +376,7 @@ Deno.serve(async (req) => {
   if (only.has("county")) {
     const startedAt = new Date().toISOString();
     try {
+      await resolveMeckParcels(sb, detail);
       const c = await enrichMeck(sb, detail);
       results.county = { ok: true, ...c };
       await sb.from("foreclosure_scout_runs").insert({ started_at: startedAt, finished_at: new Date().toISOString(), source: "county", trigger, ok: true, rows_found: c.parcels, detail: { matched: c.matched, unmatched: c.unmatched } });
@@ -331,12 +388,14 @@ Deno.serve(async (req) => {
   }
 
   // underwriting for every case (estimates; only changed rows are written)
-  const { data: all, error: ae } = await sb.from("foreclosure_cases").select("*");
+  const { data: all, error: ae } = await sb.from("foreclosure_cases").select("*").range(0, 9999);
   if (ae) return json({ ok: false, error: "load cases: " + ae.message, results }, 500);
   let changed = 0;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
   for (const c of all ?? []) {
-    const uw = underwrite(c, minFee);
-    const diff = (["est_debt", "est_spread", "verdict", "verdict_reason", "est_debt_method"] as const).some((k) => (c as any)[k] !== (uw as any)[k]);
+    const uw = underwrite(c, minFee, today);
+    const same = (x: unknown, y: unknown) => (x === null || x === undefined ? null : typeof y === "number" ? Number(x) : x) === (y === undefined ? null : y);
+    const diff = (["est_debt", "est_spread", "verdict", "verdict_reason", "est_debt_method", "est_spread_note"] as const).some((k) => !same((c as any)[k], (uw as any)[k]));
     if (!diff) continue;
     const { error } = await sb.from("foreclosure_cases").update({ ...uw, updated_at: new Date().toISOString() }).eq("id", c.id);
     if (error) return json({ ok: false, error: "underwrite update: " + error.message, results }, 500);
