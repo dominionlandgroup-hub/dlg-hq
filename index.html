@@ -2205,6 +2205,10 @@ boot();
  if(typeof go==='function'){const _go=go;go=function(v){const r=_go.apply(this,arguments);sync(v);if(window.innerWidth<=900){side().classList.remove('open');document.body.classList.remove('sideopen')}return r};}
  try{sync(CUR)}catch(e){}
  setInterval(()=>{const b=document.getElementById('b_seller'),t=document.getElementById('tb_seller');if(b&&t)t.textContent=b.classList.contains('hidden')?'':b.textContent.trim()},3000);
+// Saving a contact's name in DLG HQ also saves it in Quo's contacts (so the phone shows the name).
+window.quoContact=lid=>{if(lid)sb.functions.invoke('quo/contact',{body:{lead_id:lid}}).then(({data,error})=>{if(error||data?.error)console.warn('Quo contact not saved',error||data.error)}).catch(()=>{})};
+if(typeof saveCPanel==='function'){const _s=saveCPanel;saveCPanel=async function(tid,lid){const r=await _s.apply(this,arguments);let id=lid;if(!id){const {data}=await sb.from('threads').select('lead_id').eq('id',tid).single();id=data?.lead_id}quoContact(id);return r}}
+if(typeof saveContactName==='function'){const _s2=saveContactName;saveContactName=async function(lid){const r=await _s2.apply(this,arguments);quoContact(lid);return r}}
  if(typeof openThreadT==='function'){const _o=openThreadT;openThreadT=async function(tid){const r=await _o.apply(this,arguments);const box=document.querySelector('.inbox3');if(box)box.classList.add('showc');const c=document.getElementById('convo');if(c&&!c.querySelector('.mback'))c.insertAdjacentHTML('afterbegin','<button class="mback" onclick="document.querySelector(\'.inbox3\').classList.remove(\'showc\')">&#8249; All conversations</button>');return r};}
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 })();

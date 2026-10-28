@@ -165,11 +165,44 @@ async function numbers(req: Request) {
   return json({ ok: true, numbers: list });
 }
 
+// Save a DLG HQ contact's name into Quo's contacts, so calls and texts on the phone show the name.
+// Matched by externalId "dlg-lead-<id>": updates the Quo contact if it exists, else creates it.
+async function contact(req: Request) {
+  const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  const { data: u } = await sb.auth.getUser(tok);
+  if (!u?.user) return json({ error: "Sign in again" }, 401);
+  const key = Deno.env.get("QUO_API_KEY");
+  if (!key) return json({ error: "Quo API key not set yet" }, 400);
+  const { lead_id } = await req.json().catch(() => ({}));
+  const { data: l } = await sb.from("leads").select("id,first_name,last_name,full_name,phone,phone2,phone3,email").eq("id", lead_id).maybeSingle();
+  if (!l) return json({ error: "Contact not found" }, 404);
+  const phones = [...new Set([l.phone, l.phone2, l.phone3].map((p: any) => d10(p)).filter(Boolean))];
+  if (!phones.length) return json({ error: "No phone number on this contact" }, 400);
+  const name = String(l.full_name || [l.first_name, l.last_name].filter(Boolean).join(" ")).trim();
+  if (!name) return json({ error: "No name on this contact" }, 400);
+  const sp = name.split(/\s+/);
+  const firstName = /&| and /i.test(name) || sp.length < 2 ? name : sp.slice(0, -1).join(" ");
+  const lastName = firstName === name ? "" : sp[sp.length - 1];
+  const defaultFields: any = { firstName, lastName, phoneNumbers: phones.map((p, i) => ({ name: i ? "Phone " + (i + 1) : "Phone", value: e164(p) })) };
+  if (l.email) defaultFields.emails = [{ name: "Email", value: l.email }];
+  const H = { Authorization: key, "Content-Type": "application/json" };
+  const ext = "dlg-lead-" + l.id;
+  const look = await fetch("https://api.quo.com/v1/contacts?externalIds=" + encodeURIComponent(ext) + "&maxResults=1", { headers: H });
+  const found = look.ok ? ((await look.json().catch(() => ({})))?.data || [])[0] : null;
+  const res = found
+    ? await fetch("https://api.quo.com/v1/contacts/" + found.id, { method: "PATCH", headers: H, body: JSON.stringify({ defaultFields }) })
+    : await fetch("https://api.quo.com/v1/contacts", { method: "POST", headers: H, body: JSON.stringify({ defaultFields, externalId: ext, source: "dlg-hq" }) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) return json({ error: out?.message || out?.title || `Quo error ${res.status}`, detail: out?.errors || null }, 400);
+  return json({ ok: true, id: out?.data?.id || found?.id, updated: !!found });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const url = new URL(req.url);
   if (url.pathname.endsWith("/send")) return send(req);
   if (url.pathname.endsWith("/numbers")) return numbers(req);
+  if (url.pathname.endsWith("/contact")) return contact(req);
   if (req.method !== "POST") return json({ ok: true, service: "dlg-quo" });
   const raw = await req.text();
   if (!(await verify(raw, req.headers.get("openphone-signature")))) return json({ error: "bad signature" }, 401);
