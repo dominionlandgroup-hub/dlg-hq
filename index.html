@@ -1300,8 +1300,17 @@ function emailScript(email,box,key){const code=GMAIL_SCRIPT.replaceAll('__EMAIL_
    </ol><button class="btn" onclick="navigator.clipboard.writeText(window._gcode).then(()=>toast('Code copied'))">📋 Copy code</button>
    <textarea readonly style="width:100%;height:140px;margin-top:8px;font-family:monospace;font-size:11px">${esc(code)}</textarea>
    <p class="small muted">Keep this code private. It lets that mailbox talk to DLG HQ.</p></div>`}
+// Responses = deals. A deal only counts for a campaign when it's linked to it, so new deals link themselves to the
+// most recent campaign that actually went out to that owner or property (letters at/after the mail house, or texts).
+async function guessCampaign(leadId,propId,before){if(!leadId&&!propId)return null;
+  const ors=[leadId?'lead_id.eq.'+leadId:null,propId?'property_id.eq.'+propId:null].filter(Boolean).join(',');
+  const {data}=await sb.from('campaign_records').select('campaign_id,campaigns(id,drop_date,created_at,mail_status,channel)').or(ors).limit(200);
+  const cut=(before||localISO()).slice(0,10);
+  const ok=(data||[]).map(r=>r.campaigns).filter(c=>c&&((c.channel&&c.channel!=='mail')||(c.mail_status&&c.mail_status!=='not_sent')))
+    .map(c=>({id:c.id,d:(c.drop_date||String(c.created_at||'').slice(0,10))})).filter(c=>c.d&&c.d<=cut).sort((a,b)=>b.d.localeCompare(a.d));
+  return ok[0]?.id||null}
 async function dealFromThread(tid){const {data:t}=await sb.from('threads').select('*, leads(id,full_name,prop_address)').eq('id',tid).single();const b=t.inbox==='buyer'?'buyer':'seller';const st=STAGES.find(s=>s.board===b);
-  const {data,error}=await sb.from('deals').insert({board:b,stage_id:st?.id,lead_id:t.lead_id,property_label:t.leads?.full_name||t.title,source:'inbox',status:'open'}).select().single();if(error)return toast(error.message);openDeal(data.id)}
+  const campaign_id=await guessCampaign(t.lead_id,null);const {data,error}=await sb.from('deals').insert({board:b,stage_id:st?.id,lead_id:t.lead_id,property_label:t.leads?.full_name||t.title,source:'inbox',status:'open',campaign_id}).select().single();if(error)return toast(error.message);openDeal(data.id)}
 async function startConversation(box){const q=prompt('Phone number or contact name');if(!q)return;const {data}=await sb.rpc('global_search',{q,lim:5});const c=data?.contacts?.[0];
   let lid=c?.id;if(!lid){const {data:n,error}=await sb.from('leads').insert({phone:q,source:'hq',status:'new',inbox:box}).select().single();if(error)return toast(error.message);lid=n.id}
   const {data:tid,error}=await sb.rpc('thread_for_lead',{lid,box});if(error)return toast(error.message);IST2.tid=tid;loadThreads();openThreadT(tid)}
@@ -1316,7 +1325,7 @@ async function sendText(leadId,box){const b=$('reply').value.trim();if(!b)return
   await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'manual reply'}).eq('lead_id',leadId).eq('status','active');
   toast('Saved to the conversation. Texts go out once Quo is connected.');openThread(leadId,box)}
 async function dealFromLead(leadId,board){const st=STAGES.find(s=>s.board===board);const {data:l}=await sb.from('leads').select('*').eq('id',leadId).single();
-  const {data,error}=await sb.from('deals').insert({board,stage_id:st?.id,lead_id:leadId,property_label:l.prop_address||null,source:l.lead_source||null}).select().single();if(error)return toast(error.message);openDeal(data.id)}
+  const campaign_id=await guessCampaign(leadId,null);const {data,error}=await sb.from('deals').insert({board,stage_id:st?.id,lead_id:leadId,property_label:l.prop_address||null,source:l.lead_source||null,campaign_id}).select().single();if(error)return toast(error.message);openDeal(data.id)}
 
 // ---------- campaigns ----------
 const MAILHOUSE_PAGE=()=>store.get('mailhousePage')||'https://dominionlandgroup-hub.github.io/dlg-hq/mailhouse.html';
@@ -1710,7 +1719,7 @@ async function openProperty(id){
 async function saveFields(id){const {error}=await sb.from('properties').update({tags:$('p_tags').value.split(',').map(s=>s.trim()).filter(Boolean),updated_at:new Date().toISOString()}).eq('id',id);toast(error?error.message:'Saved')}
 async function addTx(id){const p=$('tx_p').value;if(!p)return;await sb.from('transactions').insert({property_id:id,kind:$('tx_k').value,tx_date:$('tx_d').value||localISO(),price:+p,costs:+$('tx_c').value||0});openProperty(id)}
 async function dealFromProperty(pid,board){const {data:o}=await sb.from('property_owners').select('lead_id').eq('property_id',pid).limit(1);const {data:p}=await sb.from('properties').select('address,city').eq('id',pid).single();
-  const {data,error}=await sb.from('deals').insert({board,stage_id:STAGES.find(s=>s.board===board)?.id,property_id:pid,lead_id:o?.[0]?.lead_id||null,property_label:[p.address,p.city].filter(Boolean).join(', ')||null}).select().single();if(error)return toast(error.message);openDeal(data.id)}
+  const campaign_id=await guessCampaign(o?.[0]?.lead_id||null,pid);const {data,error}=await sb.from('deals').insert({board,stage_id:STAGES.find(s=>s.board===board)?.id,property_id:pid,lead_id:o?.[0]?.lead_id||null,property_label:[p.address,p.city].filter(Boolean).join(', ')||null,campaign_id}).select().single();if(error)return toast(error.message);openDeal(data.id)}
 function editProperty(){openDrawer(head('New property')+`<div class="card">
   <div class="row"><input id="np_apn" placeholder="APN"><input id="np_county" placeholder="County"><input id="np_st" placeholder="State" style="flex:0 0 80px"></div><br>
   <div class="row"><input id="np_addr" placeholder="Address"><input id="np_city" placeholder="City"><input id="np_acres" placeholder="Acres" type="number"></div><br>
