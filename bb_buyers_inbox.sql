@@ -56,27 +56,27 @@ end $$;
 
 -- daily run (weekdays): sends from buyers@dominionlandgroup.land with a warm-up ramp (20/day week 1, 40/day week 2, then 75/day, follow-ups included). Agents first.
 insert into app_secrets (name, value) values ('buybox_ramp_start', to_char(now() at time zone 'America/New_York','YYYY-MM-DD')) on conflict (name) do update set value = excluded.value;
-create or replace function buybox_run() returns json language plpgsql security definer set search_path=public as $$
-declare acct bigint; b buyers; e json; oid bigint; gid text; n_first int := 0; n_fu int := 0; waitd int[] := array[0,3,4,7];
-  d int; cap int;
+create or replace function buybox_run() RETURNS json LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $function$
+declare acct bigint; b buyers; e json; oid bigint; n_first int := 0; n_fu int := 0; waitd int[] := array[0,3,4,7]; d int; cap int;
 begin
   if coalesce((select value from app_secrets where name='buybox_sending'),'off') <> 'on' then return json_build_object('skipped','sending is off'); end if;
   select id into acct from email_accounts where inbox = 'buyer' and lower(email) = 'buyers@dominionlandgroup.land' order by id limit 1;
   if acct is null then return json_build_object('error','buyers@dominionlandgroup.land is not connected'); end if;
   d := (now() at time zone 'America/New_York')::date - coalesce((select value from app_secrets where name='buybox_ramp_start')::date, current_date);
   cap := case when d < 7 then 20 when d < 14 then 40 else 75 end;
-  -- replies stop the sequence
+  -- replies stop the sequence (out-of-office / auto-replies do not)
   update buyers x set bb_status = case when exists (select 1 from messages m where m.direction='in' and m.channel='email' and lower(m.email_from) like '%' || lower(x.email) || '%' and m.created_at > x.bb_first_sent
                                          and m.body ~* '\m(remove|unsubscribe|stop emailing)\M') then 'removed' else 'replied' end
     where x.bb_status = 'sent' and x.email is not null
-      and exists (select 1 from messages m where m.direction='in' and m.channel='email' and lower(m.email_from) like '%' || lower(x.email) || '%' and m.created_at > x.bb_first_sent);
+      and exists (select 1 from messages m where m.direction='in' and m.channel='email' and lower(m.email_from) like '%' || lower(x.email) || '%' and m.created_at > x.bb_first_sent
+                  and coalesce(m.subject,'') !~* '(out of (the )?office|automatic reply|auto.?reply|autoreply|away from|on vacation|delivery status|undeliverable)');
   update buyers set bb_status = 'bounced' where bb_status = 'sent' and bb_last_outbox in (select id from email_outbox where status = 'failed');
   update buyers set bb_status = 'no response' where bb_status = 'sent' and bb_step >= 3 and bb_last_sent < now() - interval '7 days';
-  -- follow-ups (count toward the daily cap)
-  for b in select * from buyers where bb_status = 'sent' and bb_step < 3 and bb_last_sent < now() - make_interval(days => (waitd)[bb_step + 2]) order by (bb_group = 'Agent') desc, bb_last_sent limit cap loop
+  -- follow-ups (count toward the daily cap, at most half of it).
+  -- Sent as a fresh email TO THE AGENT. Never as a Gmail reply: replying to our own sent message routes it back to buyers@ (bug fixed Oct 15, returned Oct 24, fixed again Oct 28).
+  for b in select * from buyers where bb_status = 'sent' and bb_step < 3 and bb_last_sent < now() - make_interval(days => (waitd)[bb_step + 2]) order by (bb_group = 'Agent') desc, bb_last_sent limit cap / 2 loop
     e := bb_email(b, b.bb_step + 1);
-    select gmail_id into gid from email_outbox where id = b.bb_last_outbox;
-    insert into email_outbox (account_id, to_email, subject, body, reply_to_gmail_id) values (acct, b.email, e->>'subject', e->>'body', gid) returning id into oid;
+    insert into email_outbox (account_id, to_email, subject, body) values (acct, b.email, e->>'subject', e->>'body') returning id into oid;
     update buyers set bb_step = bb_step + 1, bb_last_sent = now(), bb_last_outbox = oid where id = b.id; n_fu := n_fu + 1;
   end loop;
   -- first emails: high-end agents first, then past buyers, then the rest
@@ -87,5 +87,5 @@ begin
     update buyers set bb_status = 'sent', bb_step = 0, bb_first_sent = now(), bb_last_sent = now(), bb_last_outbox = oid where id = b.id; n_first := n_first + 1;
   end loop;
   return json_build_object('first', n_first, 'followups', n_fu, 'cap', cap);
-end $$;
+end $function$;
 revoke all on function buybox_run() from public, anon, authenticated;
