@@ -293,7 +293,7 @@ async function enrichOther(sb: any, log: string[], deadline: number, area: strin
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
   const { data: rows, error } = await sb.from("foreclosure_cases")
     .select("id, state, county, parcel, address, owner_name, is_heirs, county_checked_at")
-    .neq("county", "Mecklenburg").is("gone_since", null)
+    .neq("county", "Mecklenburg").neq("source", "canopy").is("gone_since", null)
     .or("county_checked_at.is.null,county_checked_at.lt." + weekAgo).range(0, 4999);
   if (error) throw new Error("other-county select: " + error.message);
   // Damien's counties first; stop before Supabase's 150-second request limit (the rest continue on the next run)
@@ -545,6 +545,7 @@ Deno.serve(async (req) => {
   let changed = 0;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
   for (const c of all ?? []) {
+    if (c.source === "canopy") continue; // Canopy cases carry their own underwriting (value estimate + recorded loans), saved when imported
     const uw = underwrite(c, minFee, today);
     const same = (x: unknown, y: unknown) => (x === null || x === undefined ? null : typeof y === "number" ? Number(x) : x) === (y === undefined ? null : y);
     const diff = (["est_debt", "est_spread", "verdict", "verdict_reason", "est_debt_method", "est_spread_note"] as const).some((k) => !same((c as any)[k], (uw as any)[k]));

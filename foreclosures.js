@@ -3,7 +3,7 @@
 // Every dollar figure here except the firm's bids and the county value is an ESTIMATE and is labeled that way.
 const FC = { verdict: 'Pursue', area: 'mine', source: '', q: '', showGone: false, rows: [], counties: [], minFee: 25000 };
 const FC_STATUSES = [['new', 'New'], ['researching', 'Researching'], ['contacting', 'Contacting owner'], ['offer', 'Offer made'], ['dead', 'Dead']];
-const FC_SOURCES = { ruff: 'Ruff Bond (tax)', kania: 'Kania (tax)', brock: 'Brock & Scott (mortgage)' };
+const FC_SOURCES = { ruff: 'Ruff Bond (tax)', kania: 'Kania (tax)', brock: 'Brock & Scott (mortgage)', canopy: 'Canopy (other lenders)' };
 
 function fcToday() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date()); }
 function fcDays(d) { if (!d) return null; return Math.round((new Date(String(d).slice(0, 10) + 'T12:00:00') - new Date(fcToday() + 'T12:00:00')) / 864e5); }
@@ -107,7 +107,7 @@ function fcOpen(id) {
   const c = FC.rows.find(x => x.id === id); if (!c) return;
   const line = (l, v) => `<tr><td class="small muted" style="width:170px;vertical-align:top">${l}</td><td>${v === null || v === undefined || v === '' ? '<span class="muted">—</span>' : v}</td></tr>`;
   const meckLink = c.parcel && c.county === 'Mecklenburg' ? ` <a href="https://polaris3g.mecklenburgcountync.gov/pid/${encodeURIComponent(c.parcel)}" target="_blank" rel="noopener">Polaris</a>` : '';
-  const srcUrl = { ruff: 'https://www.rbcwb.com/tax-foreclosure-listings/', kania: 'https://kanialawfirm.com/tax-foreclosures/foreclosure-listings/', brock: 'https://www.brockandscott.com/foreclosure-sales/' }[c.source];
+  const srcUrl = { ruff: 'https://www.rbcwb.com/tax-foreclosure-listings/', kania: 'https://kanialawfirm.com/tax-foreclosures/foreclosure-listings/', brock: 'https://www.brockandscott.com/foreclosure-sales/', canopy: 'https://matrix.canopymls.com/Matrix/PublicRecords/MatrixTaxSearch' }[c.source];
   window._wideNext = true;
   openDrawer(`<div class="dhead"><div><div class="small muted">Foreclosure · ${esc(FC_SOURCES[c.source] || c.source)}</div><h2 style="margin:2px 0 0">${esc(c.address || '(no address)')}</h2><div class="small muted">${esc(c.county || '')}${c.state ? ', ' + esc(c.state) : ''}${c.zip ? ' ' + esc(c.zip) : ''}</div></div><button class="btn ghost" onclick="closeDrawer()">Close</button></div>
     <div class="card">${fcPill(c.verdict)} <span class="small">${esc(c.verdict_reason || '')}</span>
