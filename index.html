@@ -1093,8 +1093,9 @@ async function rsRefresh(id,remind,kind){toast(remind?'Sending reminder…':'Che
 
 // ---------- inboxes ----------
 // ---------- inboxes (modeled on Pebble: list · conversation · contact/deal panel) ----------
-let IST2={status:'unread',term:'',tid:null,box:'seller'}; // seller and buyer inboxes open on Unread
-async function vInbox(box){if(!PNUMS)await loadPnums();if(IST2.box!==box)IST2={status:'unread',term:'',tid:null,box};
+const INBOX_DEFAULT=box=>box==='seller'?'all':'unread'; // seller inbox opens on All, buyer inbox on Unread
+let IST2={status:'all',term:'',tid:null,box:'seller'};
+async function vInbox(box){if(!PNUMS)await loadPnums();if(IST2.box!==box)IST2={status:INBOX_DEFAULT(box),term:'',tid:null,box};
   $('actions').innerHTML=`<button class="btn ghost" onclick="emailSetup('${box}')">✉ Email settings</button> <button class="btn ghost" onclick="phoneSetup()">☎ Phone numbers</button> <button class="btn" onclick="startConversation('${box}')">+ Start Conversation</button>`;
   $('view').innerHTML=`<div class="inbox3"><div class="tlist"><div class="tl-top"><input id="tq" placeholder="Search conversations" value="${esc(IST2.term)}">
      <div class="seg" id="seg2">${SEGS.map(([x,l])=>`<button class="${IST2.status===x?'on':''}" onclick="IST2.status='${x}';drawSeg();loadThreads()">${l}</button>`).join('')}</div></div><div id="tl"></div></div>
