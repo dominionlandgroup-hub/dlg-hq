@@ -260,6 +260,122 @@ async function enrichMeck(sb: any, log: string[]) {
   return { matched, unmatched, parcels: pids.length };
 }
 
+
+// ---------- Other counties: NC statewide parcel map (all 100 NC counties) + York County SC ----------
+// Fills county value, owner on record, mailing address, use, acres, last sale date and deed book.
+// Only cases not checked in the last 7 days are looked up, so the nightly run stays fast.
+const NC1 = "https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query";
+const YORKSC = "https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0/query";
+const digits = (s: unknown) => String(s ?? "").replace(/\D/g, "");
+const HEIRS_RE = /\bHEIRS?\b|\bESTATE\b|\bEST OF\b|\bDECEASED\b|\bDECD\b|\bUNKNOWN HEIRS\b/i;
+async function arcQuery(url: string, where: string, out: string): Promise<any[]> {
+  const u = new URL(url);
+  u.searchParams.set("where", where); u.searchParams.set("outFields", out);
+  u.searchParams.set("returnGeometry", "false"); u.searchParams.set("f", "json");
+  let last = "";
+  for (let t = 0; t < 3; t++) {
+    try {
+      const r = await getText(u);
+      if (r.status === 200) { const j = JSON.parse(r.text); if (!j.error) return j.features ?? []; last = JSON.stringify(j.error).slice(0, 200); }
+      else last = "HTTP " + r.status;
+    } catch (e) { last = String((e as Error).message ?? e); }
+    await sleep(1500);
+  }
+  throw new Error("county map query failed: " + last);
+}
+const streetParts = (addr: unknown) => {
+  const m = String(addr ?? "").toUpperCase().match(/^(\d+)\s+(?:(?:N|S|E|W|NE|NW|SE|SW)\s+)?([A-Z0-9]+)/);
+  return m && m[2].length >= 2 ? { num: m[1], word: m[2].replace(/'/g, "''") } : null;
+};
+async function enrichOther(sb: any, log: string[]) {
+  const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+  const { data: rows, error } = await sb.from("foreclosure_cases")
+    .select("id, state, county, parcel, address, owner_name, is_heirs, county_checked_at")
+    .neq("county", "Mecklenburg").is("gone_since", null)
+    .or("county_checked_at.is.null,county_checked_at.lt." + weekAgo).range(0, 4999);
+  if (error) throw new Error("other-county select: " + error.message);
+  let matched = 0, missed = 0, skipped = 0;
+  const save = async (c: any, upd: Record<string, unknown>) => {
+    const { error: ue } = await sb.from("foreclosure_cases").update({ ...upd, county_checked_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", c.id);
+    if (ue) throw new Error("other-county update: " + ue.message);
+  };
+  const fromNC = (c: any, a: any) => {
+    const yr = a.saledate ? new Date(a.saledate).getUTCFullYear() : 0;
+    const book = (String(a.sourceref ?? "").match(/(\d{2,6})\s*\/\s*\d+/) || [])[1] || null;
+    const upd: Record<string, unknown> = {
+      county_data_status: "connected (NC statewide parcel map)",
+      county_owner: a.ownname ?? null,
+      county_mail_address: [[a.mailadd, a.munit].filter(Boolean).join(" "), a.mcity, a.mstate, digits(a.mzip).slice(0, 5)].filter(Boolean).join(", ") || null,
+      county_value: a.parval ?? ((a.landval ?? 0) + (a.improvval ?? 0) || null),
+      county_land_value: a.landval ?? null, county_acres: a.gisacres ?? null, county_use: a.parusedesc ?? null,
+      county_last_sale_date: yr >= 1950 ? new Date(a.saledate).toISOString().slice(0, 10) : null,
+      county_last_sale_price: null, county_deed_book: book,
+    };
+    if (!c.parcel && a.parno) upd.parcel = a.parno;
+    if (HEIRS_RE.test(String(a.ownname ?? ""))) upd.is_heirs = true;
+    return upd;
+  };
+  const NCOUT = "parno,altparno,ownname,mailadd,munit,mcity,mstate,mzip,parval,landval,improvval,gisacres,parusedesc,saledate,sourceref,siteadd,cntyname";
+  // NC: by parcel number first (Kania lists them), then by street address (Brock & Scott lists only addresses)
+  const nc = (rows ?? []).filter((c: any) => c.state === "NC");
+  const byCounty = new Map<string, any[]>();
+  for (const c of nc) byCounty.set(c.county, [...(byCounty.get(c.county) ?? []), c]);
+  for (const [county, list] of byCounty) {
+    const cq = String(county).replace(/'/g, "''");
+    const withParcel = list.filter((c: any) => c.parcel);
+    const found = new Map<number, any>();
+    for (let i = 0; i < withParcel.length; i += 40) {
+      const chunk = withParcel.slice(i, i + 40);
+      const vals = [...new Set(chunk.flatMap((c: any) => [String(c.parcel).trim(), digits(c.parcel)]).filter((v: string) => v.length >= 3))].map((v) => "'" + v.replace(/'/g, "''") + "'");
+      if (!vals.length) continue;
+      const feats = await arcQuery(NC1, "cntyname='" + cq + "' AND (parno IN (" + vals.join(",") + ") OR altparno IN (" + vals.join(",") + "))", NCOUT);
+      for (const c of chunk) {
+        const want = [String(c.parcel).trim().toUpperCase(), digits(c.parcel)];
+        const hit = feats.find((f: any) => [f.attributes.parno, f.attributes.altparno].some((x: unknown) => x && (want.includes(String(x).trim().toUpperCase()) || (digits(x).length >= 4 && digits(x) === digits(c.parcel)))));
+        if (hit) found.set(c.id, hit.attributes);
+      }
+    }
+    for (const c of list) {
+      let a = found.get(c.id);
+      if (!a) {
+        const sp = streetParts(c.address);
+        if (sp) {
+          const feats = await arcQuery(NC1, "cntyname='" + cq + "' AND siteadd LIKE '" + sp.num + " %" + sp.word + "%'", NCOUT);
+          const pids = [...new Set(feats.map((f: any) => f.attributes.parno))];
+          if (pids.length === 1) a = feats[0].attributes;
+          else if (pids.length > 1) { await save(c, { county_data_status: "several county parcels match this address - check" }); missed++; continue; }
+        }
+      }
+      if (a) { await save(c, fromNC(c, a)); matched++; }
+      else { await save(c, { county_data_status: "not found in NC statewide parcel map" }); missed++; }
+    }
+  }
+  // York County SC (Brock & Scott SC cases)
+  const york = (rows ?? []).filter((c: any) => c.state === "SC" && /^york$/i.test(c.county || ""));
+  for (const c of york) {
+    const sp = streetParts(c.address);
+    if (!sp) { await save(c, { county_data_status: "address not usable for York lookup" }); missed++; continue; }
+    const feats = await arcQuery(YORKSC, "PropertyAddress LIKE '" + sp.num + " %" + sp.word + "%'", "ParcelID,Owner1,Owner2,MailAddr1,MailAddr2,MailCity,MailState,MailZip,AprLandVal,AprBldgVal,GISSizeAC,LandUseDesc,DateSold,PropertyAddress");
+    const pids = [...new Set(feats.map((f: any) => f.attributes.ParcelID))];
+    if (pids.length !== 1) { await save(c, { county_data_status: pids.length ? "several county parcels match this address - check" : "address not found in York County data" }); missed++; continue; }
+    const a = feats[0].attributes; const owner = [a.Owner1, a.Owner2].filter(Boolean).join(" & ");
+    const upd: Record<string, unknown> = {
+      county_data_status: "connected (York County SC)", parcel: c.parcel || a.ParcelID, county_owner: owner || null,
+      county_mail_address: [[a.MailAddr1, a.MailAddr2].filter(Boolean).join(" "), a.MailCity, a.MailState, digits(a.MailZip).slice(0, 5)].filter(Boolean).join(", ") || null,
+      county_value: (a.AprLandVal ?? 0) + (a.AprBldgVal ?? 0) || null, county_land_value: a.AprLandVal ?? null,
+      county_acres: a.GISSizeAC ?? null, county_use: a.LandUseDesc ?? null,
+      county_last_sale_date: a.DateSold ? new Date(a.DateSold).toISOString().slice(0, 10) : null, county_last_sale_price: null, county_deed_book: null,
+    };
+    if (HEIRS_RE.test(owner)) upd.is_heirs = true;
+    await save(c, upd); matched++;
+  }
+  skipped = (rows ?? []).length - nc.length - york.length;
+  // other SC counties are not connected yet; give them an explicit status once
+  for (const c of (rows ?? []).filter((c: any) => c.state === "SC" && !/^york$/i.test(c.county || ""))) await save(c, { county_data_status: "county data not connected yet (SC " + (c.county || "?") + ")" });
+  log.push("other counties: " + matched + " matched, " + missed + " not matched, " + skipped + " SC cases outside York");
+  return { matched, missed, skipped };
+}
+
 // ---------- first-pass underwriting (ESTIMATES; every number is labeled) ----------
 function underwrite(c: any, minFee: number, today: string) {
   const usd = (n: number) => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocaleString("en-US");
@@ -288,6 +404,9 @@ function underwrite(c: any, minFee: number, today: string) {
       ? "Loan was recorded after the purchase (refinance or equity loan) - amount unknown, check the Register of Deeds"
       : "Loan is older than the current owner's deed - check the Register of Deeds";
   }
+  // Outside Mecklenburg the county map has no sale price, so a recent buyer's mortgage can't be estimated.
+  if (!loanFlag && (c.source === "ruff" || c.source === "kania") && c.county_last_sale_price == null && saleYear && Number(today.slice(0, 4)) - saleYear < 15)
+    loanFlag = "Bought in " + saleYear + " and the county map has no sale price - there may be a mortgage, check the Register of Deeds";
   const debtMethod = estDebt !== null ? "est: " + parts.join(" + ") : null;
   const value = c.county_value != null ? Number(c.county_value) : null;
   const spread = value !== null && estDebt !== null ? Math.round(value * 0.7 - estDebt) : null;
@@ -298,14 +417,15 @@ function underwrite(c: any, minFee: number, today: string) {
   else if (c.is_paid_or_dismissed) { verdict = "Skip"; reason = "Paid or dismissed per the firm's list"; }
   else if (c.is_commercial) { verdict = "Skip"; reason = "Commercial / non-residential"; }
   else if (past(c.upset_last_day)) { verdict = "Skip"; reason = "Auction finished (upset period ended " + c.upset_last_day + ")"; }
+  else if (c.current_bid != null || c.upset_last_day) { verdict = "Skip"; reason = "Auction already held / in the upset-bid period" + (c.upset_last_day ? " (ends " + c.upset_last_day + ")" : ""); }
+  else if (past(c.sale_date)) { verdict = "Skip"; reason = "Sale date " + c.sale_date + " has passed"; }
   else if (value !== null && value < 60000) { verdict = "Skip"; reason = "Too cheap: county value " + usd(value); }
-  else if (c.county !== "Mecklenburg") { verdict = "Review"; reason = "County data not connected yet for " + (c.county || "this county") + " - can't size equity"; }
+  else if (!/^connected/.test(c.county_data_status || "") && !/differs|several|not found/.test(c.county_data_status || "")) { verdict = "Review"; reason = "County data not connected yet for " + (c.county || "this county") + " - can't size equity"; }
   else if (/differs|several|not found/.test(c.county_data_status || "")) { verdict = "Review"; reason = "County record: " + c.county_data_status; }
   else if (spread === null) { verdict = "Review"; reason = "No county value or debt estimate yet - can't size equity"; }
   else if (spread < minFee) { verdict = "Skip"; reason = "Est. room " + usd(spread) + " is below your " + usd(minFee) + " minimum"; }
-  else if (c.current_bid != null && c.upset_last_day) { verdict = "Review"; reason = "Auction already held (bid " + usd(c.current_bid) + "); upset period ends " + c.upset_last_day + ". Est. room " + usd(spread); }
+
   else if (loanFlag) { verdict = "Review"; reason = loanFlag + ". Est. room if the loan is small: " + usd(spread); }
-  else if (past(c.sale_date)) { verdict = "Review"; reason = "Sale date " + c.sale_date + " has passed - check if it sold. Est. room " + usd(spread); }
   else { verdict = "Pursue"; reason = "Est. room " + usd(spread) + " clears your " + usd(minFee) + " minimum" + (c.is_heirs ? ". Heirs/estate: heir research needed before any offer" : ""); }
   return { est_debt: estDebt, est_debt_method: debtMethod, est_spread: spread, est_spread_note: note, verdict, verdict_reason: reason };
 }
@@ -390,6 +510,8 @@ Deno.serve(async (req) => {
     try {
       await resolveMeckParcels(sb, detail);
       const c = await enrichMeck(sb, detail);
+      const o = await enrichOther(sb, detail);
+      (c as any).other = o;
       results.county = { ok: true, ...c };
       await sb.from("foreclosure_scout_runs").insert({ started_at: startedAt, finished_at: new Date().toISOString(), source: "county", trigger, ok: true, rows_found: c.parcels, detail: { matched: c.matched, unmatched: c.unmatched } });
     } catch (e) {
