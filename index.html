@@ -1110,12 +1110,14 @@ async function vInbox(box){if(!PNUMS)await loadPnums();if(IST2.box!==box)IST2={s
      <div class="seg" id="seg2">${SEGS.map(([x,l])=>`<button class="${IST2.status===x?'on':''}" onclick="IST2.status='${x}';drawSeg();loadThreads()">${l}</button>`).join('')}</div></div><div id="tl"></div></div>
    <div class="convo" id="convo"><div class="muted" style="padding:20px">Pick a conversation.</div></div><div class="cpanel" id="cpanel"></div></div>`;
   let t;$('tq').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{IST2.term=e.target.value.trim();loadThreads()},300)};loadThreads(true)}
-async function loadThreads(first){const {data,error}=await sb.rpc('inbox_threads',{box:IST2.box,status:IST2.status,term:IST2.term||null,lim:200,off:0});
+async function loadThreads(first){let {data,error}=await sb.rpc('inbox_threads',{box:IST2.box,status:IST2.status,term:IST2.term||null,lim:200,off:0});
+  // blocked conversations only show under Archived
+  if(!error&&IST2.status!=='archived'){const {data:mu}=await sb.from('threads').select('id').eq('muted',true).limit(1000);const M=new Set((mu||[]).map(x=>x.id));data=(data||[]).filter(t=>!M.has(t.id))}
   if(error){$('tl').innerHTML=`<div class="muted small" style="padding:12px">${esc(error.message)}</div>`;return}
   document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.textContent.toLowerCase()===IST2.status));
   const ic=c=>c==='call'?'📞':c==='email'?'✉':c==='web'?'🌐':'💬';const ini=n=>(n||'').split(/\s+/).filter(w=>/^[A-Za-z]/.test(w)).slice(0,2).map(w=>w[0]).join('').toUpperCase();
   const item=t=>`<div class="titem ${t.unread?'unread':''} ${t.id===IST2.tid?'on':''}" onclick="openThreadT(${t.id})"><div class="av">${ini(t.lead_name||t.title)||'👤'}</div><div class="tb"><div class="tr1"><b>${esc(t.lead_name||t.title||t.phone||'Unknown')}</b><span>${ic(t.last_channel)}</span></div>
-     <div class="tr2"><span>${t.last_channel==='call'?'Call':t.last_channel==='email'?'Email':'Text Message'} ${esc((t.last_body||'').slice(0,70))}</span><span class="d">${t.last_at?new Date(t.last_at).toLocaleDateString('en-US',{month:'short',day:'2-digit'}):''}</span></div></div>${t.unread?`<span class="ub">${t.unread}</span>`:''}</div>`;
+     <div class="tr2"><span>${t.last_channel==='call'?'Call':t.last_channel==='email'?'Email':t.last_channel==='web'?'Website':'Text Message'} ${esc((t.last_body||'').slice(0,70))}</span><span class="d">${t.last_at?new Date(t.last_at).toLocaleDateString('en-US',{month:'short',day:'2-digit'}):''}</span></div></div>${t.unread?`<span class="ub">${t.unread}</span>`:''}</div>`;
   const P=(data||[]).filter(t=>t.pinned),A=(data||[]).filter(t=>!t.pinned);
   $('tl').innerHTML=(P.length?'<div class="tsec">Pinned</div>'+P.map(item).join(''):'')+'<div class="tsec">All</div>'+(A.map(item).join('')||'<div class="muted small" style="padding:12px">No conversations.</div>');
   if(first&&data&&data.length&&!IST2.tid&&window.innerWidth>700)openThreadT(data[0].id)}
