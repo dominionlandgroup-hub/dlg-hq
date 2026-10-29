@@ -23,7 +23,7 @@ async function vAcreage() {
     return;
   }
   AC.rows = t.data || []; AC.buyers = b.data || []; AC.comps = c.data || [];
-  $('actions').innerHTML = `<input type="file" id="acFile" accept=".xlsx" style="display:none" onchange="acImport(this.files[0])"><button class="btn" onclick="$('acFile').click()">Import acreage list (.xlsx)</button>`;
+  $('actions').innerHTML = `<input type="file" id="acFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" style="display:none" onchange="acImport(this.files[0])"><button class="btn" onclick="$('acFile').click()">Import acreage list (.xlsx)</button>`;
   const counties = [...new Set(AC.rows.map(r => r.county).filter(Boolean))].sort();
   $('view').innerHTML = `
     <div class="card" style="padding:12px 14px">
