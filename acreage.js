@@ -1,7 +1,7 @@
 // DLG HQ - Acreage Play tab.
 // Tracts, builder buyers and comps come from the "REVIEW - NC Acreage List" spreadsheet (Import button).
 // Sewer tiers are map-based; always confirm capacity with the utility before an offer.
-const AC = { tab: 'tracts', tier: '1', county: '', status: '', q: '', rows: [], buyers: [], comps: [] };
+const AC = { tab: 'tracts', tier: '1', county: '', status: '', q: '', ready: false, rows: [], buyers: [], comps: [] };
 const AC_STATUSES = [['new', 'New'], ['mailed', 'Mailed'], ['contacting', 'Contacting owner'], ['utility', 'Utility check'], ['offer', 'Offer made'], ['contract', 'Under contract'], ['dead', 'Dead']];
 const AC_TIERS = { '1': 'Sewer likely', '2': 'Sewer nearby', '3': 'Well/septic area' };
 
@@ -31,6 +31,7 @@ async function vAcreage() {
         <ol class="small" style="margin:8px 0 0 18px;line-height:1.6">
           <li><b>Follow the builders.</b> Every tract here is 15-150 acres, owned by an individual, with a builder or developer buying 10+ acres within 2 miles since July 2024.</li>
           <li><b>Sewer decides the fee.</b> Sewer land sells for 2-4x well/septic land. Tier 1 = sewer likely, Tier 2 = sewer nearby, Tier 3 = well/septic (homesite buyers, thin spread).</li>
+          <li><b>Site check:</b> every tract is checked against the NCDOT road map and FEMA flood maps. "No road found" can still be a private drive or easement, so verify before writing it off. Over 50% flood usually kills the deal.</li>
           <li><b>Mail everyone a general acreage letter</b> (no blind offers on acreage). Call Tier 1 owners first.</li>
           <li><b>Price with the Comps tab</b>: start from the county median for that size, use the sewer comps on Tier 1 tracts.</li>
           <li><b>Call the utility before any offer</b> on a Tier 1 tract: capacity, gravity vs. pump, extension cost.</li>
@@ -43,6 +44,7 @@ async function vAcreage() {
         <div class="seg" id="acTier" style="margin:0;flex:0 0 auto">${['1', '2', '3', 'All'].map(v => `<button class="${AC.tier === v ? 'on' : ''}" onclick="AC.tier='${v}';vAcreageDraw()">${v === 'All' ? 'All' : AC_TIERS[v]} <span id="acN_${v}" class="small"></span></button>`).join('')}</div>
         <select style="width:auto" onchange="AC.county=this.value;vAcreageDraw()"><option value="">All counties</option>${counties.map(c => `<option ${AC.county === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select style="width:auto" onchange="AC.status=this.value;vAcreageDraw()"><option value="">Any status</option>${AC_STATUSES.map(([k, l]) => `<option value="${k}" ${AC.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${AC.ready ? 'checked' : ''} onchange="AC.ready=this.checked;vAcreageDraw()"> Mail-ready only (road found, under 50% flood)</label>
         <input placeholder="Search owner, road, parcel, buyer" style="width:240px" value="${esc(AC.q)}" oninput="AC.q=this.value;vAcreageDraw()">
       </div>
     </div>
@@ -50,12 +52,21 @@ async function vAcreage() {
   vAcreageDraw();
 }
 
+function acMailReady(r) { return r.road_found === true && (r.flood_pct == null || r.flood_pct < 50) && !['dead', 'mailed'].includes(r.my_status || 'new'); }
+function acSiteFlags(r) {
+  const f = [];
+  if (r.road_found === false) f.push('<span class="pill" style="background:#fde8e8;color:#a61b1b">No road found</span>');
+  if (r.flood_pct >= 50) f.push(`<span class="pill" style="background:#fde8e8;color:#a61b1b">${r.flood_pct}% flood</span>`);
+  else if (r.flood_pct >= 10) f.push(`<span class="pill" style="background:#fff4d6;color:#7a5a00">${r.flood_pct}% flood</span>`);
+  return f.join(' ');
+}
 function acFiltered(ignoreTier) {
   const q = AC.q.trim().toLowerCase();
   return AC.rows.filter(r => {
     if (!ignoreTier && AC.tier !== 'All' && String(r.sewer_tier || '').charAt(0) !== AC.tier) return false;
     if (AC.county && r.county !== AC.county) return false;
     if (AC.status && (r.my_status || 'new') !== AC.status) return false;
+    if (AC.ready && !acMailReady(r)) return false;
     if (q && ![r.owner_name, r.owner_name2, r.address, r.parcel, r.nearest_buyer, r.mail_city].some(x => String(x || '').toLowerCase().includes(q))) return false;
     return true;
   });
@@ -74,7 +85,7 @@ function vAcreageDraw() {
   const head = `<tr><th>Sewer</th><th>Owner</th><th>Tract</th><th class="right">Acres</th><th class="right">Land value</th><th>Builder buys nearby</th><th>My status</th><th></th></tr>`;
   if (!rows.length) { t.innerHTML = head + `<tr><td colspan="8" class="muted">${AC.rows.length ? 'No tracts match these filters.' : 'No tracts yet. Click "Import acreage list (.xlsx)" and pick the REVIEW - NC Acreage List file.'}</td></tr>`; return; }
   t.innerHTML = head + rows.slice(0, 1500).map(r => `<tr>
-      <td>${acTierPill(r.sewer_tier)}</td>
+      <td>${acTierPill(r.sewer_tier)}<div style="margin-top:3px">${acSiteFlags(r)}</div></td>
       <td><b>${esc(r.owner_name || '')}</b><div class="small muted">${esc([r.mail_city, r.mail_state].filter(Boolean).join(', '))}</div></td>
       <td>${esc(r.address || '(no site address)')}<div class="small muted">${esc(r.county || '')} · ${esc(r.parcel || '')} · owned since ${esc(r.owned_since || '—')}</div></td>
       <td class="right num">${r.acres ?? '—'}</td>
@@ -120,6 +131,7 @@ function acOpen(id) {
       ${line('Owned since', esc(r.owned_since || ''))}
       ${line('Land / total value', (r.land_value != null ? money(r.land_value) : '—') + ' / ' + (r.total_value != null ? money(r.total_value) : '—') + ' <span class="small muted">(county tax value, not market)</span>')}
       ${line('Road frontage', esc(r.road_frontage || ''))}
+      ${line('Flood (FEMA)', r.flood_pct != null ? `${r.flood_pct}% of the tract in the 100-year flood zone${r.floodway ? ' · includes floodway (can\'t build)' : ''}${r.flood_zones ? ' <span class="small muted">zones ' + esc(r.flood_zones) + '</span>' : ''}` : null)}
       ${line('Land use', esc(r.land_use || ''))}
       ${line('Builder buys nearby', `${r.builder_buys_2mi ?? 0} within 2 miles · nearest: ${esc(r.nearest_buyer || '')}${r.nearest_buyer_mi != null ? ' (' + r.nearest_buyer_mi + ' mi)' : ''}`)}
       ${line('County comps', comp || null)}
