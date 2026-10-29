@@ -11,10 +11,21 @@ function acTierPill(t) {
   return `<span class="pill" style="${s}">${esc(AC_TIERS[k] || t || '—')}</span>`;
 }
 
+async function acAllTracts() {
+  const all = [];
+  for (let i = 0; i < 20000; i += 1000) {
+    const r = await sb.from('acreage_tracts').select('*').order('score', { ascending: false }).order('id').range(i, i + 999);
+    if (r.error) return r;
+    all.push(...r.data);
+    if (r.data.length < 1000) break;
+  }
+  return { data: all, error: null };
+}
+
 async function vAcreage() {
   $('view').innerHTML = '<div class="muted">Loading…</div>';
   const [t, b, c] = await Promise.all([
-    sb.from('acreage_tracts').select('*').order('score', { ascending: false }).range(0, 4999),
+    acAllTracts(),
     sb.from('acreage_buyers').select('*').order('acres', { ascending: false }).range(0, 1999),
     sb.from('acreage_comps').select('*'),
   ]);
