@@ -128,13 +128,18 @@
       const label = `${name} - ${plan.name} (step ${e.next_step + 1}/${st.length})`;
       if (!dry) { const { data: claim } = await sb.from('followup_enrollments').update({ last_attempt_at: new Date().toISOString(), next_step: e.next_step + 1 }).eq('id', e.id).eq('next_step', e.next_step).eq('status', 'active').select('id');
         if (!claim?.length) { rep.waiting.push(`${name}: already handled by another run`); continue; } }
+      let sentText = '';
       try {
         if (step.kind === 'text') {
           const phone = d10(isBuyer ? who?.phone : l.phone);
           if (!phone) throw new Error('no phone number');
           if (!textWindow) { rep.waiting.push(`${name}: text waits for 9am-7pm Mon-Sat`); if (!dry) await sb.from('followup_enrollments').update({ next_step: e.next_step }).eq('id', e.id); continue; }
           if (sent >= 40) { rep.waiting.push(`${name}: text waits (40 per run limit)`); if (!dry) await sb.from('followup_enrollments').update({ next_step: e.next_step }).eq('id', e.id); continue; }
-          const text = fill(step.body, vars);
+          // Quo compliance: every automated text says who is texting and how to opt out
+          let text = fill(step.body, vars).trim();
+          if (!/dominion land group/i.test(text)) text += ' - Damien, Dominion Land Group';
+          if (!/\bSTOP\b/.test(text)) text += ' Reply STOP to opt out.';
+          sentText = text;
           rep.texts.push({ to: name, phone, text });
           if (!dry) {
             const th = await sb.rpc('quo_thread', { their: phone, ours: isBuyer ? BUYER_FROM : SELLER_FROM });
@@ -160,7 +165,7 @@
         if (!dry) {
           const last = e.next_step + 1 >= st.length;
           await sb.from('followup_enrollments').update({ next_step: e.next_step + 1, last_sent_at: new Date().toISOString(), last_attempt_at: new Date().toISOString(), last_error: null, ...(last ? { status: 'stopped', stopped_why: 'finished' } : {}) }).eq('id', e.id);
-          if (e.lead_id) await sb.from('activity').insert({ lead_id: e.lead_id, kind: 'note', body: `Auto follow-up (${plan.name}): ${step.kind}${step.kind === 'text' ? ' sent - "' + fill(step.body, vars) + '"' : step.kind === 'email' ? ' drafted - ' + fill(step.subject, vars) : step.kind === 'call' ? ' task created' : ' - added to mail tasks'}` });
+          if (e.lead_id) await sb.from('activity').insert({ lead_id: e.lead_id, kind: 'note', body: `Auto follow-up (${plan.name}): ${step.kind}${step.kind === 'text' ? ' sent - "' + sentText + '"' : step.kind === 'email' ? ' drafted - ' + fill(step.subject, vars) : step.kind === 'call' ? ' task created' : ' - added to mail tasks'}` });
         }
       } catch (err) {
         rep.errors.push(`${label}: ${err.message || err}`);
