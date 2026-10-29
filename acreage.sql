@@ -42,3 +42,6 @@ alter table acreage_buyers enable row level security;
 create policy "owner all" on acreage_buyers for all to authenticated using (true) with check (true);
 alter table acreage_comps enable row level security;
 create policy "owner all" on acreage_comps for all to authenticated using (true) with check (true);
+
+-- Added Oct 28: road and flood checks
+alter table acreage_tracts add column if not exists road_found boolean, add column if not exists road_names text, add column if not exists flood_pct integer, add column if not exists flood_zones text, add column if not exists floodway boolean;
