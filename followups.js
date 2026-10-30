@@ -137,8 +137,8 @@
           if (sent >= 40) { rep.waiting.push(`${name}: text waits (40 per run limit)`); if (!dry) await sb.from('followup_enrollments').update({ next_step: e.next_step }).eq('id', e.id); continue; }
           // Quo compliance: every automated text says who is texting and how to opt out
           let text = fill(step.body, vars).trim();
-          if (!/dominion land group/i.test(text)) text += ' - Damien, Dominion Land Group';
-          if (!/\bSTOP\b/.test(text)) text += ' Reply STOP to opt out.';
+          if (!/dominion land group/i.test(text)) text += ' - Damien with Dominion Land Group';
+          if (!/\bSTOP\b/.test(text)) text += ' Reply STOP to unsubscribe.';
           sentText = text;
           rep.texts.push({ to: name, phone, text });
           if (!dry) {
