@@ -21,7 +21,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="listbuilder.js?v=22"></script>
 <script src="owner-check.js?v=4"></script>
-<script src="followups.js?v=4"></script>
+<script src="followups.js?v=5"></script>
 <script src="foreclosures.js?v=2"></script>
 <script src="acreage.js?v=4"></script>
 <style>
@@ -1266,9 +1266,9 @@ async function threadUnread(tid){if(_rdBusy)return;_rdBusy=true;const btn=$('rdt
       btn.classList.remove('isunread');btn.textContent='✉ Unread';btn.title='Mark as unread';toast('Marked read')}
     refreshBadges();loadThreads()}finally{btn.disabled=false;_rdBusy=false}}
 // Quo compliance (Oct 29, 2026): first texts to someone who has never replied must say who is texting and how to opt out.
-window.quoCompliant=function(t){t=String(t||'').trim();if(!/dominion land group/i.test(t))t+=' - Damien, Dominion Land Group';if(!/\bSTOP\b/.test(t))t+=' Reply STOP to opt out.';return t};
+window.quoCompliant=function(t){t=String(t||'').trim();if(!/dominion land group/i.test(t))t+=' - Damien with Dominion Land Group';if(!/\bSTOP\b/.test(t))t+=' Reply STOP to unsubscribe.';return t};
 async function sendTextT(tid){let b=$('reply').value.trim();if(!b)return;const btn=event?.target;if(btn){btn.disabled=true;btn.textContent='Sending…'}
-  const {count:inb}=await sb.from('messages').select('id',{count:'exact',head:true}).eq('thread_id',tid).eq('direction','in');if(!inb){const c=quoCompliant(b);if(c!==b){b=c;toast('First text to this number: added who you are and "Reply STOP to opt out"')}}
+  const {count:inb}=await sb.from('messages').select('id',{count:'exact',head:true}).eq('thread_id',tid).eq('direction','in');if(!inb){const c=quoCompliant(b);if(c!==b){b=c;toast('First text to this number: added who you are and "Reply STOP to unsubscribe"')}}
   const {data,error}=await sb.functions.invoke('quo/send',{body:{thread_id:tid,text:b}});
   if(btn){btn.disabled=false;btn.textContent='Send Now'}
   const err=error?(await error.context?.json?.().catch(()=>null))?.error||error.message:data?.error;
