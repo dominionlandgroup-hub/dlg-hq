@@ -52,7 +52,7 @@ function spSite(r) {
   if (r.road_public === false) f.push(['Private road?', 'warn']);
   if (r.shape_ok === false) f.push(['Odd shape', 'warn']);
   if (r.subdivision) f.push(['Platted: check covenants', 'warn']);
-  const sb2 = spSetback(r); if (sb2 && !sb2.ok) f.push(['Setbacks tight', 'warn']);
+  const sb2 = spSetback(r); if (sb2 && (sb2.ed < 20 || sb2.ew < 16)) f.push([`House won't fit (${sb2.ew}×${sb2.ed} ft)`, 'bad']); else if (sb2 && !sb2.ok) f.push(['Setbacks tight', 'warn']);
   if (/\(|CD|HDO|ANDO|PED|TOD|MUDD|-O\b/i.test(String(r.zoning || '').replace(/^N1-[A-F]$/, ''))) f.push(['Zoning conditions/overlay', 'warn']);
   if (r.creek_buffer_pct >= 30) f.push([`Creek buffer ${r.creek_buffer_pct}%`, 'bad']); else if (r.creek_buffer_pct >= 5) f.push([`Creek buffer ${r.creek_buffer_pct}%`, 'warn']);
   if (r.wetland) f.push([`Wetland ${c.wetland_pct || ''}%`, c.wetland_pct >= 25 ? 'bad' : 'warn']);
