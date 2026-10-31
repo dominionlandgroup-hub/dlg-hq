@@ -79,7 +79,7 @@ async function vSplit() {
     return;
   }
   SP.rows = t.data || [];
-  try { const b = await sb.from('buyers').select('name,company,counties,cities,zips,lot_sizes,utilities,deal_breakers,price_ranges').range(0, 4999); SP.buyers = (b.data || []).filter(x => (x.counties && x.counties.length) || x.cities || x.price_ranges); } catch (e) { SP.buyers = []; }
+  try { const b = await sb.from('buyers').select('name,company,counties,cities,zips,lot_sizes,utilities,deal_breakers,price_ranges').range(0, 4999); const seen = new Set(); SP.buyers = (b.data || []).filter(x => (x.price_ranges || (x.lot_sizes && x.lot_sizes.length) || x.utilities) && !/^test/i.test(x.company || x.name || '')).filter(x => { const k = String(x.company || x.name).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }); } catch (e) { SP.buyers = []; }
   $('actions').innerHTML = `<input type="file" id="spFile" accept=".xlsx" style="display:none" onchange="spImport(this.files[0])"><button class="btn ghost" onclick="$('spFile').click()">Import split list (.xlsx)</button>`;
   const counties = [...new Set(SP.rows.map(r => r.county).filter(Boolean))].sort();
   const owners = [...new Set(SP.rows.map(r => r.owner_type).filter(Boolean))].sort();
