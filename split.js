@@ -52,10 +52,18 @@ function spSite(r) {
   if (r.road_public === false) f.push(['Private road?', 'warn']);
   if (r.shape_ok === false) f.push(['Odd shape', 'warn']);
   if (r.subdivision) f.push(['Platted: check covenants', 'warn']);
+  if (r.creek_buffer_pct >= 30) f.push([`Creek buffer ${r.creek_buffer_pct}%`, 'bad']); else if (r.creek_buffer_pct >= 5) f.push([`Creek buffer ${r.creek_buffer_pct}%`, 'warn']);
+  if (r.wetland) f.push([`Wetland ${c.wetland_pct || ''}%`, c.wetland_pct >= 25 ? 'bad' : 'warn']);
+  if (c.power_line) f.push(['Power line', 'warn']);
+  if (c.busy_road) f.push(['Busy road: driveways?', 'warn']);
+  if (spWsLimit(r)) f.push(['Watershed limits', 'warn']);
   if (r.tree_pct >= 70) f.push([`${r.tree_pct}% trees`, 'warn']);
   if (!spChecked(r)) f.push(['Not checked yet', '']);
   return f;
 }
+// NC water-supply watershed: critical areas and WS-II/III limit density for all new homes; WS-IV protected areas only
+// for projects that need an erosion-control plan (about 1+ acre disturbed). Not verified per parcel: confirm with planning.
+function spWsLimit(r) { const w = String(spCk(r).watershed || ''); if (!w) return false; if (/WS-(II|III)\b|C\b|C \(/.test(w) && !/WS-V/.test(w)) return true; return /WS-IV/.test(w) && (r.acres || 0) >= 1; }
 function spClean(r) { return !spSite(r).some(x => x[1] === 'bad'); }
 function spPill(t, k) {
   const s = k === 'bad' ? 'background:#fde8e8;color:#a61b1b' : k === 'warn' ? 'background:#fff4d6;color:#7a5a00' : k === 'good' ? 'background:#e3f4ea;color:#1a7a45' : 'background:#f1f1f1;color:#666';
@@ -181,6 +189,10 @@ function spOpen(id) {
       ${line('Lot rules', r.min_lot_sqft ? `${Number(r.min_lot_sqft).toLocaleString()} sq ft minimum, ${r.min_width_ft} ft wide` : null)}
       ${line('Size / frontage', `${r.lot_sqft ? Number(r.lot_sqft).toLocaleString() + ' sq ft' : ''}${r.frontage_ft != null ? ' · ' + Math.round(r.frontage_ft) + ' ft of road frontage (' + (r.frontage_method ? 'measured along the right-of-way' : 'map estimate') + ')' : ''}${r.corner ? ' · corner/two streets' : ''}`)}
       ${line('Road', r.road_name ? esc(r.road_name) + (r.road_public === true ? ' · public (city/state maintained)' : r.road_public === false ? ' · <b>no maintenance on record: may be private, not verified</b>' : '') : esc(r.street || ''))}
+      ${line('Creek / wetland', r.creek_buffer_pct == null ? 'Not checked yet' : `${r.creek_buffer_pct}% within 50 ft of a mapped creek${spCk(r).stream ? ' (' + esc(spCk(r).stream) + ')' : ''} · ${r.wetland ? spCk(r).wetland_pct + '% mapped wetland' : 'no mapped wetland'} <span class="small muted">(creek buffers are 35-100 ft in Charlotte; confirm on site)</span>`)}
+      ${line('Power lines', spCk(r).v2 ? (spCk(r).power_line ? 'Transmission line within 75 ft (' + esc(spCk(r).power_line) + '): easement takes buildable land' : 'No transmission line mapped nearby') : null)}
+      ${line('Watershed', spCk(r).v2 ? (spCk(r).watershed ? esc(spCk(r).watershed) + (spWsLimit(r) ? ' · <b>density limits may apply: confirm with planning</b>' : ' · small split usually not affected (not verified)') : 'Not in a water-supply watershed') : null)}
+      ${line('Busy road', spCk(r).busy_road ? esc(spCk(r).busy_road) + ' · 45+ mph or major road: separate driveways may not be allowed' : null)}
       ${line('Recorded plat', r.subdivision ? esc(r.subdivision) + ' <span class="small muted">(check covenants/restrictions before offering)</span>' : null)}
       ${line('Sewer', esc(r.sewer_guess || ''))}
       ${line('Flood (FEMA)', r.flood_pct != null ? `${r.flood_pct}% in the 100-year flood zone${r.floodway ? ' · includes floodway (can\'t build)' : ''}` : 'Not checked yet')}
