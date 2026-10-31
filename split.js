@@ -390,11 +390,11 @@ function spDrawSpot() {
         + g.rows.map(({ r, why }) => `<tr><td class="small muted">${why}</td><td><b>${esc(r.address || r.parcel)}</b><div class="small muted">${esc(r.zoning || '')} · parcel ${esc(r.parcel)} · ${r.acres} ac · pad ${money(spMath(r).pad)}</div></td><td class="right num">${spMath(r).lots}</td><td class="right num">${r.frontage_ft != null ? Math.round(r.frontage_ft) + ' ft' : '—'}</td><td>${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</td><td class="small">${r.reviewed ? esc(spReview(r).result) + (spReview(r).issues && spReview(r).issues.length ? ': ' + esc(spReview(r).issues.join(', ')) : '') : '<span class="muted">not yet</span>'}</td><td><button class="btn ghost sm" onclick="spOpen(${r.id})">Open</button></td></tr>`).join('') + '</table></div>'; }).join('');
 }
 // Sewer/septic layer: Canopy closed house sales (last 1-2 yrs), each one a dot for what the listing said the house is on.
-// Green = public/city/county sewer, orange = septic. Stored privately in the deal-files bucket (gis/utility_points.json).
+// Green = public/city/county sewer, orange = septic. Stored privately in the deal-files bucket (gis/utility_points_6co.json).
 async function spUtilLayer() {
   if (SP.utilLoaded) return; SP.utilLoaded = true;
   try {
-    const { data, error } = await sb.storage.from('deal-files').download('gis/utility_points.json'); if (error) throw error;
+    const { data, error } = await sb.storage.from('deal-files').download('gis/utility_points_6co.json'); if (error) throw error;
     const pts = JSON.parse(await data.text());
     const r = L.canvas({ padding: .5 });
     for (const [lat, lng, t] of pts) L.circleMarker([lat, lng], { renderer: r, radius: 3, weight: 0, fillOpacity: .75, fillColor: t === 'septic' ? '#f97316' : '#16a34a' }).addTo(SP.util);
