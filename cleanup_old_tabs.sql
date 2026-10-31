@@ -4,3 +4,7 @@ select cron.unschedule(jobid) from cron.job where command ilike '%foreclosure%' 
 drop table if exists foreclosure_cases cascade;
 drop table if exists foreclosure_scout_runs cascade;
 drop table if exists foreclosure_settings cascade;
+-- Remove Acreage Play (Damien, Oct 30 2026).
+drop table if exists acreage_tracts cascade;
+drop table if exists acreage_buyers cascade;
+drop table if exists acreage_comps cascade;
