@@ -58,6 +58,14 @@
     R.avg4 = Object.fromEntries(weeks.map((w, i) => [w, i < 3 ? 0 : Math.round(weeks.slice(i - 3, i + 1).reduce((a, x) => a + R.mail[x], 0) / 4)]));
     const fmt = (r, v) => r[2] ? r[2](v) : (v || 0).toLocaleString();
     $('view').innerHTML = `
+      <div class="card" style="border-left:4px solid #5c2977">
+        <b>My plan (set Oct 31, 2026)</b>
+        <div class="small" style="margin-top:6px;line-height:1.7">
+          <b>Mail:</b> ${GOAL.toLocaleString()} pieces every week, core 6 counties only (Mecklenburg, Gaston, Union, Cabarrus, Iredell, Rowan), paid from the business account, never a card. Step up to 4,000 then 6,000 a week only from closing money.<br>
+          <b>Deals:</b> 2 to 3 closings a month. <b>Every closing:</b> 15% tithes · 20% taxes · $5,000 to me · the rest half to debt, half to mail.<br>
+          <b>Debt (0% ends May/June 2027):</b> ~$95,700 → about $13,700 a month. Order: South State ($8,554) → Emprise ($15,500) → Chase ($71,667).<br>
+          <b>Weekly:</b> Monday scorecard + approve the next 2 weeks of lists · call back every lead same day · contract within 48 hours of a real conversation · Friday follow-up block.
+        </div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
         ${tile('Mail: last 4 weeks', avg4.toLocaleString() + '/wk', 'goal ' + GOAL.toLocaleString() + '/wk · ' + (gap >= 0 ? 'on pace' : 'behind ' + (-gap).toLocaleString() + ' pieces') + ' · this week ' + R.mail[cur].toLocaleString())}
         ${tile('Conversations this week', R.convos[cur], 'last week ' + R.convos[prev])}
