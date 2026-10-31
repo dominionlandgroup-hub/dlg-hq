@@ -220,6 +220,7 @@ async function spImport(file) {
   if (!file) return;
   try {
     toast('Reading ' + file.name + '…');
+    if (/\.json$/i.test(file.name)) return spImportChecks(JSON.parse(await file.text()));
     await spLoadXlsx();
     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
     const num = v => v === null || v === '' || v === undefined ? null : (isNaN(Number(String(v).replace(/[$,]/g, ''))) ? null : Number(String(v).replace(/[$,]/g, '')));
@@ -257,4 +258,21 @@ async function spImport(file) {
     toast(`Imported ${rows.length} parcels. Your statuses, notes and pad prices were kept.`);
     vSplit();
   } catch (e) { toast('Import failed: ' + e.message); }
+}
+
+// Site-check results computed off-site (counties whose GIS can't be read from this page): [{dedupe_key, ...fields}]
+async function spImportChecks(list) {
+  if (!Array.isArray(list) || !list.length) return toast('No check results in that file.');
+  let i = 0, ok = 0, bad = 0;
+  async function w() {
+    while (i < list.length) {
+      const { dedupe_key, ...upd } = list[i++];
+      if (!dedupe_key) { bad++; continue; }
+      const { error } = await sb.from('split_parcels').update(upd).eq('dedupe_key', dedupe_key);
+      if (error) bad++; else ok++;
+    }
+  }
+  await Promise.all(Array.from({ length: 6 }, w));
+  toast(`Saved site checks for ${ok} parcels${bad ? ', ' + bad + ' failed' : ''}.`);
+  vSplit();
 }

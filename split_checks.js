@@ -58,7 +58,7 @@
   const SFHA = /^(A|AE|AH|AO|A99|AR|V|VE)$/;
 
   const SCK = {
-    state: { done: 0, total: 0, errors: [], running: false },
+    state: { done: 0, total: 0, errors: [], running: false }, results: [],
     sources: {
       Charlotte: {
         parcels: 'https://gis.charlottenc.gov/arcgis/rest/services/PLN/AllParcelData/MapServer/0/query',
@@ -68,6 +68,19 @@
         isPublic: a => !!(a.MAINT_BY && String(a.MAINT_BY).trim()),
         roadName: a => String(a.FULL_NAME || '').replace(/^[\d\s-]+(?=[A-Z])/i, '').trim(),
         plat: a => /^M\d+-\d+/i.test(String(a.legaldescription || '').trim()),
+        platLabel: a => String(a.legaldescription || '').trim(),
+        subField: 'SUBDIVISIONNAME',
+      },
+      Gaston: {
+        parcels: 'https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Parcels/MapServer/11/query',
+        idField: 'PIN', extraFields: 'PLAT_BOOK,PLAT_PAGE,NBHDNAME',
+        streets: 'https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Streets/MapServer/12/query',
+        streetFields: 'FULLNAME,OWNER,SUBD',
+        isPublic: a => /^(NCDOT|SCDOT|MUN|PUB)$/.test(String(a.OWNER || '')),
+        roadName: a => a.FULLNAME,
+        plat: a => !!(a.PLAT_BOOK && String(a.PLAT_BOOK).trim() && String(a.PLAT_BOOK).trim() !== '0'),
+        platLabel: a => `plat book ${a.PLAT_BOOK} page ${a.PLAT_PAGE}`,
+        subField: 'SUBD',
       },
     },
   };
@@ -121,7 +134,7 @@
     }
     const frontage = Math.round(Object.values(roads).reduce((s, v) => s + v, 0));
     const roadList = Object.entries(roads).sort((a, b) => b[1] - a[1]);
-    const subdiv = [...new Set((st.features || []).map(g => g.attributes.SUBDIVISIONNAME).filter(Boolean))].slice(0, 2).join(', ');
+    const subdiv = [...new Set((st.features || []).map(g => g.attributes[src.subField]).filter(Boolean))].slice(0, 2).join(', ');
 
     // grid inside the parcel
     const sp = Math.max(10, Math.sqrt(area / 70));
@@ -186,8 +199,8 @@
       shape_ok: fill >= 0.55 && estLots >= 3,
       flood_pct: Math.round(100 * f100 / grid.length), floodway: fway, flood500_pct: Math.round(100 * f500 / grid.length),
       slope_pct: slope,
-      subdivision: src.plat && src.plat(f.attributes) ? (subdiv || 'Recorded plat ' + String(f.attributes.legaldescription || '').trim()) : null,
-      checks_done: JSON.stringify({ v: 1, at: new Date().toISOString().slice(0, 10), relief_ft: relief, below_road_ft: belowRoad, steep_share_pct: steepShare, shape_fill: Math.round(fill * 100) / 100, grid_pts: grid.length, lots_by_frontage: lotsFront, legal: f.attributes.legaldescription || null }),
+      subdivision: src.plat && src.plat(f.attributes) ? ((subdiv ? subdiv + ' · ' : '') + 'recorded plat ' + src.platLabel(f.attributes)) : null,
+      checks_done: JSON.stringify({ v: 1, at: new Date().toISOString().slice(0, 10), relief_ft: relief, below_road_ft: belowRoad, steep_share_pct: steepShare, shape_fill: Math.round(fill * 100) / 100, grid_pts: grid.length, lots_by_frontage: lotsFront, legal: src.platLabel(f.attributes) || null }),
       updated_at: new Date().toISOString(),
     };
     return upd;
@@ -201,8 +214,10 @@
         const r = rows[i++];
         try {
           const upd = await checkOne(r);
-          const { error } = await sb.from('split_parcels').update(upd).eq('id', r.id);
-          if (error) throw new Error(error.message);
+          if (typeof sb !== 'undefined') {
+            const { error } = await sb.from('split_parcels').update(upd).eq('id', r.id);
+            if (error) throw new Error(error.message);
+          } else SCK.results.push({ dedupe_key: r.dedupe_key, ...upd }); // off-site run: results are imported later
           Object.assign(r, upd);
         } catch (e) { S.errors.push(r.parcel + ': ' + e.message); }
         S.done++;
