@@ -64,6 +64,7 @@
           <b>Mail:</b> ${GOAL.toLocaleString()} pieces every week, core 6 counties only (Mecklenburg, Gaston, Union, Cabarrus, Iredell, Rowan), paid from the business account, never a card. Step up to 4,000 then 6,000 a week only from closing money.<br>
           <b>Deals:</b> 2 to 3 closings a month. <b>Every closing:</b> 15% tithes · 20% taxes · $5,000 to me · the rest half to debt, half to mail.<br>
           <b>Debt (0% ends May/June 2027):</b> ~$95,700 → about $13,700 a month. Order: South State ($8,554) → Emprise ($15,500) → Chase ($71,667).<br>
+          <b>Pay myself the right way:</b> find a CPA → set a reasonable salary → run it through payroll (Gusto/QuickBooks/ADP): monthly direct deposit with income tax + Social Security/Medicare withheld; the rest of the $5,000 as an owner distribution.<br>
           <b>Weekly:</b> Monday scorecard + approve the next 2 weeks of lists · call back every lead same day · contract within 48 hours of a real conversation · Friday follow-up block.
         </div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
