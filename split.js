@@ -34,8 +34,28 @@ function spLots(r) {
   const w = r.min_width_ft || 0, m = r.min_lot_sqft || 0; if (!w || !m) return 0;
   const roads = [...String(r.road_name || '').matchAll(/\((\d+) ft\)/g)].map(x => +x[1]);
   const front = roads.length ? Math.max(...roads) : (r.frontage_ft || 0);
-  return Math.min(Math.floor(front / (w * 1.05)), Math.floor((r.lot_sqft || 0) / (m * 1.3)));
+  const n = Math.min(Math.floor(front / (w * 1.05)), Math.floor((r.lot_sqft || 0) / (m * 1.3)));
+  const cap = spMinor(r).cap; return cap ? Math.min(n, cap) : n;
 }
+// Minor subdivision caps (staff-approved split along an existing road, no new street), from each ordinance (Oct 31 2026 research).
+// null = not verified yet. Lot count is capped at the minor-sub limit so every count shown qualifies as a minor split.
+const SP_MINOR = {
+  'Gaston Co. (unincorporated)': [5, 'Gaston County Sec 13.8: no new streets, no water/sewer extension, all minor splits of one parent tract count toward 5'],
+  'McAdenville': [5, 'Same as Gaston County; only one minor split per parent tract'],
+  'Dallas': [10, 'Parent tract 10 ac or less, no new roads or utility extensions (152.011)'],
+  'Iredell County': [5, 'Iredell County 8.7: no new roads or right-of-way'],
+  'Statesville': [10, 'Statesville 2.02: no new public streets or utility improvements'],
+  'Mooresville': [10, 'Mooresville 2.5.9: direct access to a public street, no new streets or utilities'],
+  'Troutman': [5, 'Troutman: no new public streets or off-site easements'],
+  'Rowan County': [8, 'Rowan County 22-7: lots front an NCDOT-standard road, no new roads'],
+  'Salisbury': [4, 'Salisbury LDO 15.12: front an existing street, no new street or water/sewer extension; not again within 3 years / 1,500 ft by the same owner'],
+  'Charlotte': [null, 'Charlotte UDO 30.3.D: no lot cap; no new public street or Charlotte Water extension'],
+  'Cabarrus County': [5, 'Cabarrus Ch.15 Sec 4: one minor split per parent tract (as of 6/20/2005); lots 1 ac+ in AO/CR/LDR'],
+  'Kannapolis': [5, 'Kannapolis 2.5.B(2): every lot must touch a publicly maintained street'],
+  'Concord': [10, 'Concord 5.1.1.B: no utility extension or new streets; no lot may take access from a thoroughfare'],
+  'Fairview': [5, 'Fairview Sec 15/78: no public streets or public water/sewer; parcel not already inside a subdivision'],
+};
+function spMinor(r) { const m = SP_MINOR[r.jurisdiction]; return m ? { cap: m[0], rule: m[1], known: true } : { cap: null, rule: 'Minor subdivision limit not verified for ' + (r.jurisdiction || 'this area') + ' yet', known: false }; }
 function spCountyName(r) { return r.county === 'Charlotte' ? 'Mecklenburg County' : r.county === 'Gaston' ? 'Gaston County' : (r.county || '') + ' County'; }
 function spMath(r) {
   const lots = Math.min(spLots(r), SP.maxLots);
@@ -134,7 +154,7 @@ async function vSplit() {
 
       </div>
       <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
-        <select style="width:auto" onchange="SP.county=this.value;vSplitDraw()">${counties.map(c => `<option value="${esc(c)}" ${SP.county === c ? 'selected' : ''}>${esc(spCountyName({ county: c }))}</option>`).join('')}<option value="" ${SP.county ? '' : 'selected'}>Both counties</option></select>
+        <select style="width:auto" onchange="SP.county=this.value;vSplitDraw()">${counties.map(c => `<option value="${esc(c)}" ${SP.county === c ? 'selected' : ''}>${esc(spCountyName({ county: c }))}</option>`).join('')}<option value="" ${SP.county ? '' : 'selected'}>All counties</option></select>
         <select style="width:auto" onchange="SP.owner=this.value;vSplitDraw()"><option value="">Any owner</option>${owners.map(c => `<option ${SP.owner === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select style="width:auto" onchange="SP.status=this.value;vSplitDraw()"><option value="">Any status</option>${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${SP.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Price works only (optional)</label>
@@ -213,7 +233,7 @@ function vSplitDraw() {
   if (v === 'spot') return spDrawSpot();
   const t = $('spTable'); if (!t) return;
   const rows = spFiltered();
-  const c = $('spCount'); if (c) c.textContent = `${rows.length} clean deals in ${SP.county ? spCountyName({ county: SP.county }) : 'both counties'}`;
+  const c = $('spCount'); if (c) c.textContent = `${rows.length} clean deals in ${SP.county ? spCountyName({ county: SP.county }) : 'all counties'}`;
   const head = `<tr><th>Site</th><th>Parcel</th><th>Owner</th><th class="right">Lots</th><th class="right">Frontage</th><th class="right">Most I can pay</th><th class="right">Tax land value</th><th>Buyers who fit</th><th>My status</th><th></th></tr>`;
   if (!rows.length) { t.innerHTML = head + `<tr><td colspan="10" class="muted">${SP.rows.length ? 'Nothing matches. Try turning off "Profit or free lot only" or raising the pad price.' : 'No parcels yet. Claude loads them, or click "Import split list (.xlsx)".'}</td></tr>`; return; }
   t.innerHTML = head + rows.slice(0, 1500).map(({ r, m }) => `<tr>
@@ -247,7 +267,7 @@ function spOpen(id) {
     ll && `<a href="https://msc.fema.gov/portal/search?AddressQuery=${ll}" target="_blank" rel="noopener">FEMA flood</a>`,
   ].filter(Boolean).join(' · ');
   window._wideNext = true;
-  openDrawer(`<div class="dhead"><div><div class="small muted"><b>${esc(spCountyName(r))}</b> · ${esc(r.jurisdiction || r.county || '')}</div><h2 style="margin:2px 0 0">${esc(r.address || r.parcel || 'Parcel')}</h2><div class="small muted">${r.acres ?? ''} acres · ${esc(r.zoning || '')} · parcel ${esc(r.parcel || '')}</div></div><button class="btn ghost" onclick="closeDrawer()">Close</button></div>
+  openDrawer(`<div class="dhead"><div><div class="small muted"><b>${esc(spCountyName(r))}</b> · ${esc(r.jurisdiction || r.county || '')}</div><h2 style="margin:2px 0 0">${esc(r.address || r.parcel || 'Parcel')}</h2><div class="small muted">${r.acres ?? ''} acres · ${esc(r.zoning || '')} · parcel ${esc(r.parcel || '')}</div><div class="small" style="margin-top:3px">${(() => { const mi = spMinor(r); return mi.known ? '✅ Minor subdivision: up to ' + (mi.cap ? Math.min(spLots(r), mi.cap) : spLots(r)) + ' lots' + (mi.cap ? ' (limit ' + mi.cap + ')' : ' (no lot limit)') + ' · <span class="muted">' + esc(mi.rule) + '</span>' : '⚠️ <span class="muted">' + esc(mi.rule) + '</span>'; })()}</div></div><button class="btn ghost" onclick="closeDrawer()">Close</button></div>
     <div class="card"><div style="font-size:15px">${m.grade === 'Profit' ? spPill('Profit + free lot', 'good') : m.grade === 'Free lot' ? spPill('Free lot (break even)', 'warn') : spPill(m.grade === 'No comp' ? 'No Canopy comp yet: add a pad price below' : "Doesn't work at these numbers", 'bad')}</div>
       <div class="small" style="margin-top:8px;line-height:1.7">
         ${m.lots} lots on ${esc(String(r.road_name || '').split(/\s*\(/)[0] || 'the road')} − keep ${SP.keep} = sell ${m.sell} × ${money(m.pad)} pad${r.pad_price_source ? ' <span class="muted">(' + esc(r.pad_price_source) + ')</span>' : ''} = ${money(m.sell * m.pad)}<br>
@@ -451,7 +471,7 @@ async function spDrawMap() {
     mk.bindTooltip(`${esc(r.address || r.parcel)} · ${m.lots} lots · ${esc(m.grade)}`);
     mk.on('click', () => spOpen(r.id)); mk.addTo(SP.pins); pts.push([r.lat, r.lng]);
   }
-  const c = $('spCount'); if (c) c.textContent = `${pts.length} on the map in ${SP.county ? spCountyName({ county: SP.county }) : 'both counties'}`;
+  const c = $('spCount'); if (c) c.textContent = `${pts.length} on the map in ${SP.county ? spCountyName({ county: SP.county }) : 'all counties'}`;
   spParcelLines();
   if (pts.length && !SP.mapFitted) { SP.map.fitBounds(pts, { padding: [20, 20], maxZoom: 15 }); SP.mapFitted = true; }
 }
