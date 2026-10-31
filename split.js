@@ -5,7 +5,7 @@
 // or with the Import button. Pad prices are per county/zip settings until Canopy comps are added.
 const SP = {
   county: '', status: '', owner: '', q: '', pencil: true, sewer: false, clean: true, rows: [],
-  keep: 1, maxLots: 3, costs: 8000, goal: 10000, cushion: 0,
+  keep: 1, maxLots: 3, costs: 3500, goal: 10000, cushion: 0,
   pads: { Charlotte: 70000, Gaston: 50000 },
 };
 const SP_STATUSES = [['new', 'New'], ['mailed', 'Mailed'], ['contacting', 'Contacting owner'], ['survey', 'Surveyor check'], ['offer', 'Offer made'], ['contract', 'Under contract'], ['dead', 'Dead']];
