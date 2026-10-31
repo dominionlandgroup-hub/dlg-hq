@@ -52,6 +52,8 @@ function spSite(r) {
   if (r.road_public === false) f.push(['Private road?', 'warn']);
   if (r.shape_ok === false) f.push(['Odd shape', 'warn']);
   if (r.subdivision) f.push(['Platted: check covenants', 'warn']);
+  const sb2 = spSetback(r); if (sb2 && !sb2.ok) f.push(['Setbacks tight', 'warn']);
+  if (/\(|CD|HDO|ANDO|PED|TOD|MUDD|-O\b/i.test(String(r.zoning || '').replace(/^N1-[A-F]$/, ''))) f.push(['Zoning conditions/overlay', 'warn']);
   if (r.creek_buffer_pct >= 30) f.push([`Creek buffer ${r.creek_buffer_pct}%`, 'bad']); else if (r.creek_buffer_pct >= 5) f.push([`Creek buffer ${r.creek_buffer_pct}%`, 'warn']);
   if (r.wetland) f.push([`Wetland ${c.wetland_pct || ''}%`, c.wetland_pct >= 25 ? 'bad' : 'warn']);
   if (c.power_line) f.push(['Power line', 'warn']);
@@ -64,6 +66,14 @@ function spSite(r) {
 // NC water-supply watershed: critical areas and WS-II/III limit density for all new homes; WS-IV protected areas only
 // for projects that need an erosion-control plan (about 1+ acre disturbed). Not verified per parcel: confirm with planning.
 function spWsLimit(r) { const w = String(spCk(r).watershed || ''); if (!w) return false; if (/WS-(II|III)|C\b|C \(/.test(w) && !/WS-V/.test(w)) return true; return /WS-IV/.test(w) && (r.acres || 0) >= 1; }
+// Setbacks (Charlotte N1 districts; secondary source, confirm with the UDO): does a house envelope fit each lot?
+const SP_SB = { 'N1-A': [27, 5, 40], 'N1-B': [27, 5, 35], 'N1-C': [17, 5, 30], 'N1-D': [17, 5, 25] };
+function spSetback(r) {
+  const z = String(r.zoning || '').match(/N1-[A-D]/); if (!z || !r.frontage_ft || !r.lot_sqft) return null;
+  const [fr, side, rear] = SP_SB[z[0]], lots = Math.max(1, Math.min(r.est_lots || 1, SP.maxLots));
+  const w = r.frontage_ft / lots, d = r.lot_sqft / r.frontage_ft, ew = Math.round(w - 2 * side), ed = Math.round(d - fr - rear);
+  return { ok: ew >= 24 && ed >= 30, ew, ed, zone: z[0], fr, side, rear };
+}
 function spClean(r) { return !spSite(r).some(x => x[1] === 'bad'); }
 function spPill(t, k) {
   const s = k === 'bad' ? 'background:#fde8e8;color:#a61b1b' : k === 'warn' ? 'background:#fff4d6;color:#7a5a00' : k === 'good' ? 'background:#e3f4ea;color:#1a7a45' : 'background:#f1f1f1;color:#666';
@@ -72,6 +82,7 @@ function spPill(t, k) {
 function spSewerPill(r) { const g = String(r.sewer_guess || ''); return /^likely/i.test(g) ? spPill('Sewer likely', 'good') : /^unlikely/i.test(g) ? spPill('Septic area', '') : spPill('Sewer ?', ''); }
 
 async function vSplit() {
+  if (SP.map) { try { SP.map.remove(); } catch (e) { } SP.map = null; SP.mapFitted = false; }
   $('view').innerHTML = '<div class="muted">Loading…</div>';
   const t = await spAll();
   if (t.error) {
@@ -117,7 +128,10 @@ async function vSplit() {
         <span class="small muted" id="spCount"></span>
       </div>
     </div>
-    <div class="card" style="padding:0;overflow-x:auto"><table class="ctable" id="spTable"></table></div>`;
+    <div class="seg" id="spViews" style="margin:0 0 10px">${[['list', 'List'], ['map', 'Map'], ['spot', 'Spot check']].map(([k, l]) => `<button class="${SP.view === k ? 'on' : ''}" onclick="SP.view='${k}';vSplitDraw()">${l}</button>`).join('')}</div>
+    <div class="card" id="spListWrap" style="padding:0;overflow-x:auto"><table class="ctable" id="spTable"></table></div>
+    <div class="card" id="spMapWrap" style="padding:0;display:none"><div id="spMap" style="height:72vh;min-height:420px;border-radius:8px"></div></div>
+    <div id="spSpotWrap" style="display:none"></div>`;
   vSplitDraw();
 }
 
@@ -166,6 +180,11 @@ function spBuyers(r) {
   }).map(b => b.company || b.name);
 }
 function vSplitDraw() {
+  const v = SP.view || 'list';
+  document.querySelectorAll('#spViews button').forEach((b, i) => b.classList.toggle('on', ['list', 'map', 'spot'][i] === v));
+  if ($('spListWrap')) { $('spListWrap').style.display = v === 'list' ? '' : 'none'; $('spMapWrap').style.display = v === 'map' ? '' : 'none'; $('spSpotWrap').style.display = v === 'spot' ? '' : 'none'; }
+  if (v === 'map') return spDrawMap();
+  if (v === 'spot') return spDrawSpot();
   const t = $('spTable'); if (!t) return;
   const rows = spFiltered();
   const c = $('spCount'); if (c) c.textContent = `${rows.length} of ${SP.rows.length} parcels`;
@@ -217,6 +236,7 @@ function spOpen(id) {
       ${line('Power lines', spCk(r).v2 ? (spCk(r).power_line ? 'Transmission line within 75 ft (' + esc(spCk(r).power_line) + '): easement takes buildable land' : 'No transmission line mapped nearby') : null)}
       ${line('Watershed', spCk(r).v2 ? (spCk(r).watershed ? esc(spCk(r).watershed) + (spWsLimit(r) ? ' · <b>density limits may apply: confirm with planning</b>' : ' · small split usually not affected (not verified)') : 'Not in a water-supply watershed') : null)}
       ${line('Busy road', spCk(r).busy_road ? esc(spCk(r).busy_road) + ' · 45+ mph or major road: separate driveways may not be allowed' : null)}
+      ${line('Setbacks', (() => { const x = spSetback(r); return x ? `${x.zone}: front ${x.fr}, sides ${x.side}, rear ${x.rear} ft → each lot leaves about <b>${x.ew} ft × ${x.ed} ft</b> to build${x.ok ? '' : ' · <b>tight: check the house fits</b>'} <span class="small muted">(setbacks from a secondary source; confirm with the UDO)</span>` : (r.county === 'Charlotte' ? null : 'Not checked for this county yet'); })())}
       ${line('Recorded plat', r.subdivision ? esc(r.subdivision) + ' <span class="small muted">(check covenants/restrictions before offering)</span>' : null)}
       ${line('Sewer', esc(r.sewer_guess || ''))}
       ${line('Flood (FEMA)', r.flood_pct != null ? `${r.flood_pct}% in the 100-year flood zone${r.floodway ? ' · includes floodway (can\'t build)' : ''}` : 'Not checked yet')}
@@ -229,6 +249,11 @@ function spOpen(id) {
       ${line('Buyers who fit', spBuyers(r).map(esc).join(' · ') || 'No buy box fits yet (area, sewer, lot size or deal breakers)')}
       ${line('Links', links || null)}
     </table></div>
+    <div class="card"><h3 class="sec" style="margin-top:0">Spot check</h3>
+      ${r.reviewed ? `<div class="small" style="margin-bottom:6px">Checked: ${esc(spReview(r).result || '')} ${spReview(r).issues && spReview(r).issues.length ? '· ' + esc(spReview(r).issues.join(', ')) : ''} ${spReview(r).note ? '· ' + esc(spReview(r).note) : ''}</div>` : ''}
+      <div class="row" style="gap:6px;flex-wrap:wrap">${['Frontage', 'Flood', 'Slope', 'Road', 'Zoning', 'Lot count', 'Creek/wetland', 'Other'].map(k => `<label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" class="spIss" value="${k}" style="width:auto" ${(spReview(r).issues || []).includes(k) ? 'checked' : ''}> ${k}</label>`).join('')}</div>
+      <input id="sp_rnote" placeholder="What's wrong (optional)" value="${esc(spReview(r).note || '')}" style="margin-top:6px">
+      <div class="row" style="gap:8px;margin-top:8px"><button class="btn" onclick="spSaveReview(${r.id},'Looks right')">Looks right</button><button class="btn ghost" onclick="spSaveReview(${r.id},'Wrong')">Wrong (save what's checked)</button></div></div>
     <div class="card"><h3 class="sec" style="margin-top:0">Pad price for this parcel</h3>
       <div class="row" style="gap:8px;align-items:center"><input id="sp_pad" type="number" step="1000" placeholder="${spPad(r)}" value="${r.pad_price || ''}" style="width:120px"><input id="sp_pads" placeholder="Where it came from (comp, builder quote)" value="${esc(r.pad_price_source || '')}"></div>
       <div class="small muted" style="margin-top:4px">Leave blank to use the ${esc(r.county || '')} default.</div></div>
@@ -312,4 +337,78 @@ async function spImportChecks(list) {
   await Promise.all(Array.from({ length: 6 }, w));
   toast(`Saved site checks for ${ok} parcels${bad ? ', ' + bad + ' failed' : ''}.`);
   vSplit();
+}
+
+function spReview(r) { try { return JSON.parse(r.review_notes || '{}') || {}; } catch (e) { return { note: r.review_notes }; } }
+async function spSaveReview(id, result) {
+  const issues = [...document.querySelectorAll('.spIss:checked')].map(x => x.value), note = ($('sp_rnote') || {}).value || '';
+  if (result === 'Wrong' && !issues.length && !note) return toast('Check what is wrong, or add a note.');
+  const upd = { reviewed: true, review_notes: JSON.stringify({ result, issues: result === 'Wrong' ? issues : [], note, at: new Date().toISOString().slice(0, 10) }), updated_at: new Date().toISOString() };
+  const { error } = await sb.from('split_parcels').update(upd).eq('id', id);
+  if (error) return toast(error.message);
+  const r = SP.rows.find(x => x.id === id); if (r) Object.assign(r, upd);
+  toast('Spot check saved'); closeDrawer(); vSplitDraw();
+}
+// Spot check sample: per county, 10 from the top of the clean list + 10 random clean (stable across visits).
+function spSample() {
+  const out = [];
+  for (const c of [...new Set(SP.rows.map(r => r.county))].sort()) {
+    const clean = SP.rows.filter(r => r.county === c && spChecked(r) && spClean(r) && spMath(r).pencils).map(r => ({ r, m: spMath(r) })).sort((a, b) => b.m.cushion - a.m.cushion).map(x => x.r);
+    const top = clean.slice(0, 10), rest = clean.slice(10);
+    const h = x => { let v = 0; for (const ch of String(x.dedupe_key)) v = (v * 31 + ch.charCodeAt(0)) >>> 0; return v; };
+    const rnd = rest.slice().sort((a, b) => h(a) - h(b)).slice(0, 10);
+    out.push({ county: c, rows: top.map(r => ({ r, why: 'Top of list' })).concat(rnd.map(r => ({ r, why: 'Random' }))) });
+  }
+  return out;
+}
+function spDrawSpot() {
+  const el = $('spSpotWrap'); if (!el) return;
+  const S = spSample();
+  el.innerHTML = `<div class="card small" style="line-height:1.6"><b>How to spot check:</b> open each parcel, compare against Polaris / the county map (frontage with the measure tool), FEMA, Street View (slope, road, below-road) and the zoning map. Click <b>Looks right</b>, or tick what's wrong and click <b>Wrong</b>. If 2+ of 20 miss on the same check, that check gets fixed and the county is rerun.</div>`
+    + S.map(g => { const done = g.rows.filter(x => x.r.reviewed).length, bad = g.rows.filter(x => spReview(x.r).result === 'Wrong').length;
+      return `<div class="card" style="padding:0;overflow-x:auto"><div style="padding:10px 14px"><b>${esc(g.county)}</b> <span class="small muted">${done} of ${g.rows.length} checked${bad ? ' · ' + bad + ' wrong' : ''}</span></div><table class="ctable"><tr><th></th><th>Parcel</th><th class="right">Lots</th><th class="right">Frontage</th><th>Flags</th><th>Result</th><th></th></tr>`
+        + g.rows.map(({ r, why }) => `<tr><td class="small muted">${why}</td><td><b>${esc(r.address || r.parcel)}</b><div class="small muted">${esc(r.zoning || '')} · ${esc(r.parcel)} · ${r.acres} ac</div></td><td class="right num">${spMath(r).lots}</td><td class="right num">${r.frontage_ft != null ? Math.round(r.frontage_ft) + ' ft' : '—'}</td><td>${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</td><td class="small">${r.reviewed ? esc(spReview(r).result) + (spReview(r).issues && spReview(r).issues.length ? ': ' + esc(spReview(r).issues.join(', ')) : '') : '<span class="muted">not yet</span>'}</td><td><button class="btn ghost sm" onclick="spOpen(${r.id})">Open</button></td></tr>`).join('') + '</table></div>'; }).join('');
+}
+// Map: satellite/streets, county parcel lines, zoning, FEMA flood, creeks, wetlands, power lines, watersheds; split parcels as pins by grade.
+function spLoadMap() {
+  if (window.L && L.esri) return Promise.resolve();
+  const add = (tag, attrs) => new Promise((res, rej) => { const e = document.createElement(tag); Object.assign(e, attrs); e.onload = res; e.onerror = () => rej(new Error('Could not load the map library')); document.head.appendChild(e); });
+  return (window.L ? Promise.resolve() : add('link', { rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css' }).then(() => add('script', { src: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js' })))
+    .then(() => add('script', { src: 'https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js' }));
+}
+async function spDrawMap() {
+  try { await spLoadMap(); } catch (e) { $('spMap').innerHTML = '<div class="muted" style="padding:20px">' + esc(e.message) + '</div>'; return; }
+  if (!SP.map) {
+    const m = SP.map = L.map('spMap', { preferCanvas: true }).setView([35.25, -80.95], 10);
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri imagery' });
+    const streets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri' }).addTo(m);
+    const dyn = (url, layers, opacity, minZoom) => L.esri.dynamicMapLayer({ url, layers, opacity: opacity || 0.6, f: 'image', minZoom: minZoom || 0 });
+    const overlays = {
+      'Parcel lines (Mecklenburg)': dyn('https://gis.charlottenc.gov/arcgis/rest/services/PLN/AllParcelData/MapServer', [0], 0.8, 15),
+      'Parcel lines (Gaston)': dyn('https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Parcels/MapServer', [11], 0.8, 15),
+      'Zoning (Charlotte)': dyn('https://gis.charlottenc.gov/arcgis/rest/services/PLN/Zoning/MapServer', [0], 0.45, 13),
+      'Zoning (Gaston + towns)': dyn('https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Zoning/MapServer', [1, 2, 10, 11, 15, 16, 20], 0.45, 13),
+      'FEMA flood zones': dyn('https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer', [28], 0.5, 12),
+      'Creeks (USGS)': dyn('https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer', [6], 0.9, 13),
+      'Wetlands (USFWS)': dyn('https://fwspublicservices.wim.usgs.gov/wetlandsmapservice/rest/services/Wetlands/MapServer', [0], 0.5, 13),
+      'Power transmission lines': L.esri.featureLayer({ url: 'https://services1.arcgis.com/Hp6G80Pky0om7QvQ/arcgis/rest/services/Electric_Power_Transmission_Lines/FeatureServer/0', minZoom: 12, style: () => ({ color: '#ff3b30', weight: 3 }) }),
+      'Water-supply watersheds': L.esri.featureLayer({ url: 'https://services2.arcgis.com/kCu40SDxsCGcuUWO/ArcGIS/rest/services/dwq_wsws_20141126/FeatureServer/0', minZoom: 9, style: () => ({ color: '#2b6cb0', weight: 1, fillOpacity: .08 }) }),
+    };
+    overlays['Parcel lines (Mecklenburg)'].addTo(m); overlays['Parcel lines (Gaston)'].addTo(m);
+    SP.pins = L.layerGroup().addTo(m);
+    L.control.layers({ Streets: streets, Satellite: sat }, { 'Split parcels': SP.pins, ...overlays }, { collapsed: true }).addTo(m);
+    const lg = L.control({ position: 'bottomleft' }); lg.onAdd = () => { const d = L.DomUtil.create('div'); d.style.cssText = 'background:#fff;padding:6px 8px;border-radius:6px;font-size:12px;line-height:1.5'; d.innerHTML = '<span style="color:#1a7a45">●</span> Profit &nbsp;<span style="color:#c08a00">●</span> Free lot &nbsp;<span style="color:#a61b1b">●</span> No &nbsp;<span style="color:#555">○</span> red flag'; return d; }; lg.addTo(m);
+  }
+  setTimeout(() => SP.map.invalidateSize(), 50);
+  SP.pins.clearLayers();
+  const rows = spFiltered(), pts = [];
+  for (const { r, m } of rows) {
+    if (!r.lat || !r.lng) continue;
+    const col = m.grade === 'Profit' ? '#1a7a45' : m.grade === 'Free lot' ? '#c08a00' : '#a61b1b', bad = !spClean(r);
+    const mk = L.circleMarker([r.lat, r.lng], { radius: 7, color: bad ? '#555' : '#fff', weight: 2, fillColor: col, fillOpacity: bad ? .35 : .9 });
+    mk.bindTooltip(`${esc(r.address || r.parcel)} · ${m.lots} lots · ${esc(m.grade)}`);
+    mk.on('click', () => spOpen(r.id)); mk.addTo(SP.pins); pts.push([r.lat, r.lng]);
+  }
+  const c = $('spCount'); if (c) c.textContent = `${pts.length} on the map of ${SP.rows.length} parcels`;
+  if (pts.length && !SP.mapFitted) { SP.map.fitBounds(pts, { padding: [20, 20], maxZoom: 15 }); SP.mapFitted = true; }
 }
