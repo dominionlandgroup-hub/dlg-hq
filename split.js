@@ -79,6 +79,7 @@ async function vSplit() {
     return;
   }
   SP.rows = t.data || [];
+  try { const b = await sb.from('buyers').select('name,company,counties,cities,zips,lot_sizes,utilities,deal_breakers,price_ranges').range(0, 4999); SP.buyers = (b.data || []).filter(x => (x.counties && x.counties.length) || x.cities || x.price_ranges); } catch (e) { SP.buyers = []; }
   $('actions').innerHTML = `<input type="file" id="spFile" accept=".xlsx" style="display:none" onchange="spImport(this.files[0])"><button class="btn ghost" onclick="$('spFile').click()">Import split list (.xlsx)</button>`;
   const counties = [...new Set(SP.rows.map(r => r.county).filter(Boolean))].sort();
   const owners = [...new Set(SP.rows.map(r => r.owner_type).filter(Boolean))].sort();
@@ -142,12 +143,34 @@ function spFiltered() {
   }).map(r => ({ r, m: spMath(r) })).sort((a, b) => (b.m.pencils - a.m.pencils) || (b.m.cushion - a.m.cushion));
 }
 
+// Builders whose buy box fits this parcel (area, sewer requirement, lot size, deal breakers). Live from the Buyers table.
+const SP_CO = { Charlotte: 'Mecklenburg', Gaston: 'Gaston' };
+function spBuyers(r) {
+  const co = SP_CO[r.county] || r.county, city = String(r.jurisdiction || r.county || '').replace(/\s*\(.*\)/, '').replace(/^Gaston Co\.?.*/i, '').trim().toLowerCase();
+  const lotAc = r.acres && r.est_lots ? r.acres / Math.max(1, Math.min(r.est_lots, SP.maxLots)) : null;
+  const bucket = lotAc == null ? null : lotAc < .25 ? 'Under 1/4 acre' : lotAc < .5 ? '1/4 to 1/2 acre' : lotAc < 1 ? '1/2 to 1 acre' : lotAc < 5 ? '1 to 5 acres' : '5+ acres';
+  const sewerNo = /^unlikely/i.test(r.sewer_guess || ''), c = spCk(r);
+  return (SP.buyers || []).filter(b => {
+    const cs = (b.counties || []).map(x => String(x).toLowerCase()), ct = String(b.cities || '').toLowerCase();
+    const geo = cs.some(x => x.includes(co.toLowerCase())) || (city && ct.includes(city)) || (r.county === 'Charlotte' && /charlotte/.test(ct)) || /within .*charlotte|charlotte (area|region|metro)|surrounding/.test(ct);
+    if (!geo) return false;
+    const u = String(b.utilities || '');
+    if (sewerNo && /public water and sewer only/i.test(u) && !/septic is ok/i.test(u)) return false;
+    if (bucket && b.lot_sizes && b.lot_sizes.length && !String(b.lot_sizes).includes(bucket)) return false;
+    const db = String(b.deal_breakers || '').toLowerCase();
+    if (/flood|fz/.test(db) && (r.flood_pct >= 5 || r.floodway)) return false;
+    if (/steep|slope|topo|hill|drop/.test(db) && (r.slope_pct >= 10 || c.band_slope_pct >= 10 || c.below_road_ft >= 5)) return false;
+    if (/easement|power/.test(db) && c.power_line) return false;
+    if (/hoa/.test(db) && r.subdivision) return false;
+    return true;
+  }).map(b => b.company || b.name);
+}
 function vSplitDraw() {
   const t = $('spTable'); if (!t) return;
   const rows = spFiltered();
   const c = $('spCount'); if (c) c.textContent = `${rows.length} of ${SP.rows.length} parcels`;
-  const head = `<tr><th>Site</th><th>Parcel</th><th>Owner</th><th class="right">Lots</th><th class="right">Frontage</th><th class="right">Most I can pay</th><th class="right">Tax land value</th><th>My status</th><th></th></tr>`;
-  if (!rows.length) { t.innerHTML = head + `<tr><td colspan="9" class="muted">${SP.rows.length ? 'Nothing matches. Try turning off "Profit or free lot only" or raising the pad price.' : 'No parcels yet. Claude loads them, or click "Import split list (.xlsx)".'}</td></tr>`; return; }
+  const head = `<tr><th>Site</th><th>Parcel</th><th>Owner</th><th class="right">Lots</th><th class="right">Frontage</th><th class="right">Most I can pay</th><th class="right">Tax land value</th><th>Buyers who fit</th><th>My status</th><th></th></tr>`;
+  if (!rows.length) { t.innerHTML = head + `<tr><td colspan="10" class="muted">${SP.rows.length ? 'Nothing matches. Try turning off "Profit or free lot only" or raising the pad price.' : 'No parcels yet. Claude loads them, or click "Import split list (.xlsx)".'}</td></tr>`; return; }
   t.innerHTML = head + rows.slice(0, 1500).map(({ r, m }) => `<tr>
       <td>${spPill(m.grade, m.grade === 'Profit' ? 'good' : m.grade === 'Free lot' ? 'warn' : 'bad')} ${spSewerPill(r)}<div style="margin-top:3px">${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</div></td>
       <td><b>${esc(r.address || '(no site address)')}</b><div class="small muted">${esc(r.jurisdiction || r.county || '')} · ${esc(r.zoning || '')} · ${esc(r.parcel || '')} · ${r.acres ?? ''} ac</div></td>
@@ -156,6 +179,7 @@ function vSplitDraw() {
       <td class="right num">${r.frontage_ft != null ? Math.round(r.frontage_ft) + ' ft' : '—'}</td>
       <td class="right num"><b style="color:${m.pencils ? '#1a7a45' : '#a61b1b'}">${money(m.maxOffer)}</b><div class="small muted">sell ${m.sell} × ${money(m.pad)}</div></td>
       <td class="right num">${r.tax_land_value != null ? money(r.tax_land_value) : '—'}</td>
+      <td class="small">${(() => { const b = spBuyers(r); return b.length ? `<b>${b.length}</b> <span class="muted">${esc(b.slice(0, 2).join(', '))}${b.length > 2 ? '…' : ''}</span>` : '<span class="muted">none</span>'; })()}</td>
       <td><select style="width:auto" onchange="spSetStatus(${r.id},this.value)">${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${(r.my_status || 'new') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>${r.my_notes ? '<div class="small muted" style="margin-top:3px">📝 has notes</div>' : ''}</td>
       <td><button class="btn ghost sm" onclick="spOpen(${r.id})">Details</button></td></tr>`).join('');
 }
@@ -202,6 +226,7 @@ function spOpen(id) {
       ${line('Owner', esc(r.owner_name || '') + (r.owner_name2 ? '<div class="small muted">' + esc(r.owner_name2) + '</div>' : '') + `<div class="small muted">${esc(r.owner_type || '')}</div>`)}
       ${line('Mailing address', esc([r.mail_address, r.mail_city, r.mail_state, r.mail_zip].filter(Boolean).join(', ')))}
       ${line('Held', r.years_held != null ? `${Math.round(r.years_held)} years${r.year_bought ? ' (since ' + r.year_bought + ')' : ''}${r.last_sale_price ? ' · paid ' + money(r.last_sale_price) : ''}` : null)}
+      ${line('Buyers who fit', spBuyers(r).map(esc).join(' · ') || 'No buy box fits yet (area, sewer, lot size or deal breakers)')}
       ${line('Links', links || null)}
     </table></div>
     <div class="card"><h3 class="sec" style="margin-top:0">Pad price for this parcel</h3>
