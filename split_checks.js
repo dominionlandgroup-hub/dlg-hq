@@ -10,8 +10,9 @@
     const u = url + '?' + new URLSearchParams(params);
     for (let i = 0; ; i++) {
       try {
-        const r = await fetch(u);
-        const j = await r.json();
+        const ac = new AbortController(), to = setTimeout(() => ac.abort(), 45000);
+        const r = await fetch(u, { signal: ac.signal });
+        const j = await r.json(); clearTimeout(to);
         if (j.error) throw new Error(j.error.message || 'service error');
         return j;
       } catch (e) { if (i >= tries - 1) throw e; await sleep(1500 * (i + 1)); }
