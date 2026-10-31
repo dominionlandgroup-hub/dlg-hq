@@ -5,12 +5,12 @@
 // or with the Import button. Pad prices are per county/zip settings until Canopy comps are added.
 const SP = {
   county: '', status: '', owner: '', q: '', pencil: true, sewer: false, clean: true, rows: [],
-  keep: 1, maxLots: 3, costs: 8000, profit: 10000,
+  keep: 1, maxLots: 3, costs: 8000, goal: 10000, cushion: 0,
   pads: { Charlotte: 70000, Gaston: 50000 },
 };
 const SP_STATUSES = [['new', 'New'], ['mailed', 'Mailed'], ['contacting', 'Contacting owner'], ['survey', 'Surveyor check'], ['offer', 'Offer made'], ['contract', 'Under contract'], ['dead', 'Dead']];
 try { Object.assign(SP, JSON.parse(localStorage.getItem('dlg_split_settings') || '{}'), { rows: [] }); } catch (e) { }
-function spSaveSettings() { try { const { keep, maxLots, costs, profit, pads } = SP; localStorage.setItem('dlg_split_settings', JSON.stringify({ keep, maxLots, costs, profit, pads })); } catch (e) { } }
+function spSaveSettings() { try { const { keep, maxLots, costs, goal, cushion, pads } = SP; localStorage.setItem('dlg_split_settings', JSON.stringify({ keep, maxLots, costs, goal, cushion, pads })); } catch (e) { } }
 
 async function spAll() {
   const all = [];
@@ -24,15 +24,20 @@ async function spAll() {
 }
 
 // The math: lots we can actually do (capped for an exempt/minor split), sell all but the keepers,
-// subtract survey/plat/closing costs and a profit cushion = the most we can pay for the whole parcel.
+// minus survey/plat/closing (and an optional cushion) = the most we can pay and still keep the lot(s) free.
+// Grade: Profit = room >= profit goal; Free lot = room >= 0 (break even, keep a free lot); No = short.
+// Water/sewer taps are the builder's cost on the lots sold; the kept lot is a portfolio hold.
 function spPad(r) { return r.pad_price || SP.pads[r.county] || 50000; }
 function spMath(r) {
   const lots = Math.min(r.est_lots || 0, SP.maxLots);
   const sell = Math.max(0, lots - SP.keep);
   const pad = spPad(r);
-  const maxOffer = sell * pad - SP.costs - SP.profit;
+  const maxOffer = sell * pad - SP.costs - (SP.cushion || 0);
   const ask = r.tax_land_value || 0;
-  return { lots, sell, pad, maxOffer, ask, pencils: lots >= SP.keep + 1 && maxOffer > 0 && maxOffer >= ask, cushion: maxOffer - ask };
+  const room = maxOffer - ask;
+  const ok = lots >= SP.keep + 1 && maxOffer > 0;
+  const grade = !ok || room < 0 ? 'No' : room >= SP.goal ? 'Profit' : 'Free lot';
+  return { lots, sell, pad, maxOffer, ask, grade, pencils: grade !== 'No', cushion: room };
 }
 function spSite(r) {
   const f = [];
@@ -67,7 +72,8 @@ async function vSplit() {
         <ol class="small" style="margin:8px 0 0 18px;line-height:1.6">
           <li><b>Every parcel here is vacant</b> and big enough, with enough road frontage, to cut into 3+ lots that meet its zoning's minimum lot size and width on the road it already has (no new street, so it's an exempt or minor split, not a subdivision).</li>
           <li><b>Lots</b> = the smaller of (area ÷ minimum lot size) and (frontage ÷ minimum width). Frontage is measured from the county street map, so it can be off; the surveyor confirms.</li>
-          <li><b>The math:</b> lots used (capped at your max) − lots you keep = lots you sell. Lots sold × pad price − survey/plat/closing − your cushion = the <b>most you can pay</b>. It <b>pencils</b> when that's at or above the county tax land value (a stand-in for what the owner will want).</li>
+          <li><b>The math:</b> lots used (capped at your max) − lots you keep = lots you sell. Lots sold × pad price − survey, plat fees and closing (both sides) = the <b>most you can pay</b> and still keep your lot free. Water/sewer taps are the builder's cost.</li>
+          <li><b>Grade</b> (against county tax land value, a stand-in for the owner's price): <b>Profit</b> = room left ≥ your profit goal. <b>Free lot</b> = you break even or a little better and keep a lot free and clear. <b>No</b> = hidden.</li>
           <li><b>Site checks:</b> FEMA flood %, average slope and tree cover. Builders walk from flood and steep lots. Red = skip, yellow = look closer.</li>
           <li><b>Sewer:</b> inside city/town limits = likely, unincorporated = septic area (each lot then needs its own perc test). Call the utility before an offer.</li>
           <li><b>Before you sell any lot:</b> contract with a plat-approval contingency, surveyor confirms, plat recorded (Charlotte exempt plat ~5 business days). A minor split can't be re-split for 10 years (G.S. 160D-802).</li>
@@ -77,14 +83,15 @@ async function vSplit() {
         <label class="small">Keep ${`<select id="spKeep" style="width:auto" onchange="spSet()">${[1, 2].map(v => `<option ${SP.keep == v ? 'selected' : ''}>${v}</option>`).join('')}</select>`} lot(s)</label>
         <label class="small">Max lots ${`<select id="spMax" style="width:auto" onchange="spSet()">${[3, 4, 5].map(v => `<option ${SP.maxLots == v ? 'selected' : ''}>${v}</option>`).join('')}</select>`}</label>
         <label class="small">Survey/plat/closing ${num('spCosts', SP.costs, 500)}</label>
-        <label class="small">My cushion ${num('spProfit', SP.profit)}</label>
+        <label class="small">Profit goal ${num('spGoal', SP.goal)}</label>
+        <label class="small" title="Optional: interest/holding if you fund it yourself">Cushion ${num('spCushion', SP.cushion || 0, 500)}</label>
         ${Object.keys(SP.pads).map(c => `<label class="small">${esc(c)} pad ${num('spPad_' + c, SP.pads[c])}</label>`).join('')}
       </div>
       <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
         <select style="width:auto" onchange="SP.county=this.value;vSplitDraw()"><option value="">All areas</option>${counties.map(c => `<option ${SP.county === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select style="width:auto" onchange="SP.owner=this.value;vSplitDraw()"><option value="">Any owner</option>${owners.map(c => `<option ${SP.owner === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select style="width:auto" onchange="SP.status=this.value;vSplitDraw()"><option value="">Any status</option>${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${SP.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Pencils only</label>
+        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Profit or free lot only</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.clean ? 'checked' : ''} onchange="SP.clean=this.checked;vSplitDraw()"> Hide flood/steep</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.sewer ? 'checked' : ''} onchange="SP.sewer=this.checked;vSplitDraw()"> Sewer likely only</label>
         <input placeholder="Search owner, address, parcel, zip" style="width:240px" value="${esc(SP.q)}" oninput="SP.q=this.value;vSplitDraw()">
@@ -97,7 +104,7 @@ async function vSplit() {
 
 function spSet() {
   SP.keep = Number($('spKeep').value); SP.maxLots = Number($('spMax').value);
-  SP.costs = Number($('spCosts').value) || 0; SP.profit = Number($('spProfit').value) || 0;
+  SP.costs = Number($('spCosts').value) || 0; SP.goal = Number($('spGoal').value) || 0; SP.cushion = Number($('spCushion').value) || 0;
   for (const c of Object.keys(SP.pads)) { const el = $('spPad_' + c); if (el) SP.pads[c] = Number(el.value) || SP.pads[c]; }
   spSaveSettings(); vSplitDraw();
 }
@@ -121,9 +128,9 @@ function vSplitDraw() {
   const rows = spFiltered();
   const c = $('spCount'); if (c) c.textContent = `${rows.length} of ${SP.rows.length} parcels`;
   const head = `<tr><th>Site</th><th>Parcel</th><th>Owner</th><th class="right">Lots</th><th class="right">Frontage</th><th class="right">Most I can pay</th><th class="right">Tax land value</th><th>My status</th><th></th></tr>`;
-  if (!rows.length) { t.innerHTML = head + `<tr><td colspan="9" class="muted">${SP.rows.length ? 'Nothing matches. Try turning off "Pencils only" or raising the pad price.' : 'No parcels yet. Claude loads them, or click "Import split list (.xlsx)".'}</td></tr>`; return; }
+  if (!rows.length) { t.innerHTML = head + `<tr><td colspan="9" class="muted">${SP.rows.length ? 'Nothing matches. Try turning off "Profit or free lot only" or raising the pad price.' : 'No parcels yet. Claude loads them, or click "Import split list (.xlsx)".'}</td></tr>`; return; }
   t.innerHTML = head + rows.slice(0, 1500).map(({ r, m }) => `<tr>
-      <td>${spSewerPill(r)}<div style="margin-top:3px">${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</div></td>
+      <td>${spPill(m.grade, m.grade === 'Profit' ? 'good' : m.grade === 'Free lot' ? 'warn' : 'bad')} ${spSewerPill(r)}<div style="margin-top:3px">${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</div></td>
       <td><b>${esc(r.address || '(no site address)')}</b><div class="small muted">${esc(r.jurisdiction || r.county || '')} · ${esc(r.zoning || '')} · ${esc(r.parcel || '')} · ${r.acres ?? ''} ac</div></td>
       <td>${esc(r.owner_name || '')}<div class="small muted">${esc(r.owner_type || '')}${r.years_held != null ? ' · ' + Math.round(r.years_held) + ' yrs' : ''}${r.out_of_state ? ' · out of state' : ''}</div></td>
       <td class="right num">${m.lots}<div class="small muted">${r.est_lots > m.lots ? r.est_lots + ' fit' : ''}</div></td>
@@ -153,10 +160,10 @@ function spOpen(id) {
   ].filter(Boolean).join(' · ');
   window._wideNext = true;
   openDrawer(`<div class="dhead"><div><div class="small muted">Split Finder · ${esc(r.jurisdiction || r.county || '')}</div><h2 style="margin:2px 0 0">${esc(r.address || r.parcel || 'Parcel')}</h2><div class="small muted">${r.acres ?? ''} acres · ${esc(r.zoning || '')} · parcel ${esc(r.parcel || '')}</div></div><button class="btn ghost" onclick="closeDrawer()">Close</button></div>
-    <div class="card"><div style="font-size:15px">${m.pencils ? spPill('Pencils', 'good') : spPill("Doesn't pencil at these numbers", 'bad')}</div>
+    <div class="card"><div style="font-size:15px">${m.grade === 'Profit' ? spPill('Profit + free lot', 'good') : m.grade === 'Free lot' ? spPill('Free lot (break even)', 'warn') : spPill("Doesn't work at these numbers", 'bad')}</div>
       <div class="small" style="margin-top:8px;line-height:1.7">
         ${m.lots} lots (of ${r.est_lots ?? '?'} that fit) − keep ${SP.keep} = sell ${m.sell} × ${money(m.pad)} pad${r.pad_price_source ? ' <span class="muted">(' + esc(r.pad_price_source) + ')</span>' : ''} = ${money(m.sell * m.pad)}<br>
-        − ${money(SP.costs)} survey/plat/closing − ${money(SP.profit)} cushion = <b>${money(m.maxOffer)} most I can pay</b><br>
+        − ${money(SP.costs)} survey/plat/closing${SP.cushion ? ' − ' + money(SP.cushion) + ' cushion' : ''} = <b>${money(m.maxOffer)} most I can pay</b><br>
         Tax land value ${money(m.ask)} → ${m.cushion >= 0 ? money(m.cushion) + ' of room' : money(-m.cushion) + ' short'}. Keep lot(s) worth about ${money(SP.keep * m.pad)}.
       </div></div>
     <div class="card"><table>
