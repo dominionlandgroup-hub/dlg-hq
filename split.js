@@ -63,7 +63,7 @@ function spSite(r) {
 }
 // NC water-supply watershed: critical areas and WS-II/III limit density for all new homes; WS-IV protected areas only
 // for projects that need an erosion-control plan (about 1+ acre disturbed). Not verified per parcel: confirm with planning.
-function spWsLimit(r) { const w = String(spCk(r).watershed || ''); if (!w) return false; if (/WS-(II|III)\b|C\b|C \(/.test(w) && !/WS-V/.test(w)) return true; return /WS-IV/.test(w) && (r.acres || 0) >= 1; }
+function spWsLimit(r) { const w = String(spCk(r).watershed || ''); if (!w) return false; if (/WS-(II|III)|C\b|C \(/.test(w) && !/WS-V/.test(w)) return true; return /WS-IV/.test(w) && (r.acres || 0) >= 1; }
 function spClean(r) { return !spSite(r).some(x => x[1] === 'bad'); }
 function spPill(t, k) {
   const s = k === 'bad' ? 'background:#fde8e8;color:#a61b1b' : k === 'warn' ? 'background:#fff4d6;color:#7a5a00' : k === 'good' ? 'background:#e3f4ea;color:#1a7a45' : 'background:#f1f1f1;color:#666';
