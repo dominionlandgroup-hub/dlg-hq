@@ -59,7 +59,7 @@
     const fmt = (r, v) => r[2] ? r[2](v) : (v || 0).toLocaleString();
     $('view').innerHTML = `
       <div class="card" style="border-left:4px solid #5c2977">
-        <b>My plan (set Oct 31, 2026)</b>
+        <b>My plan (set Oct 31, 2026)</b> <a href="https://claude.ai/artifact/YNVEDSc4SbbsEFBcMbzxg7" target="_blank" rel="noopener" class="small" style="margin-left:8px">Open my checklist ↗</a>
         <div class="small" style="margin-top:6px;line-height:1.7">
           <b>Mail:</b> ${GOAL.toLocaleString()} pieces every week, core 6 counties only (Mecklenburg, Gaston, Union, Cabarrus, Iredell, Rowan), paid from the business account, never a card. Step up to 4,000 then 6,000 a week only from closing money.<br>
           <b>Deals:</b> 2 to 3 closings a month. <b>Every closing:</b> 15% tithes · 20% taxes · $5,000 to me · the rest half to debt, half to mail.<br>
