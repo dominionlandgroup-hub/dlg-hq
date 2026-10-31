@@ -39,12 +39,21 @@ function spMath(r) {
   const grade = !ok || room < 0 ? 'No' : room >= SP.goal ? 'Profit' : 'Free lot';
   return { lots, sell, pad, maxOffer, ask, grade, pencils: grade !== 'No', cushion: room };
 }
+function spCk(r) { try { return JSON.parse(r.checks_done || '{}') || {}; } catch (e) { return {}; } }
+function spChecked(r) { return spCk(r).v >= 1; }
 function spSite(r) {
-  const f = [];
+  const f = [], c = spCk(r);
   if (r.floodway) f.push(['Floodway', 'bad']);
   if (r.flood_pct >= 25) f.push([`${r.flood_pct}% flood`, 'bad']); else if (r.flood_pct >= 5) f.push([`${r.flood_pct}% flood`, 'warn']);
   if (r.slope_pct >= 15) f.push([`${r.slope_pct}% slope`, 'bad']); else if (r.slope_pct >= 8) f.push([`${r.slope_pct}% slope`, 'warn']);
+  if (c.below_road_ft != null && c.below_road_ft >= 8) f.push([`${c.below_road_ft} ft below road`, 'bad']); else if (c.below_road_ft >= 4) f.push([`${c.below_road_ft} ft below road`, 'warn']);
+  if (c.relief_ft >= 20) f.push([`${c.relief_ft} ft drop`, 'warn']);
+  if (spChecked(r) && !r.frontage_ft) f.push(['No road frontage found', 'bad']);
+  if (r.road_public === false) f.push(['Private road?', 'warn']);
+  if (r.shape_ok === false) f.push(['Odd shape', 'warn']);
+  if (r.subdivision) f.push(['Platted: check covenants', 'warn']);
   if (r.tree_pct >= 70) f.push([`${r.tree_pct}% trees`, 'warn']);
+  if (!spChecked(r)) f.push(['Not checked yet', '']);
   return f;
 }
 function spClean(r) { return !spSite(r).some(x => x[1] === 'bad'); }
@@ -93,6 +102,7 @@ async function vSplit() {
         <select style="width:auto" onchange="SP.status=this.value;vSplitDraw()"><option value="">Any status</option>${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${SP.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Profit or free lot only</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.clean ? 'checked' : ''} onchange="SP.clean=this.checked;vSplitDraw()"> Hide flood/steep</label>
+        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.checked ? 'checked' : ''} onchange="SP.checked=this.checked;vSplitDraw()"> Checked only</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.sewer ? 'checked' : ''} onchange="SP.sewer=this.checked;vSplitDraw()"> Sewer likely only</label>
         <input placeholder="Search owner, address, parcel, zip" style="width:240px" value="${esc(SP.q)}" oninput="SP.q=this.value;vSplitDraw()">
         <span class="small muted" id="spCount"></span>
@@ -118,6 +128,7 @@ function spFiltered() {
     if (SP.pencil && !spMath(r).pencils) return false;
     if (SP.clean && !spClean(r)) return false;
     if (SP.sewer && !/^likely/i.test(r.sewer_guess || '')) return false;
+    if (SP.checked && !spChecked(r)) return false;
     if (q && ![r.owner_name, r.owner_name2, r.address, r.parcel, r.mail_city, r.mail_zip, r.zoning].some(x => String(x || '').toLowerCase().includes(q))) return false;
     return true;
   }).map(r => ({ r, m: spMath(r) })).sort((a, b) => (b.m.pencils - a.m.pencils) || (b.m.cushion - a.m.cushion));
@@ -168,11 +179,13 @@ function spOpen(id) {
       </div></div>
     <div class="card"><table>
       ${line('Lot rules', r.min_lot_sqft ? `${Number(r.min_lot_sqft).toLocaleString()} sq ft minimum, ${r.min_width_ft} ft wide` : null)}
-      ${line('Size / frontage', `${r.lot_sqft ? Number(r.lot_sqft).toLocaleString() + ' sq ft' : ''}${r.frontage_ft != null ? ' · ' + Math.round(r.frontage_ft) + ' ft of road frontage (map estimate)' : ''}${r.corner ? ' · corner/two streets' : ''}`)}
-      ${line('Street', esc(r.street || ''))}
+      ${line('Size / frontage', `${r.lot_sqft ? Number(r.lot_sqft).toLocaleString() + ' sq ft' : ''}${r.frontage_ft != null ? ' · ' + Math.round(r.frontage_ft) + ' ft of road frontage (' + (r.frontage_method ? 'measured along the right-of-way' : 'map estimate') + ')' : ''}${r.corner ? ' · corner/two streets' : ''}`)}
+      ${line('Road', r.road_name ? esc(r.road_name) + (r.road_public === true ? ' · public (city/state maintained)' : r.road_public === false ? ' · <b>no maintenance on record: may be private, not verified</b>' : '') : esc(r.street || ''))}
+      ${line('Recorded plat', r.subdivision ? esc(r.subdivision) + ' <span class="small muted">(check covenants/restrictions before offering)</span>' : null)}
       ${line('Sewer', esc(r.sewer_guess || ''))}
       ${line('Flood (FEMA)', r.flood_pct != null ? `${r.flood_pct}% in the 100-year flood zone${r.floodway ? ' · includes floodway (can\'t build)' : ''}` : 'Not checked yet')}
-      ${line('Slope', r.slope_pct != null ? `${r.slope_pct}% average (USGS elevation)` : 'Not checked yet')}
+      ${line('Slope / grade', r.slope_pct != null ? `${r.slope_pct}% average · ${spCk(r).relief_ft ?? '?'} ft high-to-low · ${spCk(r).below_road_ft == null ? 'road height unknown' : spCk(r).below_road_ft > 0 ? spCk(r).below_road_ft + ' ft below the road' : spCk(r).below_road_ft < 0 ? -spCk(r).below_road_ft + ' ft above the road' : 'level with the road'} <span class="small muted">(USGS 1 m lidar)</span>` : 'Not checked yet')}
+      ${line('Shape', r.shape_ok == null ? null : r.shape_ok ? 'Regular enough to cut into lots' : 'Irregular (flag lot, taper or skinny strip): surveyor must confirm the lot layout')}
       ${line('Tree cover', r.tree_pct != null ? `${r.tree_pct}% (NLCD canopy)` : 'Not checked yet')}
       ${line('Owner', esc(r.owner_name || '') + (r.owner_name2 ? '<div class="small muted">' + esc(r.owner_name2) + '</div>' : '') + `<div class="small muted">${esc(r.owner_type || '')}</div>`)}
       ${line('Mailing address', esc([r.mail_address, r.mail_city, r.mail_state, r.mail_zip].filter(Boolean).join(', ')))}
