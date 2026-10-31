@@ -384,8 +384,7 @@ async function spDrawMap() {
     const streets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri' }).addTo(m);
     const dyn = (url, layers, opacity, minZoom) => L.esri.dynamicMapLayer({ url, layers, opacity: opacity || 0.6, f: 'image', minZoom: minZoom || 0 });
     const overlays = {
-      'Parcel lines (Mecklenburg)': dyn('https://gis.charlottenc.gov/arcgis/rest/services/PLN/AllParcelData/MapServer', [0], 0.8, 15),
-      'Parcel lines (Gaston)': dyn('https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Parcels/MapServer', [11], 0.8, 15),
+      'Parcel lines': (SP.lines = L.layerGroup()),
       'Zoning (Charlotte)': dyn('https://gis.charlottenc.gov/arcgis/rest/services/PLN/Zoning/MapServer', [0], 0.45, 13),
       'Zoning (Gaston + towns)': dyn('https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Zoning/MapServer', [1, 2, 10, 11, 15, 16, 20], 0.45, 13),
       'FEMA flood zones': dyn('https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer', [28], 0.5, 12),
@@ -394,7 +393,8 @@ async function spDrawMap() {
       'Power transmission lines': L.esri.featureLayer({ url: 'https://services1.arcgis.com/Hp6G80Pky0om7QvQ/arcgis/rest/services/Electric_Power_Transmission_Lines/FeatureServer/0', minZoom: 12, style: () => ({ color: '#ff3b30', weight: 3 }) }),
       'Water-supply watersheds': L.esri.featureLayer({ url: 'https://services2.arcgis.com/kCu40SDxsCGcuUWO/ArcGIS/rest/services/dwq_wsws_20141126/FeatureServer/0', minZoom: 9, style: () => ({ color: '#2b6cb0', weight: 1, fillOpacity: .08 }) }),
     };
-    overlays['Parcel lines (Mecklenburg)'].addTo(m); overlays['Parcel lines (Gaston)'].addTo(m);
+    overlays['Parcel lines'].addTo(m);
+    m.on('moveend', spParcelLines);
     SP.pins = L.layerGroup().addTo(m);
     L.control.layers({ Streets: streets, Satellite: sat }, { 'Split parcels': SP.pins, ...overlays }, { collapsed: true }).addTo(m);
     const lg = L.control({ position: 'bottomleft' }); lg.onAdd = () => { const d = L.DomUtil.create('div'); d.style.cssText = 'background:#fff;padding:6px 8px;border-radius:6px;font-size:12px;line-height:1.5'; d.innerHTML = '<span style="color:#1a7a45">●</span> Profit &nbsp;<span style="color:#c08a00">●</span> Free lot &nbsp;<span style="color:#a61b1b">●</span> No &nbsp;<span style="color:#555">○</span> red flag'; return d; }; lg.addTo(m);
@@ -410,5 +410,47 @@ async function spDrawMap() {
     mk.on('click', () => spOpen(r.id)); mk.addTo(SP.pins); pts.push([r.lat, r.lng]);
   }
   const c = $('spCount'); if (c) c.textContent = `${pts.length} on the map of ${SP.rows.length} parcels`;
+  spParcelLines();
   if (pts.length && !SP.mapFitted) { SP.map.fitBounds(pts, { padding: [20, 20], maxZoom: 15 }); SP.mapFitted = true; }
+}
+
+// Parcel outlines in view (zoom 16+), as vector lines from the county GIS. JSONP so it works for counties without CORS.
+function spJsonp(url, params) {
+  return new Promise((res, rej) => {
+    const cb = '_spcb' + Math.random().toString(36).slice(2), sc = document.createElement('script');
+    const t = setTimeout(() => { cleanup(); rej(new Error('timeout')); }, 20000);
+    function cleanup() { clearTimeout(t); delete window[cb]; sc.remove(); }
+    window[cb] = j => { cleanup(); res(j); };
+    sc.src = url + '?' + new URLSearchParams({ ...params, f: 'json', callback: cb }); sc.onerror = () => { cleanup(); rej(new Error('load failed')); };
+    document.head.appendChild(sc);
+  });
+}
+const SP_PARCEL_SRC = [
+  { url: 'https://gis.charlottenc.gov/arcgis/rest/services/PLN/AllParcelData/MapServer/0/query', id: 'parcelid', county: 'Charlotte', box: [-81.06, 35.0, -80.55, 35.52] },
+  { url: 'https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Parcels/MapServer/11/query', id: 'PIN', county: 'Gaston', box: [-81.46, 35.14, -80.92, 35.42] },
+];
+async function spParcelLines() {
+  if (!SP.map || !SP.lines || !SP.map.hasLayer(SP.lines)) return;
+  const m = SP.map, z = m.getZoom(), seq = (SP.lineSeq = (SP.lineSeq || 0) + 1);
+  if (z < 16) { SP.lines.clearLayers(); return; }
+  const b = m.getBounds(), env = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  const byKey = new Map(SP.rows.map(r => [r.county + '|' + r.parcel, r]));
+  const feats = [];
+  for (const src of SP_PARCEL_SRC) {
+    if (env[2] < src.box[0] || env[0] > src.box[2] || env[3] < src.box[1] || env[1] > src.box[3]) continue;
+    try {
+      const j = await spJsonp(src.url, { geometry: env.join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326', outSR: '4326', spatialRel: 'esriSpatialRelIntersects', outFields: src.id, returnGeometry: 'true', resultRecordCount: '1500', geometryPrecision: '6' });
+      for (const f of j.features || []) feats.push({ src, f });
+    } catch (e) { }
+  }
+  if (seq !== SP.lineSeq) return;
+  SP.lines.clearLayers();
+  for (const { src, f } of feats) {
+    const r = byKey.get(src.county + '|' + f.attributes[src.id]);
+    const ll = (f.geometry.rings || []).map(rr => rr.map(([x, y]) => [y, x]));
+    if (r) {
+      const g = spMath(r).grade, col = g === 'Profit' ? '#22c55e' : g === 'Free lot' ? '#facc15' : '#ef4444';
+      L.polygon(ll, { color: col, weight: 3, fillOpacity: .12 }).bindTooltip(`${esc(r.address || r.parcel)} · ${spMath(r).lots} lots · ${g}`).on('click', () => spOpen(r.id)).addTo(SP.lines);
+    } else L.polygon(ll, { color: '#fde68a', weight: 1, fill: false, interactive: false }).addTo(SP.lines);
+  }
 }
