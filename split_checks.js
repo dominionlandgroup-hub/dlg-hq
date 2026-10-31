@@ -204,7 +204,12 @@
         const e = m.get(key(x + sp, y)), n = m.get(key(x, y + sp));
         if (e != null && n != null) loc.push(100 * Math.hypot((e - z) / sp, (n - z) / sp));
       }
-      if (loc.length) { slope = Math.round(10 * loc.reduce((s, v) => s + v, 0) / loc.length) / 10; steepShare = Math.round(100 * loc.filter(v => v > 15).length / loc.length); }
+      if (loc.length) steepShare = Math.round(100 * loc.filter(v => v > 15).length / loc.length);
+      // Overall grade = best-fit plane through the lidar points (what a topo map shows). Point-to-point slope over ~15 ft
+      // overstated grade on small lots (ditches, mounds): Damien's topo check on a Davidson lot, Oct 31 2026.
+      { const n = gv.length, mx = gv.reduce((s, p) => s + p[0], 0) / n, my = gv.reduce((s, p) => s + p[1], 0) / n, mz = gv.reduce((s, p) => s + p[2], 0) / n;
+        let cxx = 0, cyy = 0, cxy = 0, cxz = 0, cyz = 0; for (const [x, y, z] of gv) { const dx = x - mx, dy = y - my, dz = z - mz; cxx += dx * dx; cyy += dy * dy; cxy += dx * dy; cxz += dx * dz; cyz += dy * dz; }
+        const D = cxx * cyy - cxy * cxy; if (Math.abs(D) > 1e-9) { const ga = (cxz * cyy - cyz * cxy) / D, gb = (cyz * cxx - cxz * cxy) / D; slope = Math.round(1000 * Math.hypot(ga, gb)) / 10; } }
       if (fe.length) belowRoad = Math.round(fe.reduce((s, v) => s + v, 0) / fe.length - zs.reduce((s, v) => s + v, 0) / zs.length);
     }
 
