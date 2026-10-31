@@ -89,15 +89,15 @@
   // TIGER can't tell public from private reliably: S1100/S1200/S1400 count as public; NCDOT check (v3road) confirms.
   const ONEMAP = 'https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/MapServer/1/query';
   const TIGER = ['https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Transportation/MapServer/6/query', 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Transportation/MapServer/8/query'];
-  for (const [name, fips] of [['Union', '179'], ['Cabarrus', '025'], ['Iredell', '097'], ['Rowan', '159']]) SCK.sources[name] = {
+  for (const [name, fips] of [['Union', '179'], ['Cabarrus', '025'], ['Iredell', '097'], ['Rowan', '159'], ['GastonOneMap', '071']]) SCK.sources[name] = {
     parcels: ONEMAP, idField: 'parno', whereExtra: `cntyfips='${fips}'`, extraFields: 'subdivisio,legdecfull',
-    streets: TIGER, streetFields: 'FULLNAME,MTFCC',
+    streets: TIGER, streetFields: 'NAME,MTFCC',
     isPublic: a => /^S1[124]00$/.test(String(a.MTFCC || '')),
-    roadName: a => a.FULLNAME,
+    roadName: a => a.NAME,
     plat: a => !!(a.subdivisio && String(a.subdivisio).trim()),
     platLabel: a => String(a.subdivisio || a.legdecfull || '').trim(),
     subField: 'FULLNAME_NONE',
-    busy: a => /^S1[12]00$/.test(String(a.MTFCC || '')), busyFields: 'FULLNAME,MTFCC',
+    busy: a => /^S1[12]00$/.test(String(a.MTFCC || '')), busyFields: 'NAME,MTFCC',
   };
 
   // Streets can be one service or a list (TIGER: secondary + local roads); results are merged.
