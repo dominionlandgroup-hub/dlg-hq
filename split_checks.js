@@ -85,9 +85,29 @@
       },
     },
   };
+  // Union, Cabarrus, Iredell, Rowan: NC OneMap statewide parcels (geometry, subdivision) + Census TIGER roads.
+  // TIGER can't tell public from private reliably: S1100/S1200/S1400 count as public; NCDOT check (v3road) confirms.
+  const ONEMAP = 'https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/MapServer/1/query';
+  const TIGER = ['https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Transportation/MapServer/6/query', 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Transportation/MapServer/8/query'];
+  for (const [name, fips] of [['Union', '179'], ['Cabarrus', '025'], ['Iredell', '097'], ['Rowan', '159']]) SCK.sources[name] = {
+    parcels: ONEMAP, idField: 'parno', whereExtra: `cntyfips='${fips}'`, extraFields: 'subdivisio,legdecfull',
+    streets: TIGER, streetFields: 'FULLNAME,MTFCC',
+    isPublic: a => /^S1[124]00$/.test(String(a.MTFCC || '')),
+    roadName: a => a.FULLNAME,
+    plat: a => !!(a.subdivisio && String(a.subdivisio).trim()),
+    platLabel: a => String(a.subdivisio || a.legdecfull || '').trim(),
+    subField: 'FULLNAME_NONE',
+    busy: a => /^S1[12]00$/.test(String(a.MTFCC || '')), busyFields: 'FULLNAME,MTFCC',
+  };
 
+  // Streets can be one service or a list (TIGER: secondary + local roads); results are merged.
+  async function getStreets(src, params) {
+    const L = Array.isArray(src.streets) ? src.streets : [src.streets];
+    const js = await Promise.all(L.map(u => getJ(u, params)));
+    return { features: js.flatMap(j => (j && j.features) || []) };
+  }
   async function parcelGeom(src, id) {
-    const j = await getJ(src.parcels, { where: `${src.idField}='${id}'`, outFields: `${src.idField},${src.extraFields || ''}`.replace(/,$/, ''), returnGeometry: 'true', outSR: '4326', f: 'json' });
+    const j = await getJ(src.parcels, { where: `${src.idField}='${id}'${src.whereExtra ? ' AND ' + src.whereExtra : ''}`, outFields: `${src.idField},${src.extraFields || ''}`.replace(/,$/, ''), returnGeometry: 'true', outSR: '4326', f: 'json' });
     const f = j.features && j.features[0]; if (!f) throw new Error('parcel not found');
     return f;
   }
@@ -107,7 +127,7 @@
 
     const [nb, st, fl] = await Promise.all([
       getJ(src.parcels, { ...envQ(60), outFields: src.idField, resultRecordCount: '400' }),
-      getJ(src.streets, { ...envQ(160), outFields: src.streetFields }),
+      getStreets(src, { ...envQ(160), outFields: src.streetFields }),
       getJ('https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query', { ...envQ(20), outFields: 'FLD_ZONE,ZONE_SUBTY', maxAllowableOffset: '0.00001' }).catch(() => null),
     ]);
     const nbLines = [];
@@ -258,7 +278,7 @@
       soft(getJ(NWI, envQ(10, 'WETLAND_TYPE,ATTRIBUTE'))),
       soft(getJ(HIFLD, envQ(120, 'VOLTAGE,OWNER'))),
       soft(getJ(WSW, { geometry: `${lon0},${lat0}`, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', outFields: 'class,WSWS_PCA,STREAM_NAM', returnGeometry: 'false', f: 'json' })),
-      soft(getJ(src.streets, envQ(90, src.busyFields))),
+      soft(getStreets(src, envQ(90, src.busyFields))),
     ]);
     const sp = Math.max(10, Math.sqrt(area / 70));
     const grid = [];
@@ -327,7 +347,7 @@
     const area = Math.abs(rings.reduce((s, rr) => s + ringArea(rr), 0));
     const xs = rings.flat().map(p => p[0]), ys = rings.flat().map(p => p[1]);
     const a = P.b([Math.min(...xs) - 120, Math.min(...ys) - 120]), b = P.b([Math.max(...xs) + 120, Math.max(...ys) + 120]);
-    const st = await getJ(src.streets, { geometry: `${a[0]},${a[1]},${b[0]},${b[1]}`, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', outSR: '4326', returnGeometry: 'true', outFields: 'OBJECTID', f: 'json' });
+    const st = await getStreets(src, { geometry: `${a[0]},${a[1]},${b[0]},${b[1]}`, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', outSR: '4326', returnGeometry: 'true', outFields: 'OBJECTID', f: 'json' });
     const sL = []; for (const g of st.features || []) for (const p of g.geometry.paths || []) sL.push({ pts: p.map(P.f) });
     // road points: the street centerline itself, at spots nearest the parcel edge (within 85 ft)
     const roadPts = [];
