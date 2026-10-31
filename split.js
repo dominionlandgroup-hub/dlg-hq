@@ -28,16 +28,25 @@ async function spAll() {
 // Grade: Profit = room >= profit goal; Free lot = room >= 0 (break even, keep a free lot); No = short.
 // Water/sewer taps are the builder's cost on the lots sold; the kept lot is a portfolio hold.
 function spPad(r) { return r.pad_price || SP.pads[r.county] || 50000; }
+// Conservative lot count: lots that fit along the single longest road (corner second streets don't add lots),
+// with 5% width margin, and lot area padded 30% for odd shapes, driveways and setbacks. 3+ real lots or it's out.
+function spLots(r) {
+  const w = r.min_width_ft || 0, m = r.min_lot_sqft || 0; if (!w || !m) return 0;
+  const roads = [...String(r.road_name || '').matchAll(/\((\d+) ft\)/g)].map(x => +x[1]);
+  const front = roads.length ? Math.max(...roads) : (r.frontage_ft || 0);
+  return Math.min(Math.floor(front / (w * 1.05)), Math.floor((r.lot_sqft || 0) / (m * 1.3)));
+}
+function spCountyName(r) { return r.county === 'Charlotte' ? 'Mecklenburg County' : r.county === 'Gaston' ? 'Gaston County' : (r.county || '') + ' County'; }
 function spMath(r) {
-  const lots = Math.min(r.est_lots || 0, SP.maxLots);
+  const lots = Math.min(spLots(r), SP.maxLots);
   const sell = Math.max(0, lots - SP.keep);
   const pad = spPad(r);
   const maxOffer = sell * pad - SP.costs - (SP.cushion || 0);
   const ask = r.tax_land_value || 0;
   const room = maxOffer - ask;
-  const ok = lots >= SP.keep + 1 && maxOffer > 0;
-  const grade = !ok || room < 0 ? 'No' : room >= SP.goal ? 'Profit' : 'Free lot';
-  return { lots, sell, pad, maxOffer, ask, grade, pencils: grade !== 'No', cushion: room };
+  const ok = lots >= Math.max(3, SP.keep + 1) && maxOffer > 0 && !!r.pad_price;
+  const grade = !r.pad_price ? 'No comp' : !ok || room < 0 ? 'No' : room >= SP.goal ? 'Profit' : 'Free lot';
+  return { lots, sell, pad, maxOffer, ask, grade, pencils: grade === 'Profit' || grade === 'Free lot', profit: grade === 'Profit', cushion: room };
 }
 function spCk(r) { try { return JSON.parse(r.checks_done || '{}') || {}; } catch (e) { return {}; } }
 function spChecked(r) { return spCk(r).v >= 1; }
@@ -70,11 +79,12 @@ function spWsLimit(r) { const w = String(spCk(r).watershed || ''); if (!w) retur
 const SP_SB = { 'N1-A': [27, 5, 40], 'N1-B': [27, 5, 35], 'N1-C': [17, 5, 30], 'N1-D': [17, 5, 25] };
 function spSetback(r) {
   const z = String(r.zoning || '').match(/N1-[A-D]/); if (!z || !r.frontage_ft || !r.lot_sqft) return null;
-  const [fr, side, rear] = SP_SB[z[0]], lots = Math.max(1, Math.min(r.est_lots || 1, SP.maxLots));
+  const [fr, side, rear] = SP_SB[z[0]], lots = Math.max(1, Math.min(spLots(r) || 1, SP.maxLots));
   const w = r.frontage_ft / lots, d = r.lot_sqft / r.frontage_ft, ew = Math.round(w - 2 * side), ed = Math.round(d - fr - rear);
   return { ok: ew >= 24 && ed >= 30, ew, ed, zone: z[0], fr, side, rear };
 }
-function spClean(r) { return !spSite(r).some(x => x[1] === 'bad'); }
+// Clean = no red flags and no yellow flags (a recorded plat and watershed notes are allowed; check covenants before an offer).
+function spClean(r) { return !spSite(r).some(x => x[1] === 'bad' || (x[1] === 'warn' && !/^Platted|^Watershed/.test(x[0]))) && spChecked(r); }
 function spPill(t, k) {
   const s = k === 'bad' ? 'background:#fde8e8;color:#a61b1b' : k === 'warn' ? 'background:#fff4d6;color:#7a5a00' : k === 'good' ? 'background:#e3f4ea;color:#1a7a45' : 'background:#f1f1f1;color:#666';
   return `<span class="pill" style="${s}">${esc(t)}</span>`;
@@ -100,7 +110,7 @@ async function vSplit() {
       <details><summary style="cursor:pointer;font-weight:600">How the Split Finder works</summary>
         <ol class="small" style="margin:8px 0 0 18px;line-height:1.6">
           <li><b>Every parcel here is vacant</b> and big enough, with enough road frontage, to cut into 3+ lots that meet its zoning's minimum lot size and width on the road it already has (no new street, so it's an exempt or minor split, not a subdivision).</li>
-          <li><b>Lots</b> = the smaller of (area ÷ minimum lot size) and (frontage ÷ minimum width). Frontage is measured from the county street map, so it can be off; the surveyor confirms.</li>
+          <li><b>Lots</b> (conservative) = the smaller of (frontage on the single longest road ÷ minimum width, plus 5%) and (area ÷ minimum lot size, plus 30% for odd shapes). A second street on a corner does not add lots. Under 3 lots = out. The surveyor confirms.</li><li><b>Pad price</b> comes from Canopy closed lot sales (last 18 months) near the parcel with the same sewer/septic and a similar lot size: the median of 3+ comps, or the lower one when there are only 1-2. The source line shows the nearest comp's ML#. No comp = hidden until you add a price.</li>
           <li><b>The math:</b> lots used (capped at your max) − lots you keep = lots you sell. Lots sold × pad price − survey, plat fees and closing (both sides) = the <b>most you can pay</b> and still keep your lot free. Water/sewer taps are the builder's cost.</li>
           <li><b>Grade</b> (against county tax land value, a stand-in for the owner's price): <b>Profit</b> = room left ≥ your profit goal. <b>Free lot</b> = you break even or a little better and keep a lot free and clear. <b>No</b> = hidden.</li>
           <li><b>Site checks:</b> FEMA flood %, average slope and tree cover. Builders walk from flood and steep lots. Red = skip, yellow = look closer.</li>
@@ -120,8 +130,8 @@ async function vSplit() {
         <select style="width:auto" onchange="SP.county=this.value;vSplitDraw()"><option value="">All areas</option>${counties.map(c => `<option ${SP.county === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select style="width:auto" onchange="SP.owner=this.value;vSplitDraw()"><option value="">Any owner</option>${owners.map(c => `<option ${SP.owner === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select style="width:auto" onchange="SP.status=this.value;vSplitDraw()"><option value="">Any status</option>${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${SP.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Profit or free lot only</label>
-        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.clean ? 'checked' : ''} onchange="SP.clean=this.checked;vSplitDraw()"> Hide flood/steep</label>
+        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Profit only (hide break-even)</label>
+        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.clean ? 'checked' : ''} onchange="SP.clean=this.checked;vSplitDraw()"> Clean only (no red or yellow flags)</label>
         <label class="small" style="display:flex;gap:4px;align-items:center" title="Off = people, churches, heirs and family trusts only. Builders never show."><input type="checkbox" style="width:auto" ${SP.companies ? 'checked' : ''} onchange="SP.companies=this.checked;vSplitDraw()"> Include companies held 20+ yrs</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.checked ? 'checked' : ''} onchange="SP.checked=this.checked;vSplitDraw()"> Checked only</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.sewer ? 'checked' : ''} onchange="SP.sewer=this.checked;vSplitDraw()"> Sewer likely only</label>
@@ -156,7 +166,7 @@ function spFiltered() {
     if (spIsBuilder(r)) return false;
     if (spIsCompany(r) && !(SP.companies && (r.years_held || 0) >= 20)) return false;
     if (SP.status && (r.my_status || 'new') !== SP.status) return false;
-    if (SP.pencil && !spMath(r).pencils) return false;
+    if (SP.pencil && !spMath(r).profit) return false;
     if (SP.clean && !spClean(r)) return false;
     if (SP.sewer && !/^likely/i.test(r.sewer_guess || '')) return false;
     if (SP.checked && !spChecked(r)) return false;
@@ -169,7 +179,7 @@ function spFiltered() {
 const SP_CO = { Charlotte: 'Mecklenburg', Gaston: 'Gaston' };
 function spBuyers(r) {
   const co = SP_CO[r.county] || r.county, city = String(r.jurisdiction || r.county || '').replace(/\s*\(.*\)/, '').replace(/^Gaston Co\.?.*/i, '').trim().toLowerCase();
-  const lotAc = r.acres && r.est_lots ? r.acres / Math.max(1, Math.min(r.est_lots, SP.maxLots)) : null;
+  const lotAc = r.acres && spLots(r) ? r.acres / Math.max(1, Math.min(spLots(r), SP.maxLots)) : null;
   const bucket = lotAc == null ? null : lotAc < .25 ? 'Under 1/4 acre' : lotAc < .5 ? '1/4 to 1/2 acre' : lotAc < 1 ? '1/2 to 1 acre' : lotAc < 5 ? '1 to 5 acres' : '5+ acres';
   const sewerNo = /^unlikely/i.test(r.sewer_guess || ''), c = spCk(r);
   return (SP.buyers || []).filter(b => {
@@ -202,7 +212,7 @@ function vSplitDraw() {
       <td>${spPill(m.grade, m.grade === 'Profit' ? 'good' : m.grade === 'Free lot' ? 'warn' : 'bad')} ${spSewerPill(r)}<div style="margin-top:3px">${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</div></td>
       <td><b>${esc(r.address || '(no site address)')}</b><div class="small muted">${esc(r.jurisdiction || r.county || '')} · ${esc(r.zoning || '')} · ${esc(r.parcel || '')} · ${r.acres ?? ''} ac</div></td>
       <td>${esc(r.owner_name || '')}<div class="small muted">${esc(r.owner_type || '')}${r.years_held != null ? ' · ' + Math.round(r.years_held) + ' yrs' : ''}${r.out_of_state ? ' · out of state' : ''}</div></td>
-      <td class="right num">${m.lots}<div class="small muted">${r.est_lots > m.lots ? r.est_lots + ' fit' : ''}</div></td>
+      <td class="right num">${m.lots}</td>
       <td class="right num">${r.frontage_ft != null ? Math.round(r.frontage_ft) + ' ft' : '—'}</td>
       <td class="right num"><b style="color:${m.pencils ? '#1a7a45' : '#a61b1b'}">${money(m.maxOffer)}</b><div class="small muted">sell ${m.sell} × ${money(m.pad)}</div></td>
       <td class="right num">${r.tax_land_value != null ? money(r.tax_land_value) : '—'}</td>
@@ -229,10 +239,10 @@ function spOpen(id) {
     ll && `<a href="https://msc.fema.gov/portal/search?AddressQuery=${ll}" target="_blank" rel="noopener">FEMA flood</a>`,
   ].filter(Boolean).join(' · ');
   window._wideNext = true;
-  openDrawer(`<div class="dhead"><div><div class="small muted">Split Finder · ${esc(r.jurisdiction || r.county || '')}</div><h2 style="margin:2px 0 0">${esc(r.address || r.parcel || 'Parcel')}</h2><div class="small muted">${r.acres ?? ''} acres · ${esc(r.zoning || '')} · parcel ${esc(r.parcel || '')}</div></div><button class="btn ghost" onclick="closeDrawer()">Close</button></div>
-    <div class="card"><div style="font-size:15px">${m.grade === 'Profit' ? spPill('Profit + free lot', 'good') : m.grade === 'Free lot' ? spPill('Free lot (break even)', 'warn') : spPill("Doesn't work at these numbers", 'bad')}</div>
+  openDrawer(`<div class="dhead"><div><div class="small muted"><b>${esc(spCountyName(r))}</b> · ${esc(r.jurisdiction || r.county || '')}</div><h2 style="margin:2px 0 0">${esc(r.address || r.parcel || 'Parcel')}</h2><div class="small muted">${r.acres ?? ''} acres · ${esc(r.zoning || '')} · parcel ${esc(r.parcel || '')}</div></div><button class="btn ghost" onclick="closeDrawer()">Close</button></div>
+    <div class="card"><div style="font-size:15px">${m.grade === 'Profit' ? spPill('Profit + free lot', 'good') : m.grade === 'Free lot' ? spPill('Free lot (break even)', 'warn') : spPill(m.grade === 'No comp' ? 'No Canopy comp yet: add a pad price below' : "Doesn't work at these numbers", 'bad')}</div>
       <div class="small" style="margin-top:8px;line-height:1.7">
-        ${m.lots} lots (of ${r.est_lots ?? '?'} that fit) − keep ${SP.keep} = sell ${m.sell} × ${money(m.pad)} pad${r.pad_price_source ? ' <span class="muted">(' + esc(r.pad_price_source) + ')</span>' : ''} = ${money(m.sell * m.pad)}<br>
+        ${m.lots} lots on ${esc(String(r.road_name || '').split(/\s*\(/)[0] || 'the road')} − keep ${SP.keep} = sell ${m.sell} × ${money(m.pad)} pad${r.pad_price_source ? ' <span class="muted">(' + esc(r.pad_price_source) + ')</span>' : ''} = ${money(m.sell * m.pad)}<br>
         − ${money(SP.costs)} survey/plat/closing${SP.cushion ? ' − ' + money(SP.cushion) + ' cushion' : ''} = <b>${money(m.maxOffer)} most I can pay</b><br>
         Tax land value ${money(m.ask)} → ${m.cushion >= 0 ? money(m.cushion) + ' of room' : money(-m.cushion) + ' short'}. Keep lot(s) worth about ${money(SP.keep * m.pad)}.
       </div></div>
@@ -361,7 +371,7 @@ async function spSaveReview(id, result) {
 function spSample() {
   const out = [];
   for (const c of [...new Set(SP.rows.map(r => r.county))].sort()) {
-    const clean = SP.rows.filter(r => r.county === c && spChecked(r) && spClean(r) && spMath(r).pencils).map(r => ({ r, m: spMath(r) })).sort((a, b) => b.m.cushion - a.m.cushion).map(x => x.r);
+    const clean = SP.rows.filter(r => r.county === c && !spIsBuilder(r) && !spIsCompany(r) && spClean(r) && spMath(r).profit).map(r => ({ r, m: spMath(r) })).sort((a, b) => b.m.cushion - a.m.cushion).map(x => x.r);
     const top = clean.slice(0, 10), rest = clean.slice(10);
     const h = x => { let v = 0; for (const ch of String(x.dedupe_key)) v = (v * 31 + ch.charCodeAt(0)) >>> 0; return v; };
     const rnd = rest.slice().sort((a, b) => h(a) - h(b)).slice(0, 10);
@@ -374,8 +384,8 @@ function spDrawSpot() {
   const S = spSample();
   el.innerHTML = `<div class="card small" style="line-height:1.6"><b>How to spot check:</b> open each parcel, compare against Polaris / the county map (frontage with the measure tool), FEMA, Street View (slope, road, below-road) and the zoning map. Click <b>Looks right</b>, or tick what's wrong and click <b>Wrong</b>. If 2+ of 20 miss on the same check, that check gets fixed and the county is rerun.</div>`
     + S.map(g => { const done = g.rows.filter(x => x.r.reviewed).length, bad = g.rows.filter(x => spReview(x.r).result === 'Wrong').length;
-      return `<div class="card" style="padding:0;overflow-x:auto"><div style="padding:10px 14px"><b>${esc(g.county)}</b> <span class="small muted">${done} of ${g.rows.length} checked${bad ? ' · ' + bad + ' wrong' : ''}</span></div><table class="ctable"><tr><th></th><th>Parcel</th><th class="right">Lots</th><th class="right">Frontage</th><th>Flags</th><th>Result</th><th></th></tr>`
-        + g.rows.map(({ r, why }) => `<tr><td class="small muted">${why}</td><td><b>${esc(r.address || r.parcel)}</b><div class="small muted">${esc(r.zoning || '')} · ${esc(r.parcel)} · ${r.acres} ac</div></td><td class="right num">${spMath(r).lots}</td><td class="right num">${r.frontage_ft != null ? Math.round(r.frontage_ft) + ' ft' : '—'}</td><td>${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</td><td class="small">${r.reviewed ? esc(spReview(r).result) + (spReview(r).issues && spReview(r).issues.length ? ': ' + esc(spReview(r).issues.join(', ')) : '') : '<span class="muted">not yet</span>'}</td><td><button class="btn ghost sm" onclick="spOpen(${r.id})">Open</button></td></tr>`).join('') + '</table></div>'; }).join('');
+      return `<div class="card" style="padding:0;overflow-x:auto"><div style="padding:10px 14px"><b>${esc(spCountyName({ county: g.county }))}</b> <span class="small muted">${done} of ${g.rows.length} checked${bad ? ' · ' + bad + ' wrong' : ''}</span></div><table class="ctable"><tr><th></th><th>Parcel</th><th class="right">Lots</th><th class="right">Frontage</th><th>Flags</th><th>Result</th><th></th></tr>`
+        + g.rows.map(({ r, why }) => `<tr><td class="small muted">${why}</td><td><b>${esc(r.address || r.parcel)}</b><div class="small muted">${esc(r.zoning || '')} · parcel ${esc(r.parcel)} · ${r.acres} ac · pad ${money(spMath(r).pad)}</div></td><td class="right num">${spMath(r).lots}</td><td class="right num">${r.frontage_ft != null ? Math.round(r.frontage_ft) + ' ft' : '—'}</td><td>${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</td><td class="small">${r.reviewed ? esc(spReview(r).result) + (spReview(r).issues && spReview(r).issues.length ? ': ' + esc(spReview(r).issues.join(', ')) : '') : '<span class="muted">not yet</span>'}</td><td><button class="btn ghost sm" onclick="spOpen(${r.id})">Open</button></td></tr>`).join('') + '</table></div>'; }).join('');
 }
 // Map: satellite/streets, county parcel lines, zoning, FEMA flood, creeks, wetlands, power lines, watersheds; split parcels as pins by grade.
 function spLoadMap() {
