@@ -122,6 +122,7 @@ async function vSplit() {
         <select style="width:auto" onchange="SP.status=this.value;vSplitDraw()"><option value="">Any status</option>${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${SP.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Profit or free lot only</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.clean ? 'checked' : ''} onchange="SP.clean=this.checked;vSplitDraw()"> Hide flood/steep</label>
+        <label class="small" style="display:flex;gap:4px;align-items:center" title="Off = people, churches, heirs and family trusts only. Builders never show."><input type="checkbox" style="width:auto" ${SP.companies ? 'checked' : ''} onchange="SP.companies=this.checked;vSplitDraw()"> Include companies held 20+ yrs</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.checked ? 'checked' : ''} onchange="SP.checked=this.checked;vSplitDraw()"> Checked only</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.sewer ? 'checked' : ''} onchange="SP.sewer=this.checked;vSplitDraw()"> Sewer likely only</label>
         <input placeholder="Search owner, address, parcel, zip" style="width:240px" value="${esc(SP.q)}" oninput="SP.q=this.value;vSplitDraw()">
@@ -142,11 +143,18 @@ function spSet() {
   spSaveSettings(); vSplitDraw();
 }
 
+// Owners worth calling: individuals, churches, heirs/estates and family trusts. Companies (LLCs, builders, developers)
+// already know what the land can do, so they're out; old company owners (20+ yrs, not builders) can be shown on purpose.
+const SP_BUILDER = /\b(homes?|builders?|building|construction|development|developers?|communities|residential|land co|pulte|lennar|horton|nvr|ryan|toll|meritage|taylor morrison|stanley martin|true homes|mattamy|dream finders|eastwood|david weekley|shea|ashton woods|century|lgi|smith douglas|tri pointe|m\/i)\b/i;
+function spIsCompany(r) { const n = String(r.owner_name || ''); if (/church|heirs|estate/i.test((r.owner_type || '') + ' ' + n)) return false; if (/\btrust(ee)?\b|revocable|living trust|\btr\b/i.test(n) && !/\b(llc|inc|corp)\b/i.test(n)) return false; return r.owner_type === 'Company/trust' || /\b(llc|l\.l\.c|inc|corp|corporation|company|co\b|lp|ltd|holdings|partners|properties|investments|realty|group)\b/i.test(n); }
+function spIsBuilder(r) { return spIsCompany(r) && SP_BUILDER.test(String(r.owner_name || '')); }
 function spFiltered() {
   const q = SP.q.trim().toLowerCase();
   return SP.rows.filter(r => {
     if (SP.county && r.county !== SP.county) return false;
     if (SP.owner && r.owner_type !== SP.owner) return false;
+    if (spIsBuilder(r)) return false;
+    if (spIsCompany(r) && !(SP.companies && (r.years_held || 0) >= 20)) return false;
     if (SP.status && (r.my_status || 'new') !== SP.status) return false;
     if (SP.pencil && !spMath(r).pencils) return false;
     if (SP.clean && !spClean(r)) return false;
