@@ -46,8 +46,8 @@ function spSite(r) {
   if (r.floodway) f.push(['Floodway', 'bad']);
   if (r.flood_pct >= 25) f.push([`${r.flood_pct}% flood`, 'bad']); else if (r.flood_pct >= 5) f.push([`${r.flood_pct}% flood`, 'warn']);
   if (r.slope_pct >= 15) f.push([`${r.slope_pct}% slope`, 'bad']); else if (r.slope_pct >= 8) f.push([`${r.slope_pct}% slope`, 'warn']);
-  if (c.below_road_ft != null && c.below_road_ft >= 8) f.push([`${c.below_road_ft} ft below road`, 'bad']); else if (c.below_road_ft >= 4) f.push([`${c.below_road_ft} ft below road`, 'warn']);
-  if (c.relief_ft >= 20) f.push([`${c.relief_ft} ft drop`, 'warn']);
+  if (c.below_road_ft != null && c.below_road_ft >= 10) f.push([`${c.below_road_ft} ft below road`, 'bad']); else if (c.below_road_ft >= 5) f.push([`${c.below_road_ft} ft below road`, 'warn']);
+  if (c.band_slope_pct >= 15) f.push([`Steep near road ${c.band_slope_pct}%`, 'bad']); else if (c.band_slope_pct >= 10) f.push([`Sloped near road ${c.band_slope_pct}%`, 'warn']);
   if (spChecked(r) && !r.frontage_ft) f.push(['No road frontage found', 'bad']);
   if (r.road_public === false) f.push(['Private road?', 'warn']);
   if (r.shape_ok === false) f.push(['Odd shape', 'warn']);
