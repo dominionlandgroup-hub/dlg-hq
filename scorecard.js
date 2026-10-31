@@ -6,7 +6,7 @@
   const ymd = d => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(d));
   function weekStart(d) { const x = new Date(ymd(d) + 'T12:00:00'); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); return x.toISOString().slice(0, 10); }
   const money = n => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n || 0)).toLocaleString();
-  async function all(q) { const out = []; for (let f = 0; ; f += 1000) { const { data, error } = await q().range(f, f + 999); if (error) throw error; out.push(...data); if (data.length < 1000) break; } return out; }
+  async function all(q) { const out = []; for (let f = 0; ; f += 1000) { const { data, error } = await q().order('id').range(f, f + 999); if (error) throw error; out.push(...data); if (data.length < 1000) break; } return out; }
 
   window.vScorecard = async function () { try { await scRender(); } catch (e) { $('view').innerHTML = '<div class="card">Scorecard could not load: ' + esc(e.message || String(e)) + '. <button class="btn sm" onclick="vScorecard()">Try again</button></div>'; } };
   async function scRender() {
