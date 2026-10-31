@@ -75,6 +75,7 @@ function spSite(r) {
   if (c.busy_road) f.push(['Busy road: driveways?', 'warn']);
   if (spWsLimit(r)) f.push(['Watershed limits', 'warn']);
   if (r.tree_pct >= 70) f.push([`${r.tree_pct}% trees`, 'warn']);
+  if (c.adj && c.adj.length) f.push([`Owner also owns ${c.adj.length} next door`, 'good']);
   if (!spChecked(r)) f.push(['Not checked yet', '']);
   return f;
 }
@@ -269,6 +270,7 @@ function spOpen(id) {
       ${line('Slope / grade', r.slope_pct != null ? `${r.slope_pct}% average · ${spCk(r).relief_ft ?? '?'} ft high-to-low · ${spCk(r).below_road_ft == null ? 'road height unknown' : spCk(r).below_road_ft > 0 ? spCk(r).below_road_ft + ' ft below the road' : spCk(r).below_road_ft < 0 ? -spCk(r).below_road_ft + ' ft above the road' : 'level with the road'} <span class="small muted">(USGS 1 m lidar)</span>` : 'Not checked yet')}
       ${line('Shape', r.shape_ok == null ? null : r.shape_ok ? 'Regular enough to cut into lots' : 'Irregular (flag lot, taper or skinny strip): surveyor must confirm the lot layout')}
       ${line('Tree cover', r.tree_pct != null ? `${r.tree_pct}% (NLCD canopy)` : 'Not checked yet')}
+      ${spCk(r).adj && spCk(r).adj.length ? line('Same owner next door', '<b style="color:#1a7a45">' + spCk(r).adj.map(a => esc(a.addr || a.p) + ' (parcel ' + esc(a.p) + (a.ac ? ', ' + a.ac + ' ac' : '') + (a.vi === 'IMP' ? ', has a house' : '') + ')').join('<br>') + '</b><div class="small muted">Buy them together: more frontage and more lots. Check combined frontage on Polaris.</div>') : ''}
       ${line('Owner', esc(r.owner_name || '') + (r.owner_name2 ? '<div class="small muted">' + esc(r.owner_name2) + '</div>' : '') + `<div class="small muted">${esc(r.owner_type || '')}</div>`)}
       ${line('Mailing address', esc([r.mail_address, r.mail_city, r.mail_state, r.mail_zip].filter(Boolean).join(', ')))}
       ${line('Held', r.years_held != null ? `${Math.round(r.years_held)} years${r.year_bought ? ' (since ' + r.year_bought + ')' : ''}${r.last_sale_price ? ' · paid ' + money(r.last_sale_price) : ''}` : null)}
