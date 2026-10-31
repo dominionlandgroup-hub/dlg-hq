@@ -317,6 +317,44 @@
     return upd;
   }
   SCK.checkRoad = checkRoad;
+  // ---- v3 terrain: height vs. the road measured only on the build band (within 150 ft of the frontage), plus that band's slope.
+  async function checkTerrain(r) {
+    const src = SCK.sources[r.county]; if (!src) throw new Error('no sources for ' + r.county);
+    const f = await parcelGeom(src, r.parcel);
+    const all = f.geometry.rings.flat();
+    const lon0 = all.reduce((s, p) => s + p[0], 0) / all.length, lat0 = all.reduce((s, p) => s + p[1], 0) / all.length;
+    const P = proj(lat0, lon0); const rings = f.geometry.rings.map(rr => rr.map(P.f));
+    const area = Math.abs(rings.reduce((s, rr) => s + ringArea(rr), 0));
+    const xs = rings.flat().map(p => p[0]), ys = rings.flat().map(p => p[1]);
+    const a = P.b([Math.min(...xs) - 120, Math.min(...ys) - 120]), b = P.b([Math.max(...xs) + 120, Math.max(...ys) + 120]);
+    const st = await getJ(src.streets, { geometry: `${a[0]},${a[1]},${b[0]},${b[1]}`, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', outSR: '4326', returnGeometry: 'true', outFields: 'OBJECTID', f: 'json' });
+    const sL = []; for (const g of st.features || []) for (const p of g.geometry.paths || []) sL.push({ pts: p.map(P.f) });
+    // road points: the street centerline itself, at spots nearest the parcel edge (within 85 ft)
+    const roadPts = [];
+    for (const rr of rings) for (let i = 1; i < rr.length; i++) { const p0 = rr[i - 1], p1 = rr[i], n = Math.max(1, Math.round(Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / 15));
+      for (let k = 0; k < n; k++) { const e = [p0[0] + (p1[0] - p0[0]) * (k + .5) / n, p0[1] + (p1[1] - p0[1]) * (k + .5) / n]; const s = nearestLine(e, sL); if (s.d <= 85) roadPts.push(e); } }
+    if (!roadPts.length) { let prev = {}; try { prev = JSON.parse(r.checks_done || '{}') || {}; } catch (e) { } return { checks_done: JSON.stringify({ ...prev, below_road_ft: null, v3terrain: 'no road' }), updated_at: new Date().toISOString() }; }
+    const sp = Math.max(8, Math.min(25, Math.sqrt(area / 90)));
+    const band = [];
+    for (let x = Math.min(...xs) + sp / 2; x < Math.max(...xs); x += sp) for (let y = Math.min(...ys) + sp / 2; y < Math.max(...ys); y += sp)
+      if (inRings([x, y], rings) && roadPts.some(q => Math.hypot(q[0] - x, q[1] - y) <= 150)) band.push([x, y]);
+    const rp = roadPts.filter((_, i) => i % 2 === 0).slice(0, 40), bp = band.slice(0, 220);
+    const pts = rp.concat(bp).map(P.b), elev = [];
+    for (let i = 0; i < pts.length; i += 150) {
+      const ch = pts.slice(i, i + 150);
+      const j = await getJ('https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/getSamples', { geometry: JSON.stringify({ points: ch, spatialReference: { wkid: 4326 } }), geometryType: 'esriGeometryMultipoint', returnFirstValueOnly: 'true', interpolation: 'RSP_BilinearInterpolation', f: 'json' });
+      const v = new Array(ch.length).fill(null); for (const s of j.samples || []) v[s.locationId] = Number(s.value) * 3.28084; elev.push(...v);
+    }
+    const re = elev.slice(0, rp.length).filter(v => v != null && v > -1000), be = bp.map((p, i) => [p[0], p[1], elev[rp.length + i]]).filter(p => p[2] != null && p[2] > -1000);
+    const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+    const below = re.length && be.length ? Math.round(mean(re) - mean(be.map(p => p[2]))) : null;
+    const key = (x, y) => Math.round(x / sp) + ',' + Math.round(y / sp); const m = new Map(be.map(p => [key(p[0], p[1]), p[2]])); const loc = [];
+    for (const [x, y, z] of be) { const e = m.get(key(x + sp, y)), n = m.get(key(x, y + sp)); if (e != null && n != null) loc.push(100 * Math.hypot((e - z) / sp, (n - z) / sp)); }
+    let prev = {}; try { prev = JSON.parse(r.checks_done || '{}') || {}; } catch (e) { }
+    return { checks_done: JSON.stringify({ ...prev, below_road_ft: below, band_slope_pct: loc.length ? Math.round(10 * mean(loc)) / 10 : null, v3terrain: new Date().toISOString().slice(0, 10) }), updated_at: new Date().toISOString() };
+  }
+  SCK.checkTerrain = checkTerrain;
+
 
   SCK.runWith = async function (rows, fn, workers = 4) {
     const S = SCK.state; S.done = 0; S.total = rows.length; S.errors = []; S.running = true;
