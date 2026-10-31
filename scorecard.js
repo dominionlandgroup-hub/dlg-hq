@@ -18,7 +18,7 @@
       all(() => sb.from('messages').select('channel,direction,duration_s,inbox,created_at').gte('created_at', since)),
       all(() => sb.from('leads').select('status,created_at').gte('created_at', since)),
       all(() => sb.from('transactions').select('kind,price,costs,tx_date,deal_id')),
-      all(() => sb.from('deals').select('id,rs_signed_at,board').gte('rs_signed_at', since)),
+      all(() => sb.from('deals').select('id,rs_sent_at,rs_signed_at,board').or(`rs_sent_at.gte.${since},rs_signed_at.gte.${since}`)),
       all(() => sb.from('split_parcels').select('my_status')),
       all(() => sb.from('properties').select('id,address,apn,county,tags,fields').overlaps('tags', ['portfolio-lot', 'note'])),
     ]);
@@ -31,7 +31,7 @@
       else if (m.direction === 'in' && m.inbox === 'seller') add('replies', m.created_at);
     }
     for (const l of leads) if (l.status !== 'record') add('leads', l.created_at);
-    for (const d of deals) add('contracts', d.rs_signed_at);
+    for (const d of deals) { add('offers', d.rs_sent_at); add('contracts', d.rs_signed_at); }
     const buyBy = {}; for (const t of tx) if (t.kind === 'purchase' && t.deal_id) buyBy[t.deal_id] = (buyBy[t.deal_id] || 0) + Number(t.price || 0) + Number(t.costs || 0);
     for (const t of tx) {
       if (!t.tx_date || t.tx_date < since) continue;
@@ -47,7 +47,7 @@
     const rows = [
       ['Pieces mailed', 'mail', v => v.toLocaleString()], ['4-week average (goal 2,000)', 'avg4', v => v ? v.toLocaleString() : ''], ['Mail cost', 'mailCost', money],
       ['Calls', 'calls'], ['Real conversations (1 min+)', 'convos'], ['Seller texts / emails in', 'replies'],
-      ['New seller leads', 'leads'], ['Offers made', 'offers'], ['Contracts signed', 'contracts'],
+      ['New seller leads', 'leads'], ['Offers sent (contract sent)', 'offers'], ['Contracts signed', 'contracts'],
       ['Closings', 'closings'], ['Profit closed', 'profit', money],
     ];
     const lbl = w => { const d = new Date(w + 'T12:00:00'); return (d.getMonth() + 1) + '/' + d.getDate(); };
@@ -80,7 +80,7 @@
         <table class="ctable" style="margin-top:10px"><tr><th>Type</th><th>Property</th><th class="right">Balance</th><th class="right">Monthly</th><th class="right">Rate</th></tr>
           ${kept.concat(notes).map(p => { const f = nf(p), isN = notes.includes(p); return `<tr><td>${isN ? 'Note' : 'Kept lot'}</td><td>${esc(p.address || p.apn || '')} <span class="small muted">${esc(p.county || '')}</span></td><td class="right">${isN ? money(f.note_balance) : ''}</td><td class="right">${isN ? money(f.note_payment) : ''}</td><td class="right">${isN && f.note_rate ? f.note_rate + '%' : ''}</td></tr>`; }).join('') || '<tr><td colspan="5" class="muted">Nothing yet. Your first kept lot or note goes here.</td></tr>'}
         </table></div>
-      <div class="small muted">Calls only count what's logged in DLG HQ from Quo. Offers come from offers logged on a property; contracts from signed purchase agreements (RabbitSign); profit = sale price − costs − purchase price on the same deal.</div>`;
+      <div class="small muted">Calls only count what's logged in DLG HQ from Quo. Offers = purchase contracts sent from DLG HQ (plus any offer logged on a property); contracts = signed (RabbitSign); profit = sale price − costs − purchase price on the same deal.</div>`;
   };
 
   window.scAdd = async function () {
