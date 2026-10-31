@@ -45,8 +45,9 @@ function spMath(r) {
   const ask = r.tax_land_value || 0;
   const room = maxOffer - ask;
   const ok = lots >= Math.max(3, SP.keep + 1) && maxOffer > 0 && !!r.pad_price;
-  const grade = !r.pad_price ? 'No comp' : !ok || room < 0 ? 'No' : room >= SP.goal ? 'Profit' : 'Free lot';
-  return { lots, sell, pad, maxOffer, ask, grade, pencils: grade === 'Profit' || grade === 'Free lot', profit: grade === 'Profit', cushion: room };
+  // Close = the most I can pay is at least 85% of tax land value: long-time owners often take that, so it's a real offer.
+  const grade = !r.pad_price ? 'No comp' : !ok ? 'No' : room >= SP.goal ? 'Profit' : room >= 0 ? 'Free lot' : ask && maxOffer >= 0.85 * ask ? 'Close' : 'No';
+  return { lots, sell, pad, maxOffer, ask, grade, pencils: grade === 'Profit' || grade === 'Free lot' || grade === 'Close', profit: grade === 'Profit', cushion: room };
 }
 function spCk(r) { try { return JSON.parse(r.checks_done || '{}') || {}; } catch (e) { return {}; } }
 function spChecked(r) { return spCk(r).v >= 1; }
@@ -130,7 +131,7 @@ async function vSplit() {
         <select style="width:auto" onchange="SP.county=this.value;vSplitDraw()">${counties.map(c => `<option value="${esc(c)}" ${SP.county === c ? 'selected' : ''}>${esc(spCountyName({ county: c }))}</option>`).join('')}<option value="" ${SP.county ? '' : 'selected'}>Both counties</option></select>
         <select style="width:auto" onchange="SP.owner=this.value;vSplitDraw()"><option value="">Any owner</option>${owners.map(c => `<option ${SP.owner === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select style="width:auto" onchange="SP.status=this.value;vSplitDraw()"><option value="">Any status</option>${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${SP.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Profit only (hide break-even)</label>
+        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Deals only (profit, free lot, close)</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.clean ? 'checked' : ''} onchange="SP.clean=this.checked;vSplitDraw()"> Hide red flags (yellow = look closer)</label>
         <label class="small" style="display:flex;gap:4px;align-items:center" title="Off = people, churches, heirs and family trusts only. Builders never show."><input type="checkbox" style="width:auto" ${SP.companies ? 'checked' : ''} onchange="SP.companies=this.checked;vSplitDraw()"> Include companies held 20+ yrs</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.checked ? 'checked' : ''} onchange="SP.checked=this.checked;vSplitDraw()"> Checked only</label>
@@ -166,7 +167,7 @@ function spFiltered() {
     if (spIsBuilder(r)) return false;
     if (spIsCompany(r) && !(SP.companies && (r.years_held || 0) >= 20)) return false;
     if (SP.status && (r.my_status || 'new') !== SP.status) return false;
-    if (SP.pencil && !spMath(r).profit) return false;
+    if (SP.pencil && !spMath(r).pencils) return false;
     if (SP.clean && !spClean(r)) return false;
     if (SP.sewer && !/^likely/i.test(r.sewer_guess || '')) return false;
     if (SP.checked && !spChecked(r)) return false;
@@ -209,7 +210,7 @@ function vSplitDraw() {
   const head = `<tr><th>Site</th><th>Parcel</th><th>Owner</th><th class="right">Lots</th><th class="right">Frontage</th><th class="right">Most I can pay</th><th class="right">Tax land value</th><th>Buyers who fit</th><th>My status</th><th></th></tr>`;
   if (!rows.length) { t.innerHTML = head + `<tr><td colspan="10" class="muted">${SP.rows.length ? 'Nothing matches. Try turning off "Profit or free lot only" or raising the pad price.' : 'No parcels yet. Claude loads them, or click "Import split list (.xlsx)".'}</td></tr>`; return; }
   t.innerHTML = head + rows.slice(0, 1500).map(({ r, m }) => `<tr>
-      <td>${spPill(m.grade, m.grade === 'Profit' ? 'good' : m.grade === 'Free lot' ? 'warn' : 'bad')} ${spSewerPill(r)}<div style="margin-top:3px">${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</div></td>
+      <td>${spPill(m.grade === 'Close' ? 'Close: offer ~' + Math.round(m.maxOffer / m.ask * 100) + '% of tax value' : m.grade, m.grade === 'Profit' ? 'good' : m.grade === 'Free lot' || m.grade === 'Close' ? 'warn' : 'bad')} ${spSewerPill(r)}<div style="margin-top:3px">${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</div></td>
       <td><b>${esc(r.address || '(no site address)')}</b><div class="small muted">${esc(r.jurisdiction || r.county || '')} · ${esc(r.zoning || '')} · ${esc(r.parcel || '')} · ${r.acres ?? ''} ac</div></td>
       <td>${esc(r.owner_name || '')}<div class="small muted">${esc(r.owner_type || '')}${r.years_held != null ? ' · ' + Math.round(r.years_held) + ' yrs' : ''}${r.out_of_state ? ' · out of state' : ''}</div></td>
       <td class="right num">${m.lots}</td>
@@ -240,7 +241,7 @@ function spOpen(id) {
   ].filter(Boolean).join(' · ');
   window._wideNext = true;
   openDrawer(`<div class="dhead"><div><div class="small muted"><b>${esc(spCountyName(r))}</b> · ${esc(r.jurisdiction || r.county || '')}</div><h2 style="margin:2px 0 0">${esc(r.address || r.parcel || 'Parcel')}</h2><div class="small muted">${r.acres ?? ''} acres · ${esc(r.zoning || '')} · parcel ${esc(r.parcel || '')}</div></div><button class="btn ghost" onclick="closeDrawer()">Close</button></div>
-    <div class="card"><div style="font-size:15px">${m.grade === 'Profit' ? spPill('Profit + free lot', 'good') : m.grade === 'Free lot' ? spPill('Free lot (break even)', 'warn') : spPill(m.grade === 'No comp' ? 'No Canopy comp yet: add a pad price below' : "Doesn't work at these numbers", 'bad')}</div>
+    <div class="card"><div style="font-size:15px">${m.grade === 'Profit' ? spPill('Profit + free lot', 'good') : m.grade === 'Free lot' ? spPill('Free lot (break even)', 'warn') : m.grade === 'Close' ? spPill('Close: the most I can pay is ' + Math.round(m.maxOffer / m.ask * 100) + '% of tax land value. Long-time owners often take that.', 'warn') : spPill(m.grade === 'No comp' ? 'No Canopy comp yet: add a pad price below' : "Doesn't work at these numbers", 'bad')}</div>
       <div class="small" style="margin-top:8px;line-height:1.7">
         ${m.lots} lots on ${esc(String(r.road_name || '').split(/\s*\(/)[0] || 'the road')} − keep ${SP.keep} = sell ${m.sell} × ${money(m.pad)} pad${r.pad_price_source ? ' <span class="muted">(' + esc(r.pad_price_source) + ')</span>' : ''} = ${money(m.sell * m.pad)}<br>
         − ${money(SP.costs)} survey/plat/closing${SP.cushion ? ' − ' + money(SP.cushion) + ' cushion' : ''} = <b>${money(m.maxOffer)} most I can pay</b><br>
@@ -429,14 +430,14 @@ async function spDrawMap() {
     m.on('overlayadd', e => { if (e.layer === SP.util) spUtilLayer(); });
     SP.pins = L.layerGroup().addTo(m);
     L.control.layers({ Streets: streets, Satellite: sat }, { 'Split parcels': SP.pins, ...overlays }, { collapsed: true }).addTo(m);
-    const lg = L.control({ position: 'bottomleft' }); lg.onAdd = () => { const d = L.DomUtil.create('div'); d.style.cssText = 'background:#fff;padding:6px 8px;border-radius:6px;font-size:12px;line-height:1.5'; d.innerHTML = '<span style="color:#1a7a45">●</span> Profit &nbsp;<span style="color:#c08a00">●</span> Free lot &nbsp;<span style="color:#a61b1b">●</span> No &nbsp;<span style="color:#555">○</span> red flag'; return d; }; lg.addTo(m);
+    const lg = L.control({ position: 'bottomleft' }); lg.onAdd = () => { const d = L.DomUtil.create('div'); d.style.cssText = 'background:#fff;padding:6px 8px;border-radius:6px;font-size:12px;line-height:1.5'; d.innerHTML = '<span style="color:#1a7a45">●</span> Profit &nbsp;<span style="color:#c08a00">●</span> Free lot / close &nbsp;<span style="color:#a61b1b">●</span> No &nbsp;<span style="color:#555">○</span> red flag'; return d; }; lg.addTo(m);
   }
   setTimeout(() => SP.map.invalidateSize(), 50);
   SP.pins.clearLayers();
   const rows = spFiltered(), pts = [];
   for (const { r, m } of rows) {
     if (!r.lat || !r.lng) continue;
-    const col = m.grade === 'Profit' ? '#1a7a45' : m.grade === 'Free lot' ? '#c08a00' : '#a61b1b', bad = !spClean(r);
+    const col = m.grade === 'Profit' ? '#1a7a45' : m.grade === 'Free lot' || m.grade === 'Close' ? '#c08a00' : '#a61b1b', bad = !spClean(r);
     const mk = L.circleMarker([r.lat, r.lng], { radius: 7, color: bad ? '#555' : '#fff', weight: 2, fillColor: col, fillOpacity: bad ? .35 : .9 });
     mk.bindTooltip(`${esc(r.address || r.parcel)} · ${m.lots} lots · ${esc(m.grade)}`);
     mk.on('click', () => spOpen(r.id)); mk.addTo(SP.pins); pts.push([r.lat, r.lng]);
