@@ -83,8 +83,8 @@ function spSetback(r) {
   const w = r.frontage_ft / lots, d = r.lot_sqft / r.frontage_ft, ew = Math.round(w - 2 * side), ed = Math.round(d - fr - rear);
   return { ok: ew >= 24 && ed >= 30, ew, ed, zone: z[0], fr, side, rear };
 }
-// Clean = no red flags and no yellow flags (a recorded plat and watershed notes are allowed; check covenants before an offer).
-function spClean(r) { return !spSite(r).some(x => x[1] === 'bad' || (x[1] === 'warn' && !/^Platted|^Watershed/.test(x[0]))) && spChecked(r); }
+// Clean = no red flags (floodway, steep, no frontage, house won't fit). Yellow flags stay visible: look before you offer.
+function spClean(r) { return !spSite(r).some(x => x[1] === 'bad') && spChecked(r); }
 function spPill(t, k) {
   const s = k === 'bad' ? 'background:#fde8e8;color:#a61b1b' : k === 'warn' ? 'background:#fff4d6;color:#7a5a00' : k === 'good' ? 'background:#e3f4ea;color:#1a7a45' : 'background:#f1f1f1;color:#666';
   return `<span class="pill" style="${s}">${esc(t)}</span>`;
@@ -131,7 +131,7 @@ async function vSplit() {
         <select style="width:auto" onchange="SP.owner=this.value;vSplitDraw()"><option value="">Any owner</option>${owners.map(c => `<option ${SP.owner === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select style="width:auto" onchange="SP.status=this.value;vSplitDraw()"><option value="">Any status</option>${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${SP.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Profit only (hide break-even)</label>
-        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.clean ? 'checked' : ''} onchange="SP.clean=this.checked;vSplitDraw()"> Clean only (no red or yellow flags)</label>
+        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.clean ? 'checked' : ''} onchange="SP.clean=this.checked;vSplitDraw()"> Hide red flags (yellow = look closer)</label>
         <label class="small" style="display:flex;gap:4px;align-items:center" title="Off = people, churches, heirs and family trusts only. Builders never show."><input type="checkbox" style="width:auto" ${SP.companies ? 'checked' : ''} onchange="SP.companies=this.checked;vSplitDraw()"> Include companies held 20+ yrs</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.checked ? 'checked' : ''} onchange="SP.checked=this.checked;vSplitDraw()"> Checked only</label>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.sewer ? 'checked' : ''} onchange="SP.sewer=this.checked;vSplitDraw()"> Sewer likely only</label>
