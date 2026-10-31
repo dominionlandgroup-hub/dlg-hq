@@ -114,7 +114,7 @@ async function vSplit() {
           <li><b>The math:</b> lots used (capped at your max) − lots you keep = lots you sell. Lots sold × pad price − survey, plat fees and closing (both sides) = the <b>most you can pay</b> and still keep your lot free. Water/sewer taps are the builder's cost.</li>
           <li><b>Grade</b> (against county tax land value, a stand-in for the owner's price): <b>Profit</b> = room left ≥ your profit goal. <b>Free lot</b> = you break even or a little better and keep a lot free and clear. <b>No</b> = hidden.</li>
           <li><b>Site checks:</b> FEMA flood %, average slope and tree cover. Builders walk from flood and steep lots. Red = skip, yellow = look closer.</li>
-          <li><b>Sewer:</b> inside city/town limits = likely, unincorporated = septic area (each lot then needs its own perc test). Call the utility before an offer.</li>
+          <li><b>Sewer:</b> from Canopy closed house sales near the parcel (last 1-2 years): 70%+ on public sewer = likely, 70%+ on septic = septic area, in between = mixed. With no sales within 2,000 ft it falls back to city limits. Turn on the map layer "Sewer / septic (MLS house sales)" to see the dots. Agent-entered, so call the utility before an offer.</li>
           <li><b>Before you sell any lot:</b> contract with a plat-approval contingency, surveyor confirms, plat recorded (Charlotte exempt plat ~5 business days). A minor split can't be re-split for 10 years (G.S. 160D-802).</li>
         </ol>
       </details>
@@ -387,6 +387,18 @@ function spDrawSpot() {
       return `<div class="card" style="padding:0;overflow-x:auto"><div style="padding:10px 14px"><b>${esc(spCountyName({ county: g.county }))}</b> <span class="small muted">${done} of ${g.rows.length} checked${bad ? ' · ' + bad + ' wrong' : ''}</span></div><table class="ctable"><tr><th></th><th>Parcel</th><th class="right">Lots</th><th class="right">Frontage</th><th>Flags</th><th>Result</th><th></th></tr>`
         + g.rows.map(({ r, why }) => `<tr><td class="small muted">${why}</td><td><b>${esc(r.address || r.parcel)}</b><div class="small muted">${esc(r.zoning || '')} · parcel ${esc(r.parcel)} · ${r.acres} ac · pad ${money(spMath(r).pad)}</div></td><td class="right num">${spMath(r).lots}</td><td class="right num">${r.frontage_ft != null ? Math.round(r.frontage_ft) + ' ft' : '—'}</td><td>${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</td><td class="small">${r.reviewed ? esc(spReview(r).result) + (spReview(r).issues && spReview(r).issues.length ? ': ' + esc(spReview(r).issues.join(', ')) : '') : '<span class="muted">not yet</span>'}</td><td><button class="btn ghost sm" onclick="spOpen(${r.id})">Open</button></td></tr>`).join('') + '</table></div>'; }).join('');
 }
+// Sewer/septic layer: Canopy closed house sales (last 1-2 yrs), each one a dot for what the listing said the house is on.
+// Green = public/city/county sewer, orange = septic. Stored privately in the deal-files bucket (gis/utility_points.json).
+async function spUtilLayer() {
+  if (SP.utilLoaded) return; SP.utilLoaded = true;
+  try {
+    const { data, error } = await sb.storage.from('deal-files').download('gis/utility_points.json'); if (error) throw error;
+    const pts = JSON.parse(await data.text());
+    const r = L.canvas({ padding: .5 });
+    for (const [lat, lng, t] of pts) L.circleMarker([lat, lng], { renderer: r, radius: 3, weight: 0, fillOpacity: .75, fillColor: t === 'septic' ? '#f97316' : '#16a34a' }).addTo(SP.util);
+    toast(pts.length.toLocaleString() + ' MLS house sales: green = sewer, orange = septic');
+  } catch (e) { SP.utilLoaded = false; toast('Sewer layer: ' + (e.message || e)); }
+}
 // Map: satellite/streets, county parcel lines, zoning, FEMA flood, creeks, wetlands, power lines, watersheds; split parcels as pins by grade.
 function spLoadMap() {
   if (window.L && L.esri) return Promise.resolve();
@@ -410,9 +422,11 @@ async function spDrawMap() {
       'Wetlands (USFWS)': dyn('https://fwspublicservices.wim.usgs.gov/wetlandsmapservice/rest/services/Wetlands/MapServer', [0], 0.5, 13),
       'Power transmission lines': L.esri.featureLayer({ url: 'https://services1.arcgis.com/Hp6G80Pky0om7QvQ/arcgis/rest/services/Electric_Power_Transmission_Lines/FeatureServer/0', minZoom: 12, style: () => ({ color: '#ff3b30', weight: 3 }) }),
       'Water-supply watersheds': L.esri.featureLayer({ url: 'https://services2.arcgis.com/kCu40SDxsCGcuUWO/ArcGIS/rest/services/dwq_wsws_20141126/FeatureServer/0', minZoom: 9, style: () => ({ color: '#2b6cb0', weight: 1, fillOpacity: .08 }) }),
+      'Sewer / septic (MLS house sales)': (SP.util = L.layerGroup()),
     };
     overlays['Parcel lines'].addTo(m);
     m.on('moveend', spParcelLines);
+    m.on('overlayadd', e => { if (e.layer === SP.util) spUtilLayer(); });
     SP.pins = L.layerGroup().addTo(m);
     L.control.layers({ Streets: streets, Satellite: sat }, { 'Split parcels': SP.pins, ...overlays }, { collapsed: true }).addTo(m);
     const lg = L.control({ position: 'bottomleft' }); lg.onAdd = () => { const d = L.DomUtil.create('div'); d.style.cssText = 'background:#fff;padding:6px 8px;border-radius:6px;font-size:12px;line-height:1.5'; d.innerHTML = '<span style="color:#1a7a45">●</span> Profit &nbsp;<span style="color:#c08a00">●</span> Free lot &nbsp;<span style="color:#a61b1b">●</span> No &nbsp;<span style="color:#555">○</span> red flag'; return d; }; lg.addTo(m);
