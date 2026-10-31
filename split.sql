@@ -23,3 +23,20 @@ create index if not exists split_parcels_county_idx on split_parcels (county, sc
 alter table split_parcels enable row level security;
 drop policy if exists "owner all" on split_parcels;
 create policy "owner all" on split_parcels for all to authenticated using (true) with check (true);
+-- Verification fields (road, sewer/water, flood detail, covenants, buy-box match)
+alter table split_parcels
+  add column if not exists road_public boolean,          -- fronts a public, maintained road (NCDOT/city)
+  add column if not exists road_name text,
+  add column if not exists frontage_method text,         -- how frontage was measured
+  add column if not exists shape_ok boolean,             -- parcel cuts into N lots meeting width + area
+  add column if not exists sewer_tier text,              -- mapped | likely | septic
+  add column if not exists sewer_dist_ft numeric,        -- nearest mapped sewer main to the frontage
+  add column if not exists water_tier text,
+  add column if not exists flood500_pct integer,
+  add column if not exists creek_buffer_pct integer,
+  add column if not exists wetland boolean,
+  add column if not exists subdivision text,             -- in a recorded subdivision: check covenants
+  add column if not exists buy_boxes text,               -- builders whose buy box fits
+  add column if not exists checks_done text,             -- which automated checks have run
+  add column if not exists reviewed boolean not null default false,  -- hand-reviewed (aerial, street view, deed)
+  add column if not exists review_notes text;
