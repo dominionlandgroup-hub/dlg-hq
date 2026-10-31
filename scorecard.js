@@ -8,18 +8,19 @@
   const money = n => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n || 0)).toLocaleString();
   async function all(q) { const out = []; for (let f = 0; ; f += 1000) { const { data, error } = await q().range(f, f + 999); if (error) throw error; out.push(...data); if (data.length < 1000) break; } return out; }
 
-  window.vScorecard = async function () {
+  window.vScorecard = async function () { try { await scRender(); } catch (e) { $('view').innerHTML = '<div class="card">Scorecard could not load: ' + esc(e.message || String(e)) + '. <button class="btn sm" onclick="vScorecard()">Try again</button></div>'; } };
+  async function scRender() {
     $('view').innerHTML = '<div class="card muted">Loading scorecard…</div>';
     const WEEKS = 12; const now = new Date(); const weeks = [];
     for (let i = WEEKS - 1; i >= 0; i--) { const d = new Date(now); d.setDate(d.getDate() - 7 * i); weeks.push(weekStart(d)); }
     const since = weeks[0];
     const [camps, msgs, leads, tx, deals, splits, props] = await Promise.all([
       all(() => sb.from('campaigns').select('channel,records,drop_date,cost').gte('drop_date', since)),
-      all(() => sb.from('messages').select('channel,direction,duration_s,inbox,created_at').gte('created_at', since)),
-      all(() => sb.from('leads').select('status,created_at').gte('created_at', since)),
+      all(() => sb.from('messages').select('channel,direction,duration_s,inbox,created_at').gte('created_at', since).or('channel.eq.call,and(direction.eq.in,inbox.eq.seller)')),
+      all(() => sb.from('leads').select('status,created_at').gte('created_at', since).neq('status', 'record')),
       all(() => sb.from('transactions').select('kind,price,costs,tx_date,deal_id')),
       all(() => sb.from('deals').select('id,rs_sent_at,rs_signed_at,board').or(`rs_sent_at.gte.${since},rs_signed_at.gte.${since}`)),
-      all(() => sb.from('split_parcels').select('my_status')),
+      Promise.all(['new', 'mailed', 'contacting', 'survey', 'offer', 'contract', 'dead'].map(async k => { const q = sb.from('split_parcels').select('id', { count: 'exact', head: true }); const { count } = await (k === 'new' ? q.or('my_status.is.null,my_status.eq.new') : q.eq('my_status', k)); return { k, count: count || 0 }; })),
       all(() => sb.from('properties').select('id,address,apn,county,tags,fields').overlaps('tags', ['portfolio-lot', 'note'])),
     ]);
     const Z = () => Object.fromEntries(weeks.map(w => [w, 0]));
@@ -42,7 +43,7 @@
     const kept = tagged('portfolio-lot'), notes = tagged('note');
     const nf = p => (p.fields && typeof p.fields === 'object') ? p.fields : {};
     const noteBal = notes.reduce((s, p) => s + Number(nf(p).note_balance || 0), 0), noteInc = notes.reduce((s, p) => s + Number(nf(p).note_payment || 0), 0);
-    const sp = {}; for (const r of splits) { const k = r.my_status || 'new'; sp[k] = (sp[k] || 0) + 1; }
+    const sp = {}; for (const r of splits) sp[r.k] = r.count;
 
     const rows = [
       ['Pieces mailed', 'mail', v => v.toLocaleString()], ['4-week average (goal 2,000)', 'avg4', v => v ? v.toLocaleString() : ''], ['Mail cost', 'mailCost', money],
