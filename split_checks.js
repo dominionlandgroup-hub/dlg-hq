@@ -294,6 +294,30 @@
     };
   }
   SCK.checkExtra = checkExtra;
+  // ---- v3 road check: is the frontage road state (NCDOT) or city maintained? Used to clear "Private road?" flags.
+  const NCDOT_SMR = 'https://gis11.services.ncdot.gov/arcgis/rest/services/NCDOT_StateMaintainedRoadsQtr/MapServer/0/query';
+  const CLT_MAINT = 'https://gis.charlottenc.gov/arcgis/rest/services/CDOT/StreetMaintenanceResponsibility/MapServer/0/query';
+  async function checkRoad(r) {
+    const src = SCK.sources[r.county]; if (!src) throw new Error('no sources for ' + r.county);
+    const f = await parcelGeom(src, r.parcel);
+    const all = f.geometry.rings.flat();
+    const lon0 = all.reduce((s, p) => s + p[0], 0) / all.length, lat0 = all.reduce((s, p) => s + p[1], 0) / all.length;
+    const P = proj(lat0, lon0); const rings = f.geometry.rings.map(rr => rr.map(P.f));
+    const xs = rings.flat().map(p => p[0]), ys = rings.flat().map(p => p[1]);
+    const a = P.b([Math.min(...xs) - 90, Math.min(...ys) - 90]), b = P.b([Math.max(...xs) + 90, Math.max(...ys) + 90]);
+    const q = fields => ({ geometry: `${a[0]},${a[1]},${b[0]},${b[1]}`, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', outSR: '4326', returnGeometry: 'true', outFields: fields, f: 'json' });
+    const edge = []; for (const rr of rings) for (let i = 1; i < rr.length; i++) { const p0 = rr[i - 1], p1 = rr[i], n = Math.max(1, Math.round(Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / 10)); for (let k = 0; k < n; k++) edge.push([p0[0] + (p1[0] - p0[0]) * k / n, p0[1] + (p1[1] - p0[1]) * k / n]); }
+    const near = j => { const out = []; for (const g of (j && j.features) || []) for (const p of g.geometry.paths || []) { const L = { pts: p.map(P.f), attr: g.attributes }; if (edge.some(e => nearestLine(e, [L]).d <= 85)) out.push(g.attributes); } return out; };
+    const st = near(await getJ(NCDOT_SMR, q('RouteName,StreetName')).catch(() => null));
+    let maint = st.length ? 'NCDOT ' + [...new Set(st.map(x => x.RouteName + (x.StreetName ? ' ' + x.StreetName : '')))].slice(0, 2).join('; ') : null;
+    if (!maint && r.county === 'Charlotte') { const c = near(await getJ(CLT_MAINT, q('MaintainedBy,WHOLESTNAME')).catch(() => null)).filter(x => x.MaintainedBy); if (c.length) maint = c[0].MaintainedBy + ' ' + (c[0].WHOLESTNAME || ''); }
+    let prev = {}; try { prev = JSON.parse(r.checks_done || '{}') || {}; } catch (e) { }
+    const upd = { checks_done: JSON.stringify({ ...prev, road_maint: maint, v3road: new Date().toISOString().slice(0, 10) }), updated_at: new Date().toISOString() };
+    if (maint) upd.road_public = true;
+    return upd;
+  }
+  SCK.checkRoad = checkRoad;
+
   SCK.runWith = async function (rows, fn, workers = 4) {
     const S = SCK.state; S.done = 0; S.total = rows.length; S.errors = []; S.running = true;
     let i = 0;
