@@ -4,7 +4,7 @@
 // Candidates come from county GIS (zoning minimum lot size + width, measured road frontage) and are loaded by Claude
 // or with the Import button. Pad prices are per county/zip settings until Canopy comps are added.
 const SP = {
-  county: '', status: '', owner: '', q: '', pencil: true, sewer: false, clean: true, rows: [],
+  county: 'Charlotte', status: '', owner: '', q: '', pencil: true, sewer: false, clean: true, rows: [],
   keep: 1, maxLots: 3, costs: 3500, goal: 10000, cushion: 0,
   pads: { Charlotte: 70000, Gaston: 50000 },
 };
@@ -127,7 +127,7 @@ async function vSplit() {
         ${Object.keys(SP.pads).map(c => `<label class="small">${esc(c)} pad ${num('spPad_' + c, SP.pads[c])}</label>`).join('')}
       </div>
       <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
-        <select style="width:auto" onchange="SP.county=this.value;vSplitDraw()"><option value="">All areas</option>${counties.map(c => `<option ${SP.county === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+        <select style="width:auto" onchange="SP.county=this.value;vSplitDraw()">${counties.map(c => `<option value="${esc(c)}" ${SP.county === c ? 'selected' : ''}>${esc(spCountyName({ county: c }))}</option>`).join('')}<option value="" ${SP.county ? '' : 'selected'}>Both counties</option></select>
         <select style="width:auto" onchange="SP.owner=this.value;vSplitDraw()"><option value="">Any owner</option>${owners.map(c => `<option ${SP.owner === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select style="width:auto" onchange="SP.status=this.value;vSplitDraw()"><option value="">Any status</option>${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${SP.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${SP.pencil ? 'checked' : ''} onchange="SP.pencil=this.checked;vSplitDraw()"> Profit only (hide break-even)</label>
@@ -205,7 +205,7 @@ function vSplitDraw() {
   if (v === 'spot') return spDrawSpot();
   const t = $('spTable'); if (!t) return;
   const rows = spFiltered();
-  const c = $('spCount'); if (c) c.textContent = `${rows.length} of ${SP.rows.length} parcels`;
+  const c = $('spCount'); if (c) c.textContent = `${rows.length} clean deals in ${SP.county ? spCountyName({ county: SP.county }) : 'both counties'}`;
   const head = `<tr><th>Site</th><th>Parcel</th><th>Owner</th><th class="right">Lots</th><th class="right">Frontage</th><th class="right">Most I can pay</th><th class="right">Tax land value</th><th>Buyers who fit</th><th>My status</th><th></th></tr>`;
   if (!rows.length) { t.innerHTML = head + `<tr><td colspan="10" class="muted">${SP.rows.length ? 'Nothing matches. Try turning off "Profit or free lot only" or raising the pad price.' : 'No parcels yet. Claude loads them, or click "Import split list (.xlsx)".'}</td></tr>`; return; }
   t.innerHTML = head + rows.slice(0, 1500).map(({ r, m }) => `<tr>
@@ -370,7 +370,7 @@ async function spSaveReview(id, result) {
 // Spot check sample: per county, 10 from the top of the clean list + 10 random clean (stable across visits).
 function spSample() {
   const out = [];
-  for (const c of [...new Set(SP.rows.map(r => r.county))].sort()) {
+  for (const c of [...new Set(SP.rows.map(r => r.county))].filter(c => !SP.county || c === SP.county).sort()) {
     const clean = SP.rows.filter(r => r.county === c && !spIsBuilder(r) && !spIsCompany(r) && spClean(r) && spMath(r).profit).map(r => ({ r, m: spMath(r) })).sort((a, b) => b.m.cushion - a.m.cushion).map(x => x.r);
     const top = clean.slice(0, 10), rest = clean.slice(10);
     const h = x => { let v = 0; for (const ch of String(x.dedupe_key)) v = (v * 31 + ch.charCodeAt(0)) >>> 0; return v; };
@@ -427,7 +427,7 @@ async function spDrawMap() {
     mk.bindTooltip(`${esc(r.address || r.parcel)} · ${m.lots} lots · ${esc(m.grade)}`);
     mk.on('click', () => spOpen(r.id)); mk.addTo(SP.pins); pts.push([r.lat, r.lng]);
   }
-  const c = $('spCount'); if (c) c.textContent = `${pts.length} on the map of ${SP.rows.length} parcels`;
+  const c = $('spCount'); if (c) c.textContent = `${pts.length} on the map in ${SP.county ? spCountyName({ county: SP.county }) : 'both counties'}`;
   spParcelLines();
   if (pts.length && !SP.mapFitted) { SP.map.fitBounds(pts, { padding: [20, 20], maxZoom: 15 }); SP.mapFitted = true; }
 }
