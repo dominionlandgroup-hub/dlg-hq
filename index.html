@@ -22,8 +22,7 @@
 <script src="listbuilder.js?v=22"></script>
 <script src="owner-check.js?v=4"></script>
 <script src="followups.js?v=5"></script>
-<script src="acreage.js?v=4"></script>
-<script src="split.js?v=2"></script>
+<script src="split.js?v=3"></script>
 <style>
 .impsteps{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}.impsteps span{font-size:12px;padding:4px 10px;border-radius:999px;background:#eee;color:#666}.impsteps span.on{background:#efe7fb;color:#4b2a7b;font-weight:700}.impsteps span.done{background:#e3f1e6;color:#2f6b3a}
 .tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.tagchip{display:inline-flex;align-items:center;gap:4px;background:#efe7fb;color:#4b2a7b;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;font-weight:600}.tagchip.sm{padding:2px 8px;font-size:11px}.tagchip button{border:0;background:none;color:#4b2a7b;cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.tagadd{border:1px dashed #b9a6d6;background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#4b2a7b}.linkres{position:absolute;left:0;right:0;z-index:20;background:var(--card,#fff);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:8px;max-height:300px;overflow:auto}.linkres .pitem{padding:8px 10px;border-bottom:1px solid var(--line,#eee);cursor:pointer}.linkres .pitem:hover{background:#f5f1fb}
@@ -235,7 +234,6 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <div class="grp">Boards</div>
     <a class="nav" data-v="board-seller">Seller Deals</a>
     <a class="nav" data-v="board-buyer">Buyer Deals</a>
-    <a class="nav" data-v="acreage">Acreage Play</a>
     <a class="nav" data-v="split">Split Finder</a>
     <div class="grp">Database</div>
     <a class="nav" data-v="properties">Properties</a>
@@ -331,8 +329,8 @@ async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=
 // ---------- router ----------
 const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox('seller'),'inbox-buyer':()=>vInbox('buyer'),
  'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,
- followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,acreage:()=>vAcreage(),split:()=>vSplit()};
-const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',acreage:'Acreage Play',split:'Split Finder'};
+ followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit()};
+const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
 function go(v){try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch(decodeURIComponent(m[2]));return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);

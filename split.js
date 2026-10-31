@@ -197,12 +197,17 @@ async function spSaveNotes(id) {
   toast('Saved'); closeDrawer(); vSplitDraw();
 }
 
+function spLoadXlsx() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('Could not load the spreadsheet reader')); document.head.appendChild(s); });
+}
+
 // Import: the "3-Lot Split Candidates" workbook. Statuses, notes and pad prices already saved are kept.
 async function spImport(file) {
   if (!file) return;
   try {
     toast('Reading ' + file.name + '…');
-    if (typeof acLoadXlsx === 'function') await acLoadXlsx();
+    await spLoadXlsx();
     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
     const num = v => v === null || v === '' || v === undefined ? null : (isNaN(Number(String(v).replace(/[$,]/g, ''))) ? null : Number(String(v).replace(/[$,]/g, '')));
     const str = v => v === null || v === undefined ? null : String(v).trim() || null;
