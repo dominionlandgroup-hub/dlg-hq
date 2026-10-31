@@ -25,7 +25,7 @@ async function spAll() {
 
 // The math: lots we can actually do (capped for an exempt/minor split), sell all but the keepers,
 // minus survey/plat/closing (and an optional cushion) = the most we can pay and still keep the lot(s) free.
-// Grade: Profit = room >= profit goal; Free lot = room >= 0 (break even, keep a free lot); No = short.
+// Grade: Profit = most I can pay (after profit goal) covers tax land value; Free lot = break-even covers it; No = short.
 // Water/sewer taps are the builder's cost on the lots sold; the kept lot is a portfolio hold.
 function spPad(r) { return r.pad_price || SP.pads[r.county] || 50000; }
 // Conservative lot count: lots that fit along the single longest road (corner second streets don't add lots),
@@ -41,13 +41,16 @@ function spMath(r) {
   const lots = Math.min(spLots(r), SP.maxLots);
   const sell = Math.max(0, lots - SP.keep);
   const pad = spPad(r);
-  const maxOffer = sell * pad - SP.costs - (SP.cushion || 0);
+  // Break-even = lot sales - costs (you end with only the free lot). Most I can pay = break-even - profit goal - cushion,
+  // so the offer always leaves the profit goal (Damien, Oct 31 2026: Brackenbury showed $896.5K on $900K of lot sales).
+  const breakEven = sell * pad - SP.costs;
+  const maxOffer = breakEven - (SP.goal || 0) - (SP.cushion || 0);
   const ask = r.tax_land_value || 0;
   const room = maxOffer - ask;
   const ok = lots >= Math.max(3, SP.keep + 1) && maxOffer > 0 && !!r.pad_price;
   // Price is information only (Damien, Oct 30 2026): it never hides a parcel. The grade is shown, not filtered on.
-  const grade = !r.pad_price ? 'No comp' : !ok ? 'No' : room >= SP.goal ? 'Profit' : room >= 0 ? 'Free lot' : 'No';
-  return { lots, sell, pad, maxOffer, ask, grade, pencils: grade === 'Profit' || grade === 'Free lot', profit: grade === 'Profit', cushion: room };
+  const grade = !r.pad_price ? 'No comp' : !ok ? 'No' : room >= 0 ? 'Profit' : breakEven - ask >= 0 ? 'Free lot' : 'No';
+  return { lots, sell, pad, maxOffer, breakEven, ask, grade, pencils: grade === 'Profit' || grade === 'Free lot', profit: grade === 'Profit', cushion: room };
 }
 function spCk(r) { try { return JSON.parse(r.checks_done || '{}') || {}; } catch (e) { return {}; } }
 function spChecked(r) { return spCk(r).v >= 1; }
@@ -113,7 +116,7 @@ async function vSplit() {
           <li><b>Every parcel here is vacant</b> and big enough, with enough road frontage, to cut into 3+ lots that meet its zoning's minimum lot size and width on the road it already has (no new street, so it's an exempt or minor split, not a subdivision).</li>
           <li><b>Lots</b> (conservative) = the smaller of (frontage on the single longest road ÷ minimum width, plus 5%) and (area ÷ minimum lot size, plus 30% for odd shapes). A second street on a corner does not add lots. Under 3 lots = out. The surveyor confirms.</li><li><b>Pad price</b> = recorded lot sales within 1 mile (half a mile first) in the last ~2 years: Canopy closed sales plus off-market deed sales from the county (vacant single-family parcels, one parcel per deed, price within 0.4-2.5x the county land value so new-house and bulk sales drop out). Median of 3+ sales, or the lower one when there are only 1-2. The note on each parcel names the nearest sale (MLS number or parcel and deed book). No sale within 1 mile = hidden until you add a price.</li>
           <li><b>The math:</b> lots used (capped at your max) − lots you keep = lots you sell. Lots sold × pad price − survey, plat fees and closing (both sides) = the <b>most you can pay</b> and still keep your lot free. Water/sewer taps are the builder's cost.</li>
-          <li><b>Grade</b> (against county tax land value, a stand-in for the owner's price): <b>Profit</b> = room left ≥ your profit goal. <b>Free lot</b> = you break even or a little better and keep a lot free and clear. <b>No</b> = hidden.</li>
+          <li><b>The math:</b> lots sold × pad price − survey/plat/closing = <b>break-even</b> (you keep a free lot, no cash profit). Break-even − your profit goal = <b>most I can pay</b>. <b>Profit</b> = most I can pay covers the tax land value. <b>Free lot</b> = only break-even covers it. Price never hides a parcel.</li>
           <li><b>Site checks:</b> FEMA flood %, average slope and tree cover. Builders walk from flood and steep lots. Red = skip, yellow = look closer.</li>
           <li><b>Sewer:</b> from Canopy closed house sales near the parcel (last 1-2 years): 70%+ on public sewer = likely, 70%+ on septic = septic area, in between = mixed. With no sales within 2,000 ft it falls back to city limits. Turn on the map layer "Sewer / septic (MLS house sales)" to see the dots. Agent-entered, so call the utility before an offer.</li>
           <li><b>Before you sell any lot:</b> contract with a plat-approval contingency, surveyor confirms, plat recorded (Charlotte exempt plat ~5 business days). A minor split can't be re-split for 10 years (G.S. 160D-802).</li>
@@ -245,8 +248,9 @@ function spOpen(id) {
     <div class="card"><div style="font-size:15px">${m.grade === 'Profit' ? spPill('Profit + free lot', 'good') : m.grade === 'Free lot' ? spPill('Free lot (break even)', 'warn') : spPill(m.grade === 'No comp' ? 'No Canopy comp yet: add a pad price below' : "Doesn't work at these numbers", 'bad')}</div>
       <div class="small" style="margin-top:8px;line-height:1.7">
         ${m.lots} lots on ${esc(String(r.road_name || '').split(/\s*\(/)[0] || 'the road')} − keep ${SP.keep} = sell ${m.sell} × ${money(m.pad)} pad${r.pad_price_source ? ' <span class="muted">(' + esc(r.pad_price_source) + ')</span>' : ''} = ${money(m.sell * m.pad)}<br>
-        − ${money(SP.costs)} survey/plat/closing${SP.cushion ? ' − ' + money(SP.cushion) + ' cushion' : ''} = <b>${money(m.maxOffer)} most I can pay</b><br>
-        Tax land value ${money(m.ask)} → ${m.cushion >= 0 ? money(m.cushion) + ' of room' : money(-m.cushion) + ' short'}. Keep lot(s) worth about ${money(SP.keep * m.pad)}.
+        − ${money(SP.costs)} survey/plat/closing = ${money(m.breakEven)} break-even (free lot, no profit)<br>
+        − ${money(SP.goal)} profit goal${SP.cushion ? ' − ' + money(SP.cushion) + ' cushion' : ''} = <b>${money(m.maxOffer)} most I can pay</b> (you make ${money(SP.goal)} + keep ${SP.keep} lot${SP.keep > 1 ? 's' : ''} worth about ${money(SP.keep * m.pad)})<br>
+        Tax land value ${money(m.ask)} → ${m.cushion >= 0 ? 'offer covers it with ' + money(m.cushion) + ' to spare' : money(-m.cushion) + ' short of tax value'}.
       </div></div>
     <div class="card"><table>
       ${line('Lot rules', r.min_lot_sqft ? `${Number(r.min_lot_sqft).toLocaleString()} sq ft minimum, ${r.min_width_ft} ft wide` : null)}
