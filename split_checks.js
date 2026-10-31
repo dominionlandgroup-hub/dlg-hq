@@ -228,5 +228,89 @@
     return S;
   }
   SCK.checkOne = checkOne; SCK.run = run;
+
+  // ---- v2 extra checks: creek buffers (USGS NHD streams), wetlands (USFWS NWI), power transmission lines (HIFLD),
+  // water-supply watershed (NC DEQ), busy road (speed / highway / thoroughfare). Merged into checks_done JSON.
+  const STREAMS = 'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/6/query';
+  const NWI = 'https://fwspublicservices.wim.usgs.gov/wetlandsmapservice/rest/services/Wetlands/MapServer/0/query';
+  const HIFLD = 'https://services1.arcgis.com/Hp6G80Pky0om7QvQ/arcgis/rest/services/Electric_Power_Transmission_Lines/FeatureServer/0/query';
+  const WSW = 'https://services2.arcgis.com/kCu40SDxsCGcuUWO/ArcGIS/rest/services/dwq_wsws_20141126/FeatureServer/0/query';
+  SCK.sources.Charlotte.busy = a => Number(a.SPEEDLIMIT) >= 45 || /major|thoroughfare|arterial|freeway|expressway/i.test(String(a.THOROUGHFARETYPE || '') + ' ' + String(a.STREETCLASS || ''));
+  SCK.sources.Charlotte.busyFields = 'FULL_NAME,SPEEDLIMIT,THOROUGHFARETYPE,STREETCLASS';
+  SCK.sources.Gaston.busy = a => Number(a.MPH) >= 45 || /^(US|NC|I|INTERSTATE)$/i.test(String(a.DESIGNTN || ''));
+  SCK.sources.Gaston.busyFields = 'FULLNAME,MPH,DESIGNTN';
+
+  async function checkExtra(r) {
+    const src = SCK.sources[r.county]; if (!src) throw new Error('no sources for ' + r.county);
+    const f = await parcelGeom(src, r.parcel);
+    const all = f.geometry.rings.flat();
+    const lon0 = all.reduce((s, p) => s + p[0], 0) / all.length, lat0 = all.reduce((s, p) => s + p[1], 0) / all.length;
+    const P = proj(lat0, lon0);
+    const rings = f.geometry.rings.map(rr => rr.map(P.f));
+    const area = Math.abs(rings.reduce((s, rr) => s + ringArea(rr), 0));
+    const xs = rings.flat().map(p => p[0]), ys = rings.flat().map(p => p[1]);
+    const env = pad => { const a = P.b([Math.min(...xs) - pad, Math.min(...ys) - pad]), b = P.b([Math.max(...xs) + pad, Math.max(...ys) + pad]); return `${a[0]},${a[1]},${b[0]},${b[1]}`; };
+    const envQ = (pad, fields) => ({ geometry: env(pad), geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', outSR: '4326', returnGeometry: 'true', outFields: fields, f: 'json' });
+    const soft = p => p.catch(() => null);
+    const [sm, wl, pl, ws, st] = await Promise.all([
+      soft(getJ(STREAMS, envQ(120, 'ftype,gnis_name'))),
+      soft(getJ(NWI, envQ(10, 'WETLAND_TYPE,ATTRIBUTE'))),
+      soft(getJ(HIFLD, envQ(120, 'VOLTAGE,OWNER'))),
+      soft(getJ(WSW, { geometry: `${lon0},${lat0}`, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', outFields: 'class,WSWS_PCA,STREAM_NAM', returnGeometry: 'false', f: 'json' })),
+      soft(getJ(src.streets, envQ(90, src.busyFields))),
+    ]);
+    const sp = Math.max(10, Math.sqrt(area / 70));
+    const grid = [];
+    for (let x = Math.min(...xs) + sp / 2; x < Math.max(...xs); x += sp) for (let y = Math.min(...ys) + sp / 2; y < Math.max(...ys); y += sp) if (inRings([x, y], rings)) grid.push([x, y]);
+    if (!grid.length) grid.push(...rings[0].slice(0, 4));
+    const lines = j => { const L = []; for (const g of (j && j.features) || []) for (const p of g.geometry.paths || []) L.push({ pts: p.map(P.f), attr: g.attributes }); return L; };
+    // creek buffer: grid points within 50 ft of a mapped stream (pipes/canals excluded)
+    const sLines = lines(sm).filter(l => Number(l.attr.ftype) === 460 || /stream|river/i.test(String(l.attr.ftype || ''))); // 460 = StreamRiver
+    const nearStream = sLines.length ? grid.filter(p => nearestLine(p, sLines).d <= 50).length : 0;
+    const streamName = sLines.length ? (sLines.map(l => l.attr.gnis_name).find(Boolean) || 'unnamed stream') : null;
+    // wetlands (lakes/ponds excluded)
+    let wet = 0;
+    if (wl && wl.features) {
+      const polys = wl.features.filter(g => !/lake|pond|riverine/i.test(String(g.attributes.WETLAND_TYPE || ''))).map(g => (g.geometry.rings || []).map(rr => rr.map(P.f)));
+      wet = grid.filter(p => polys.some(q => inRings(p, q))).length;
+    }
+    // transmission lines within 75 ft of the buildable grid
+    const pLines = lines(pl);
+    const power = pLines.length && grid.some(p => nearestLine(p, pLines).d <= 75) ? (pLines[0].attr.VOLTAGE > 0 ? pLines[0].attr.VOLTAGE + ' kV' : 'yes') : null;
+    // water-supply watershed
+    const w = ws && ws.features && ws.features[0] && ws.features[0].attributes;
+    const wsClass = w ? `${w.WSWS_PCA || w.class} (${w.STREAM_NAM || ''})` : null;
+    const wsLimit = w && /WS-(II|III|IV)/i.test(String(w.class || w.WSWS_PCA)) ? true : false;
+    // busy road: street within 85 ft of the parcel edge that is 45+ mph, a highway or a major thoroughfare
+    const stL = lines(st); const edge = [];
+    for (const rr of rings) for (let i = 1; i < rr.length; i++) edge.push(rr[i]);
+    const busyRoads = [...new Set(stL.filter(l => src.busy(l.attr) && edge.some(p => nearestLine(p, [l]).d <= 85)).map(l => src.roadName(l.attr) || '?'))];
+    let prev = {}; try { prev = JSON.parse(r.checks_done || '{}') || {}; } catch (e) { }
+    return {
+      creek_buffer_pct: Math.round(100 * nearStream / grid.length), wetland: wet > 0,
+      checks_done: JSON.stringify({ ...prev, v2: new Date().toISOString().slice(0, 10), stream: streamName, wetland_pct: Math.round(100 * wet / grid.length), power_line: power, watershed: wsClass, watershed_limits: wsLimit, busy_road: busyRoads.join(', ') || null }),
+      updated_at: new Date().toISOString(),
+    };
+  }
+  SCK.checkExtra = checkExtra;
+  SCK.runWith = async function (rows, fn, workers = 4) {
+    const S = SCK.state; S.done = 0; S.total = rows.length; S.errors = []; S.running = true;
+    let i = 0;
+    async function w() {
+      while (i < rows.length) {
+        const r = rows[i++];
+        try {
+          const upd = await fn(r);
+          if (typeof sb !== 'undefined') { const { error } = await sb.from('split_parcels').update(upd).eq('id', r.id); if (error) throw new Error(error.message); }
+          else SCK.results.push({ dedupe_key: r.dedupe_key, ...upd });
+          Object.assign(r, upd);
+        } catch (e) { S.errors.push(r.parcel + ': ' + e.message); }
+        S.done++;
+      }
+    }
+    await Promise.all(Array.from({ length: workers }, w));
+    S.running = false; return S;
+  };
+
   window.SCK = SCK;
 })();
