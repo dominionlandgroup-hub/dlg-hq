@@ -22,7 +22,6 @@
 <script src="listbuilder.js?v=22"></script>
 <script src="owner-check.js?v=4"></script>
 <script src="followups.js?v=5"></script>
-<script src="foreclosures.js?v=2"></script>
 <script src="acreage.js?v=4"></script>
 <script src="split.js?v=2"></script>
 <style>
@@ -236,7 +235,6 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <div class="grp">Boards</div>
     <a class="nav" data-v="board-seller">Seller Deals</a>
     <a class="nav" data-v="board-buyer">Buyer Deals</a>
-    <a class="nav" data-v="foreclosures">Foreclosures</a>
     <a class="nav" data-v="acreage">Acreage Play</a>
     <a class="nav" data-v="split">Split Finder</a>
     <div class="grp">Database</div>
@@ -333,8 +331,8 @@ async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=
 // ---------- router ----------
 const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox('seller'),'inbox-buyer':()=>vInbox('buyer'),
  'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,
- followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,foreclosures:()=>vForeclosures(),acreage:()=>vAcreage(),split:()=>vSplit()};
-const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',foreclosures:'Foreclosures',acreage:'Acreage Play',split:'Split Finder'};
+ followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,acreage:()=>vAcreage(),split:()=>vSplit()};
+const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',acreage:'Acreage Play',split:'Split Finder'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
 function go(v){try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch(decodeURIComponent(m[2]));return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
