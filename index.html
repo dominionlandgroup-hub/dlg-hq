@@ -391,7 +391,7 @@ async function vDashboard(){
   const [{data:H},{data:tx},{data:camps},{data:dl0}]=await Promise.all([
     sb.from('pebble_history').select('*'),
     sb.from('transactions').select('id,property_id,deal_id,kind,tx_date,price,costs,notes,properties(id,apn,address,city)').order('tx_date',{ascending:false}).limit(5000),
-    sb.from('campaigns').select('id,name,drop_date,records,cost').limit(2000),
+    sb.from('campaigns').select('id,name,drop_date,records,cost,channel,mail_status').limit(2000),
     sb.from('deals').select('id,board,created_at,source,campaign_id,lead_id,property_id,property_label').or('source.is.null,source.neq.pebble').gte('created_at',a).lte('created_at',end).limit(5000)]);
   const inR=d=>d&&d>=a&&d<=b;
   const h=histSum(H||[],a,b);
@@ -450,6 +450,15 @@ async function vDashboard(){
   const roi=contractTotal?feeTotal/contractTotal*100:0;
   const dRows=[...underD.map(d=>({d,st:'Under contract'})),...closedD.map(d=>({d,st:'Closed'}))];
   const C=(camps||[]).filter(c=>inR(c.drop_date));const cSpent=C.reduce((s,c)=>s+(+c.cost||0),0),cRec=C.reduce((s,c)=>s+(c.records||0),0);
+  // Mail goal: Mon-Sun weeks in local time; mail campaigns only
+  const MAIL_GOAL=2000;const wkMon=(()=>{const t=new Date();const dow=(t.getDay()+6)%7;return new Date(t.getFullYear(),t.getMonth(),t.getDate()-dow)})();
+  const wkRange=i=>{const s0=new Date(wkMon);s0.setDate(s0.getDate()+7*i);const e0=new Date(s0);e0.setDate(e0.getDate()+6);return [localISO(s0),localISO(e0)]};
+  const isMailCamp=c=>!c.channel||c.channel==='mail';
+  const inWeek=(c,i)=>{const [w0,w1]=wkRange(i);return isMailCamp(c)&&c.drop_date>=w0&&c.drop_date<=w1};
+  const mailedThisWeek=(camps||[]).filter(c=>inWeek(c,0)&&c.mail_status&&c.mail_status!=='not_sent').reduce((s,c)=>s+(c.records||0),0);
+  const queuedNext=(camps||[]).filter(c=>inWeek(c,1)).reduce((s,c)=>s+(c.records||0),0);
+  const queuedAfter=(camps||[]).filter(c=>inWeek(c,2)).reduce((s,c)=>s+(c.records||0),0);
+  const mailPct=Math.min(100,MAIL_GOAL?mailedThisWeek/MAIL_GOAL*100:0);
   const deals=Math.round(h.deals)+liveDeals;
   // ROAS: profit from sold properties that were mailed in a campaign created in this range, over that range's mail spend
   const cIds=new Set(C.map(c=>c.id));let attrProfit=0;
@@ -472,8 +481,12 @@ async function vDashboard(){
    <div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="sec" style="margin:0">Campaign report</h3><button class="btn ghost sm" onclick="go('campaigns')">See campaigns</button></div>
      <div class="pstats" style="margin-top:14px">${stat('Campaigns<br>mailed',C.length)}${stat('Amount<br>spent','$'+kfmt(cSpent))}${stat('Total<br>records',kfmt(cRec))}${stat('Total<br>leads',deals.toLocaleString())}${stat('Cost per<br>lead',deals?money(cSpent/deals):'—')}${stat('Response<br>rate',cRec?(deals/cRec*100).toFixed(2)+'%':'0.00%')}${stat('Conversion<br>rate',conv.toFixed(2)+'%')}${stat('Leads per<br>deal',assignedD.length&&deals?(deals/assignedD.length).toFixed(1):'—')}<div class="pst"><div class="l big">ROAS</div><div class="v">${pc(roas)}</div></div></div>
      <h3 class="sec" style="margin-top:18px">Mailings</h3><div style="height:170px"><canvas id="chMail"></canvas></div></div>
+   <div class="card"><h3 class="sec">Mail goal</h3>
+     <div style="display:flex;align-items:baseline;gap:10px;margin-top:14px"><div style="font-size:40px;font-weight:700;color:#5C2977">${mailedThisWeek.toLocaleString()}</div><div class="muted">of ${MAIL_GOAL.toLocaleString()} pieces this week</div></div>
+     <div style="height:12px;background:#eee;border-radius:6px;margin-top:10px;overflow:hidden"><div style="height:100%;width:${mailPct}%;background:#5C2977"></div></div>
+     <div class="pstats" style="margin-top:14px">${stat('Queued<br>next week',queuedNext.toLocaleString())}${stat('Queued<br>week after',queuedAfter.toLocaleString())}</div></div>
   </div>
-  <div class="card" style="margin-top:14px;overflow-x:auto"><h3 class="sec" style="display:flex;justify-content:space-between;align-items:center"><span>Assignments</span><span class="small">ROI ${pc(roi)}</span></h3>
+  <div class="card" style="margin-top:14px;overflow-x:auto"><h3 class="sec" style="display:flex;justify-content:space-between;align-items:center"><span>Assignments</span><span class="small">Fee % of price ${pc(roi)}</span></h3>
    <table class="roi"><tr><th>Property</th><th>Status</th><th class="right">Contract price</th><th class="right">Assigned for</th><th class="right">Assignment fee</th><th class="right">Days to close</th></tr>
    ${dRows.map(({d,st})=>{const bp=bpOf(d),sp=spOf(d),fee=d.value!=null?+d.value:null;const pu=txOf(d,'purchase'),sa=txOf(d,'sale');const du=st==='Closed'&&pu&&sa?Math.round((new Date(sa.tx_date)-new Date(pu.tx_date))/864e5):null;
      return `<tr><td>${esc(d.property_label||'(no address)')}</td><td>${st}</td><td class="right num">${money(bp)}</td><td class="right num">${sp!=null?money(sp):'—'}</td><td class="right num" style="color:#1a9e5a">${fee!=null?money(fee):'—'}${d.as_meta?.jv_cut?`<div class="small muted">after ${money(+d.as_meta.jv_cut)} to ${esc(d.as_meta.jv_partner||'JV')}</div>`:''}</td><td class="right">${du!=null?du+' days':(st!=='Closed'&&closeOf(d)?'closes '+closeOf(d).slice(5).replace('-','/'):'—')}</td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No deals on the Buyer Deals board.</td></tr>'}
