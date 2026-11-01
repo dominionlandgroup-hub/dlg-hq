@@ -427,7 +427,7 @@ async function vDashboard(){
   const inRangeD=d=>inR(d.updated_at?localISO(d.updated_at):'');
   const stNameD=d=>(STAGES.find(x=>x.id===d.stage_id)?.name||'');
   const isClosedD=d=>{const s=STAGES.find(x=>x.id===d.stage_id);return !!(s&&(s.closed||/^closed$/i.test(s.name)))};
-  const buyerD=(allDeals||[]).filter(d=>d.board==='buyer');
+  const buyerD=(allDeals||[]).filter(d=>d.board==='buyer'&&!/^(lost|cancelled)$/i.test(d.status||'')&&!/^cancelled$/i.test(d.as_status||''));
   const underD=buyerD.filter(d=>/assigned to buyer/i.test(stNameD(d))&&!isClosedD(d));
   // the assignment's closing date wins over the purchase contract's
   const closeOf=d=>d.as_meta?.close_date||d.closing_date||null;
@@ -455,7 +455,7 @@ async function vDashboard(){
   const wkRange=i=>{const s0=new Date(wkMon);s0.setDate(s0.getDate()+7*i);const e0=new Date(s0);e0.setDate(e0.getDate()+6);return [localISO(s0),localISO(e0)]};
   const isMailCamp=c=>!c.channel||c.channel==='mail';
   const inWeek=(c,i)=>{const [w0,w1]=wkRange(i);return isMailCamp(c)&&c.drop_date>=w0&&c.drop_date<=w1};
-  const mailedThisWeek=(camps||[]).filter(c=>inWeek(c,0)&&c.mail_status&&c.mail_status!=='not_sent').reduce((s,c)=>s+(c.records||0),0);
+  const mailedThisWeek=(camps||[]).filter(c=>inWeek(c,0)&&c.mail_status==='sent').reduce((s,c)=>s+(c.records||0),0);
   const queuedNext=(camps||[]).filter(c=>inWeek(c,1)).reduce((s,c)=>s+(c.records||0),0);
   const queuedAfter=(camps||[]).filter(c=>inWeek(c,2)).reduce((s,c)=>s+(c.records||0),0);
   const mailPct=Math.min(100,MAIL_GOAL?mailedThisWeek/MAIL_GOAL*100:0);
