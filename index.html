@@ -472,9 +472,6 @@ async function vDashboard(){
    <div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="sec" style="margin:0">Campaign report</h3><button class="btn ghost sm" onclick="go('campaigns')">See campaigns</button></div>
      <div class="pstats" style="margin-top:14px">${stat('Campaigns<br>mailed',C.length)}${stat('Amount<br>spent','$'+kfmt(cSpent))}${stat('Total<br>records',kfmt(cRec))}${stat('Total<br>leads',deals.toLocaleString())}${stat('Cost per<br>lead',deals?money(cSpent/deals):'—')}${stat('Response<br>rate',cRec?(deals/cRec*100).toFixed(2)+'%':'0.00%')}${stat('Conversion<br>rate',conv.toFixed(2)+'%')}${stat('Leads per<br>deal',assignedD.length&&deals?(deals/assignedD.length).toFixed(1):'—')}<div class="pst"><div class="l big">ROAS</div><div class="v">${pc(roas)}</div></div></div>
      <h3 class="sec" style="margin-top:18px">Mailings</h3><div style="height:170px"><canvas id="chMail"></canvas></div></div>
-   <div class="card"><h3 class="sec">Communication report</h3>
-     <div class="pstats" style="margin-top:14px">${stat('Total<br>conversations',S.conv.toLocaleString())}${stat('Calls<br>made',S.calls.toLocaleString())}${stat('Calls<br>missed',S.missed.toLocaleString())}${stat('Talk<br>time',fmtTalk(S.talk))}${stat('Text messages<br>sent',S.texts.toLocaleString())}${stat('Emails<br>sent',S.emails.toLocaleString())}</div>
-     <h3 class="sec" style="margin-top:18px">Communication channels</h3><div style="height:170px"><canvas id="chComm"></canvas></div></div>
   </div>
   <div class="card" style="margin-top:14px;overflow-x:auto"><h3 class="sec" style="display:flex;justify-content:space-between;align-items:center"><span>Assignments</span><span class="small">ROI ${pc(roi)}</span></h3>
    <table class="roi"><tr><th>Property</th><th>Status</th><th class="right">Contract price</th><th class="right">Assigned for</th><th class="right">Assignment fee</th><th class="right">Days to close</th></tr>
@@ -491,7 +488,6 @@ async function vDashboard(){
   const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,boxWidth:6,boxHeight:6},align:'end'}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{precision:0}}}};
   CHARTS.push(new Chart($('chDeals'),{type:'bar',data:{labels:L,datasets:[{label:'Seller',data:per.map(p=>p.seller),backgroundColor:'#5C2977'},{label:'Buyer',data:per.map(p=>p.buyer),backgroundColor:'#D5A940'}]},options:base}));
   CHARTS.push(new Chart($('chMail'),{type:'line',data:{labels:L,datasets:[{label:'Mailings sent',data:per.map(p=>p.mail),borderColor:'#5C2977',backgroundColor:'#5C2977',tension:.4}]},options:base}));
-  CHARTS.push(new Chart($('chComm'),{type:'line',data:{labels:L,datasets:[{label:'Calls',data:per.map(p=>p.calls),borderColor:'#5C2977',backgroundColor:'#5C2977',tension:.4},{label:'Text Messages',data:per.map(p=>p.texts),borderColor:'#D5A940',backgroundColor:'#D5A940',tension:.4},{label:'Emails',data:per.map(p=>p.emails),borderColor:'#9b86b5',backgroundColor:'#9b86b5',tension:.4}]},options:base}));
 }
 
 // ---------- boards ----------
