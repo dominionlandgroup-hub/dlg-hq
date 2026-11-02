@@ -19,7 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="listbuilder.js?v=22"></script>
+<script src="listbuilder.js?v=23"></script>
 <script src="owner-check.js?v=4"></script>
 <script src="followups.js?v=5"></script>
 <script src="split.js?v=26"></script>
@@ -1352,7 +1352,7 @@ async function startConversation(box){const q=prompt('Phone number or contact na
 function emailLead(leadId,box){window._wantEmail=true;closeDrawer();openThread(leadId,box||'seller')}
 async function openThread(leadId,box){const {data:tid}=await sb.rpc('thread_for_lead',{lid:leadId,box:box||'seller'});go('inbox-'+(box||'seller'));setTimeout(()=>openThreadT(tid),400)}
 let _tl=null;
-function fillTpl(b,l){return String(b||'').replace(/{{\s*(\w+)\s*}}/g,(m,k)=>({first_name:l.first_name||(l.full_name||'').split(' ')[0],contact_name:leadName(l),property_address:l.prop_address,contact_address:l.mail_address,county:l.county,county_name:l.county,your_name:'Damien',your_company:'Dominion Land Group',your_phone_number:'(980) 990-2356',your_website:'dominionlandgroup.land'}[k]??''))}
+function fillTpl(b,l){return String(b||'').replace(/{{\s*(\w+)\s*}}/g,(m,k)=>({first_name:l.first_name||(l.full_name||'').split(' ')[0],contact_name:leadName(l),property_address:l.prop_address,contact_address:l.mail_address,county:l.county,county_name:l.county,your_name:'Damien',your_company:'Dominion Land Group',your_phone_number:'(704) 387-3482',your_website:'dominionlandgroup.land'}[k]??''))}
 function useTpl(sel){if(sel.value==='')return;$('reply').value=fillTpl(_tpl[+sel.value].body,_tl);sel.value=''}
 async function sendText(leadId,box){const b=$('reply').value.trim();if(!b)return;
   await sb.from('messages').insert({lead_id:leadId,inbox:box,channel:'sms',direction:'out',body:b,is_read:true});
@@ -1481,20 +1481,22 @@ async function deleteCampaign(id,sent){if(sent&&($('delConf').value||'').trim().
   const {error:e1}=await sb.from('campaign_records').delete().eq('campaign_id',id);if(e1)return $('delMsg').textContent=e1.message;
   const {error:e2}=await sb.from('campaigns').delete().eq('id',id);if(e2)return $('delMsg').textContent=e2.message;
   await sb.from('activity').insert({kind:'note',body:'Deleted campaign #'+id});closeDrawer();toast('Campaign deleted');go('campaigns')}
-// Remarket: creates the new campaign with new offer codes, then takes out anyone tagged Due Diligence (or DD).
+// Remarket: creates the new campaign with new offer codes, then takes out anyone tagged Due Diligence (or DD) or any
+// negative tag (same list as the weekly list, on the contact or the property) and contacts marked dead / not selling.
 // Their tags are left as they are. Only the new campaign's records are removed.
 async function remarket(id){
   const n=prompt('Name for the new campaign (same records, new offer codes)');if(!n)return;
   const {data,error}=await sb.rpc('campaign_remarket',{cid:id,new_name:n});if(error)return toast(error.message);
-  const newId=data;const isDD=t=>/^(due diligence|dd)$/i.test(String(t).trim());
+  const newId=data;
   let skipped=0;
-  const recs=[];for(let f=0;;f+=1000){const {data:r,error:e1}=await sb.from('campaign_records').select('id,lead_id').eq('campaign_id',newId).range(f,f+999);if(e1)break;recs.push(...(r||[]));if((r||[]).length<1000)break}
-  const lids=[...new Set(recs.map(r=>r.lead_id).filter(Boolean))];const ddLeads=new Set();
-  for(let i=0;i<lids.length;i+=200){const {data:ls}=await sb.from('leads').select('id,tags').in('id',lids.slice(i,i+200));(ls||[]).forEach(l=>{if((l.tags||[]).some(isDD))ddLeads.add(l.id)})}
-  const delIds=recs.filter(r=>ddLeads.has(r.lead_id)).map(r=>r.id);
+  const recs=[];for(let f=0;;f+=1000){const {data:r,error:e1}=await sb.from('campaign_records').select('id,lead_id,leads(tags,status),properties(tags)').eq('campaign_id',newId).range(f,f+999);if(e1)break;recs.push(...(r||[]));if((r||[]).length<1000)break}
+  const delIds=recs.filter(r=>noMailWhy(r.leads,r.properties)).map(r=>r.id);
   for(let i=0;i<delIds.length;i+=200){const {error:e2}=await sb.from('campaign_records').delete().in('id',delIds.slice(i,i+200));if(e2)return toast('Created, but could not skip some: '+e2.message)}
   skipped=delIds.length;
-  toast(`Remarket campaign created. Skipped ${skipped} Due Diligence contacts.`);go('campaign:'+newId)}
+  toast(`Remarket campaign created. Skipped ${skipped} Due Diligence, negative-tag or not-selling contacts.`);go('campaign:'+newId)}
+// why a contact/property must not be mailed (negative or DD tag on either, or status dead / not selling); null = OK to mail
+function noMailWhy(l,p){l=l||{};const t=[...(l.tags||[]),...((p&&p.tags)||[])].find(x=>LB.NEGTAG.test(x));
+  return t?'tagged '+t:['dead','not_selling'].includes(l.status)?'status '+l.status.replace('_',' '):null}
 async function splitCampaign(id){const k=+prompt('Split into how many campaigns?','2');if(!(k>1))return;const {error}=await sb.rpc('campaign_split',{cid:id,parts:k});if(error)return toast(error.message);toast('Split into '+k);go('campaigns')}
 
 // ---------- Mailing Insights (By Month / By County / By Template) ----------
@@ -1517,7 +1519,7 @@ async function startMailing(id){
   openDrawer(head('Start Mailing')+`
    <div class="card"><p style="margin-top:0"><b>${esc(c.name)}</b></p>
    <label class="f">Letter template</label><select id="m_tpl">${(()=>{const L=tpls||[];const nm=(c.name||'').toLowerCase();const pick=L.find(t=>t.file_name===c.template)||L.find(t=>{const n=t.name.toLowerCase();return /letter 2/.test(nm)?/letter 2/.test(n):/teardown/.test(nm)?(/nashville/.test(nm)?/nashville/.test(n):/teardown/.test(n)&&!/nashville/.test(n)):/church/.test(nm)?/church/.test(n):/attorney/.test(nm)?/attorney/.test(n):/estate pr/.test(nm)?/estate pr/.test(n):/house/.test(nm)?/as-is house/.test(n):/letter 1/.test(n)});return L.map(t=>`<option value="${esc(t.file_name)}" ${pick&&pick.file_name===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')})()}</select>
-   <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Remove opt-outs, "not selling" and do-not-mail</label>
+   <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Remove opt-outs, do-not-mail, "not selling" / dead, Due Diligence and negative tags, and anyone with an open deal</label>
    <p class="small muted"><b>Before anything is sent, every record is checked against the county's current owner records.</b> Anyone who sold or whose owner changed is taken off and marked do-not-mail. Saves the mail-house list (no download) and opens a draft email to Brandon, cc Paul, with a link to the list. Every merge field (Owner name, first and last name, mailing address, city, state, zip, property address, city, state, zip, county, FIPS, APN, acres, offer code), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. The list is in the draft as a link. The email includes download links for the letter and the handwriting font, so nothing to attach. Just send it (works from your phone too).</p>
    <div class="card" id="m_pray" style="margin:12px 0;background:#f7f3ea;border-left:4px solid #b8963e"><b>Pray before you send</b>
     <p style="font-style:italic;line-height:1.6;margin:8px 0">${esc(PRAYERS[(id||0)%PRAYERS.length].replace('{n}',(c.records||0).toLocaleString()))}</p>
@@ -1533,10 +1535,14 @@ const MAIL_FROM='dominionlandgroup@gmail.com'; // Gmail account the mail-house e
 const MAIL_PIECE=0.55; // cost per letter at the mail house
 async function buildMailList(id){
   $('m_send').disabled=true;$('m_msg').textContent='Building list…';const all=[];
-  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('id, offer_code, lead_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status,tags,notes), properties(apn,address,city,state,zip,county,fips,acres,fields)').eq('campaign_id',id).order('id').range(from,from+999);
+  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('id, offer_code, lead_id, property_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,phone2,phone3,status,tags,notes), properties(apn,address,city,state,zip,county,fips,acres,fields,tags)').eq('campaign_id',id).order('id').range(from,from+999);
     if(error){$('m_msg').textContent=error.message;return}all.push(...data);if(data.length<1000)break}
-  const sup=new Set(),on=$('m_sup').checked;if(on){const s=[];for(let f=0;;f+=1000){const r=await sb.from('suppression').select('phone,apn').order('apn').range(f,f+999);if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not load the opt-out list: '+esc(r.error.message)+'</b> Nothing was sent.'}s.push(...r.data);if(r.data.length<1000)break}(s||[]).forEach(x=>{if(x.phone)sup.add(x.phone);if(x.apn)sup.add('A'+x.apn)})}
-  const kept0=all.filter(r=>!on||(!r.leads?.do_not_mail&&r.leads?.status!=='not_selling'&&!sup.has(r.leads?.phone)&&!sup.has('A'+r.properties?.apn)));
+  const sup=new Set(),on=$('m_sup').checked;if(on){const s=[];for(let f=0;;f+=1000){const r=await sb.from('suppression').select('phone,apn').order('apn').range(f,f+999);if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not load the opt-out list: '+esc(r.error.message)+'</b> Nothing was sent.'}s.push(...r.data);if(r.data.length<1000)break}(s||[]).forEach(x=>{if(p10(x.phone).length===10)sup.add(p10(x.phone));if(x.apn)sup.add('A'+LB.apnKey(x.apn))})}
+  // open deals (any deal not closed, lost or cancelled) on the contact or the property: never mail them
+  const dealL=new Set(),dealP=new Set();if(on){const lids=[...new Set(all.map(r=>r.lead_id).filter(Boolean))],pids=[...new Set(all.map(r=>r.property_id).filter(Boolean))];
+    for(const [col,ids,set] of [['lead_id',lids,dealL],['property_id',pids,dealP]])for(let i=0;i<ids.length;i+=200){const r=await LB.openDeals(sb.from('deals').select(col).in(col,ids.slice(i,i+200)));if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not check open deals: '+esc(r.error.message)+'</b> Nothing was sent.'}(r.data||[]).forEach(d=>set.add(d[col]))}}
+  const supPh=l=>[l?.phone,l?.phone2,l?.phone3].some(x=>sup.has(p10(x)));
+  const kept0=all.filter(r=>!on||(!r.leads?.do_not_mail&&!noMailWhy(r.leads,r.properties)&&!dealL.has(r.lead_id)&&!dealP.has(r.property_id)&&!supPh(r.leads)&&!(r.properties?.apn&&sup.has('A'+LB.apnKey(r.properties.apn)))));
   // CURRENT OWNER CHECK (Oct 2026): every record is checked against the county's live ownership record.
   // Sold / changed-owner records are taken off the list and the lead is marked Sold + do not mail.
   const {data:_cn}=await sb.from('campaigns').select('name').eq('id',id).single();
@@ -2165,7 +2171,7 @@ async function impSave(){const msg=t=>$('impMsg').innerHTML=t,M=IMP.map,name=$('
   const tot={leads:0,properties:0,records:0,skipped_dnm:0,skipped_not_interested:0,skipped_recent:0,duplicate_codes:0};const skip={skip_dnm:$('skDnm').checked,skip_ni:$('skNi').checked,skip_days:$('skRec').checked?Number($('skDays').value)||0:0};
   for(let i=0;i<rows.length;i+=500){const {data,error}=await sb.rpc('import_campaign_list',{cid:camp.id,rows:rows.slice(i,i+500),src:'hq',tag:null,...skip});
     if(error){$('impSave').disabled=false;return msg('Stopped: '+esc(error.message))}for(const k in tot)tot[k]+=data[k];msg(`Saved ${tot.records.toLocaleString()} of ${rows.length.toLocaleString()} records…`)}
-  const {data:fin}=await sb.rpc('finish_campaign_import',{cid:camp.id});const piece=Number($('icPiece').value)||0.55;
+  const {data:fin,error:finErr}=await sb.rpc('finish_campaign_import',{cid:camp.id});if(finErr){$('impSave').disabled=false;return msg(`<b style="color:var(--red)">Records saved, but offer codes were not assigned: ${esc(finErr.message)}</b> Do not mail this campaign until it has codes.`)}const piece=Number($('icPiece').value)||0.55;
   await sb.from('campaigns').update({records:tot.records,cost:+(tot.records*piece).toFixed(2)}).eq('id',camp.id);
   if(Object.keys(fipsMap).length){msg('Saving FIPS codes…');for(let o=0;;o+=1000){const {data}=await sb.from('campaign_records').select('properties(id,apn,county,fips)').eq('campaign_id',camp.id).range(o,o+999);if(!data||!data.length)break;
     const ups=data.map(x=>x.properties).filter(p=>p&&!p.fips&&fipsMap[p.apn+'|'+String(p.county||'').toLowerCase()]);for(let i=0;i<ups.length;i+=25)await Promise.all(ups.slice(i,i+25).map(p=>sb.from('properties').update({fips:fipsMap[p.apn+'|'+String(p.county||'').toLowerCase()]}).eq('id',p.id)));if(data.length<1000)break}}
