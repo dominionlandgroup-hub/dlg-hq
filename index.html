@@ -19,7 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="listbuilder.js?v=22"></script>
+<script src="listbuilder.js?v=23"></script>
 <script src="owner-check.js?v=4"></script>
 <script src="followups.js?v=5"></script>
 <script src="split.js?v=26"></script>
@@ -1485,6 +1485,7 @@ async function remarket(id){
   const delIds=recs.filter(r=>ddLeads.has(r.lead_id)).map(r=>r.id);
   for(let i=0;i<delIds.length;i+=200){const {error:e2}=await sb.from('campaign_records').delete().in('id',delIds.slice(i,i+200));if(e2)return toast('Created, but could not skip some: '+e2.message)}
   skipped=delIds.length;
+  const clash=await LB.blockOnCodeClash(newId);if(clash)alert(clash.msg);if(clash&&!clash.soft)return go('campaigns');
   toast(`Remarket campaign created. Skipped ${skipped} Due Diligence contacts.`);go('campaign:'+newId)}
 async function splitCampaign(id){const k=+prompt('Split into how many campaigns?','2');if(!(k>1))return;const {error}=await sb.rpc('campaign_split',{cid:id,parts:k});if(error)return toast(error.message);toast('Split into '+k);go('campaigns')}
 
@@ -1523,7 +1524,11 @@ async function amen(id){const {data:c}=await sb.from('campaigns').select('name')
 const MAIL_FROM='dominionlandgroup@gmail.com'; // Gmail account the mail-house email opens in (skips the account picker, which drops the To/Subject/Body)
 const MAIL_PIECE=0.55; // cost per letter at the mail house
 async function buildMailList(id){
-  $('m_send').disabled=true;$('m_msg').textContent='Building list…';const all=[];
+  $('m_send').disabled=true;$('m_msg').textContent='Checking offer codes…';
+  // OFFER CODE GATE: every code must be unique across all of DLG HQ (other campaigns, contacts, old Pebble/GHL codes)
+  let _cx;try{_cx=await LB.offerCodeClashes(id)}catch(e){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">Could not check offer codes: ${esc(e.message)}</b> Nothing was sent. Try again.`}
+  if(_cx.codes.length||_cx.prefixes.length){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">BLOCKED: ${esc(LB.clashMsg(_cx))}</b> Nothing was sent. Fix the codes first (offer_codes_check.sql).`}
+  $('m_msg').textContent='Building list…';const all=[];
   for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('id, offer_code, lead_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,status,tags,notes), properties(apn,address,city,state,zip,county,fips,acres,fields)').eq('campaign_id',id).order('id').range(from,from+999);
     if(error){$('m_msg').textContent=error.message;return}all.push(...data);if(data.length<1000)break}
   const sup=new Set(),on=$('m_sup').checked;if(on){const s=[];for(let f=0;;f+=1000){const r=await sb.from('suppression').select('phone,apn').order('apn').range(f,f+999);if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not load the opt-out list: '+esc(r.error.message)+'</b> Nothing was sent.'}s.push(...r.data);if(r.data.length<1000)break}(s||[]).forEach(x=>{if(x.phone)sup.add(x.phone);if(x.apn)sup.add('A'+x.apn)})}
@@ -2149,6 +2154,7 @@ async function impSave(){const msg=t=>$('impMsg').innerHTML=t,M=IMP.map,name=$('
     if(!x.full_name&&(x.first_name||x.last_name))x.full_name=[x.first_name,x.last_name].filter(Boolean).join(' ');
     if(!multi){x.county=x.county||one[0].trim();x.state=x.state||one[1].trim()}if(x.county)x.county=x.county.replace(/\s+county$/i,'');
     if(x.fips&&x.apn)fipsMap[x.apn+'|'+String(x.county||'').toLowerCase()]=x.fips;delete x.fips;return x}).filter(x=>x.mail_address&&(x.full_name||x.apn));
+  if(rows.length>LB.MAX_CODED)return msg(`<b style="color:var(--red)">${esc(LB.tooBigMsg(rows.length))}</b> Nothing was saved.`);
   $('impSave').disabled=true;msg('Creating the campaign…');
   const states=[...new Set(IMP.counties.map(c=>c.split(',')[1].trim()))];
   const {data:camp,error}=await sb.from('campaigns').insert({name,channel:'mail',county:IMP.counties.map(c=>c.split(',')[0].trim()).join(', '),state:states.join(', '),drop_date:$('icDate').value||null,template:$('icTpl').value||null,cost:0,source:'hq',mail_status:'not_sent'}).select('id').single();
@@ -2161,7 +2167,8 @@ async function impSave(){const msg=t=>$('impMsg').innerHTML=t,M=IMP.map,name=$('
   if(Object.keys(fipsMap).length){msg('Saving FIPS codes…');for(let o=0;;o+=1000){const {data}=await sb.from('campaign_records').select('properties(id,apn,county,fips)').eq('campaign_id',camp.id).range(o,o+999);if(!data||!data.length)break;
     const ups=data.map(x=>x.properties).filter(p=>p&&!p.fips&&fipsMap[p.apn+'|'+String(p.county||'').toLowerCase()]);for(let i=0;i<ups.length;i+=25)await Promise.all(ups.slice(i,i+25).map(p=>sb.from('properties').update({fips:fipsMap[p.apn+'|'+String(p.county||'').toLowerCase()]}).eq('id',p.id)));if(data.length<1000)break}}
   document.querySelectorAll('.impsteps span').forEach(e=>e.classList.add('done'));
-  msg(`<b>Saved.</b> ${tot.records.toLocaleString()} records · cost ${money(tot.records*piece)} · ${(fin?.coded||0).toLocaleString()} offer codes${fin?.first_code?' starting '+esc(fin.first_code):''}.${tot.skipped_dnm+tot.skipped_not_interested+tot.skipped_recent?`<br>Left off: ${tot.skipped_dnm} do-not-mail · ${tot.skipped_not_interested} said no · ${tot.skipped_recent} mailed recently.`:''} <a href="#" onclick="go('campaign:${camp.id}');return false">Open campaign →</a>`)}
+  const clash=await LB.blockOnCodeClash(camp.id);if(clash&&!clash.soft){$('impSave').disabled=false;return msg(`<b style="color:var(--red)">${esc(clash.msg)}</b>`)}
+  msg((clash?`<b style="color:#b26a00">${esc(clash.msg)}</b><br>`:'')+`<b>Saved.</b> ${tot.records.toLocaleString()} records · cost ${money(tot.records*piece)} · ${(fin?.coded||0).toLocaleString()} offer codes${fin?.first_code?' starting '+esc(fin.first_code):''}.${tot.skipped_dnm+tot.skipped_not_interested+tot.skipped_recent?`<br>Left off: ${tot.skipped_dnm} do-not-mail · ${tot.skipped_not_interested} said no · ${tot.skipped_recent} mailed recently.`:''} <a href="#" onclick="go('campaign:${camp.id}');return false">Open campaign →</a>`)}
 // ---- move Pebble call recordings (Desktop / DLG Recordings) into storage ----
 function recToolCard(){return `<div class="card"><h3 style="margin-top:0">Move call recordings off Pebble</h3><p class="muted small">Pick the <b>DLG Recordings</b> folder on your Desktop. Each recording is uploaded to DLG HQ and the inbox switches to playing it from here, so nothing is lost when Pebble is cancelled. Safe to run again; it skips files already moved.</p>
   <input type="file" id="recDir" webkitdirectory multiple><br><br><button class="btn" onclick="moveRecordings()">Upload recordings</button><div id="recMsg" class="small" style="margin-top:10px"></div></div>`}
@@ -2196,13 +2203,15 @@ async function runImport(){const f=$('impFile').files[0];if(!f)return toast('Cho
   Papa.parse(f,{header:true,skipEmptyLines:true,complete:async r=>{const m=impMapCols(r.meta.fields||[]);
     const rows=r.data.map(o=>{const x={};for(const [k,c] of Object.entries(m)){let v=o[c]==null?'':String(o[c]).trim();if(!v)continue;if(['acres','lat','lng','offer_price'].includes(k)){v=Number(v.replace(/[$,]/g,''));if(isNaN(v))continue}x[k]=v}
       if(!x.full_name&&(x.first_name||x.last_name))x.full_name=[x.first_name,x.last_name].filter(Boolean).join(' ');return x}).filter(x=>x.full_name||x.phone||x.apn||x.address);
+    if(cid!=='none'){const {count}=await sb.from('campaign_records').select('id',{count:'exact',head:true}).eq('campaign_id',Number(cid));if((count||0)+rows.length>LB.MAX_CODED)return msg(`<b style="color:var(--red)">${esc(LB.tooBigMsg((count||0)+rows.length))}</b> Nothing was imported.`)}
     if(cid==='none'){let done=0;for(let i=0;i<rows.length;i+=500){const part=rows.slice(i,i+500).map(x=>({source:$('impSource').value,status:'record',full_name:x.full_name,first_name:x.first_name||splitName({full_name:x.full_name}).first||null,last_name:x.last_name||splitName({full_name:x.full_name}).last||null,phone:x.phone,email:x.email,mail_address:x.mail_address,mail_city:x.mail_city,mail_state:x.mail_state,mail_zip:x.mail_zip,apn:x.apn,county:x.county,offer_code:x.offer_code,tags:$('impTag').value?[$('impTag').value]:[]}));
       const {error}=await sb.from('leads').insert(part);if(error)return msg(error.message);done+=part.length;msg(`Imported ${done.toLocaleString()} of ${rows.length.toLocaleString()} contacts`)}return}
     const tot={leads:0,properties:0,records:0,skipped_dnm:0,skipped_not_interested:0,skipped_recent:0,duplicate_codes:0};const skip={skip_dnm:$('skDnm').checked,skip_ni:$('skNi').checked,skip_days:$('skRec').checked?Number($('skDays').value)||0:0};
     for(let i=0;i<rows.length;i+=1000){const {data,error}=await sb.rpc('import_campaign_list',{cid:Number(cid),rows:rows.slice(i,i+1000),src:$('impSource').value,tag:$('impTag').value||null,...skip});
       if(error)return msg('Stopped: '+esc(error.message));for(const k in tot)tot[k]+=data[k];msg(`Imported ${tot.records.toLocaleString()} of ${rows.length.toLocaleString()} records…`)}
     const {data:fin,error:e2}=await sb.rpc('finish_campaign_import',{cid:Number(cid)});if(e2)return msg(esc(e2.message));
-    msg(`<b>Done.</b> ${tot.records.toLocaleString()} records · ${tot.leads.toLocaleString()} new contacts · ${tot.properties.toLocaleString()} new properties · ${fin.coded.toLocaleString()} offer codes assigned (starting ${esc(fin.first_code||'')}).${tot.skipped_dnm+tot.skipped_not_interested+tot.skipped_recent?`<br>Left off: ${tot.skipped_dnm} do-not-mail · ${tot.skipped_not_interested} not interested · ${tot.skipped_recent} mailed recently.`:''}${tot.duplicate_codes?`<br>${tot.duplicate_codes} codes in your file were already used, so they got new codes.`:''} <a href="#" onclick="go('campaign:${cid}');return false">Open campaign →</a>`)}})}
+    const clash=await LB.blockOnCodeClash(Number(cid),{keep:$('impCamp').value!=='new'});if(clash&&!clash.soft)return msg(`<b style="color:var(--red)">${esc(clash.msg)}</b>`);
+    msg((clash?`<b style="color:#b26a00">${esc(clash.msg)}</b><br>`:'')+`<b>Done.</b> ${tot.records.toLocaleString()} records · ${tot.leads.toLocaleString()} new contacts · ${tot.properties.toLocaleString()} new properties · ${fin.coded.toLocaleString()} offer codes assigned (starting ${esc(fin.first_code||'')}).${tot.skipped_dnm+tot.skipped_not_interested+tot.skipped_recent?`<br>Left off: ${tot.skipped_dnm} do-not-mail · ${tot.skipped_not_interested} not interested · ${tot.skipped_recent} mailed recently.`:''}${tot.duplicate_codes?`<br>${tot.duplicate_codes} codes in your file were already used, so they got new codes.`:''} <a href="#" onclick="go('campaign:${cid}');return false">Open campaign →</a>`)}})}
 
 boot();
 </script>

@@ -405,9 +405,50 @@ LB.run = async function (opt = {}) {
   } catch (e) { st.error = e.message; log('Stopped: ' + e.message); throw e; } finally { st.phase = st.error ? 'error' : 'checked'; }
 };
 
+// ---- offer code safeguards ----
+// Offer codes are "<prefix>-<3-digit record number>". The database pads to 3 digits and cuts longer numbers,
+// so record 1,000 and up would repeat earlier codes (317-100, 317-101...). Keep every campaign at 999 records or fewer.
+LB.MAX_CODED = 999;
+LB.tooBigMsg = n => `This campaign would have ${Number(n).toLocaleString()} records. Offer codes only go up to ${LB.MAX_CODED} per campaign (record 1,000 would repeat an earlier code). Split the list into campaigns of ${LB.MAX_CODED} or fewer.`;
+// Every code on campaign `cid` is compared with ALL offer codes already in DLG HQ: other campaigns' records,
+// contacts (leads.offer_code) and old Pebble/GHL codes (legacy_codes). Also flags a prefix (the "317" in 317-109)
+// that another campaign already uses. Returns { codes: [clashing codes], prefixes: [shared prefixes] }.
+LB.offerCodeClashes = async function (cid) {
+  const recs = []; for (let o = 0; ; o += 1000) { const { data, error } = await sb.from('campaign_records').select('lead_id,offer_code').eq('campaign_id', cid).order('id').range(o, o + 999); if (error) throw error; recs.push(...(data || []).filter(x => x.offer_code)); if (!data || data.length < 1000) break; }
+  const K = c => String(c).trim().toUpperCase(), mine = new Map(), clash = new Set();
+  recs.forEach(r => { const k = K(r.offer_code); if (mine.has(k)) clash.add(k); else mine.set(k, r.lead_id); }); // repeated inside this campaign
+  const raw = [...new Set(recs.map(r => r.offer_code))], ups = [...new Set([...raw, ...raw.map(K)])];
+  for (let i = 0; i < ups.length; i += 200) { const chunk = ups.slice(i, i + 200);
+    const [a, b, c] = await Promise.all([sb.from('campaign_records').select('offer_code').in('offer_code', chunk).neq('campaign_id', cid),
+      sb.from('leads').select('id,offer_code').in('offer_code', chunk), sb.from('legacy_codes').select('code,lead_id').in('code', chunk).neq('source', 'family')]);
+    for (const x of [a, b, c]) if (x.error) throw x.error;
+    (a.data || []).forEach(x => clash.add(K(x.offer_code)));
+    (b.data || []).forEach(x => { const k = K(x.offer_code); if (mine.get(k) !== x.id) clash.add(k); }); // a contact's own copy of this campaign's code is fine
+    (c.data || []).forEach(x => { const k = K(x.code); if (mine.get(k) !== x.lead_id) clash.add(k); }); } // 'family' rows are copies of real codes, linked by family.sql
+  const prefixes = []; for (const p of [...new Set([...mine.keys()].filter(k => /^[A-Z0-9]+-\d+$/.test(k)).map(k => k.split('-')[0]))]) {
+    const { data, error } = await sb.from('campaign_records').select('campaign_id').ilike('offer_code', p + '-%').neq('campaign_id', cid).limit(1); if (error) throw error; if ((data || []).length) prefixes.push(p); }
+  return { codes: [...clash].sort(), prefixes };
+};
+LB.clashMsg = x => (x.codes.length ? `${x.codes.length} offer code${x.codes.length === 1 ? ' is' : 's are'} already used elsewhere in DLG HQ: ${x.codes.slice(0, 25).join(', ')}${x.codes.length > 25 ? ' …' : ''}.` : '') + (x.prefixes.length ? ` Code prefix ${x.prefixes.join(', ')} is already used by another campaign.` : '');
+// Blocks a campaign whose codes clash (opt.keep: leave an existing campaign in place, just report): removes its records and the campaign itself (contacts and properties stay),
+// puts the contacts' offer code back to their latest other code, and returns the error. '' when every code is unique.
+LB.blockOnCodeClash = async function (cid, opt = {}) {
+  let x; try { x = await LB.offerCodeClashes(cid); } catch (e) { return { soft: true, msg: 'Could not check offer codes (' + e.message + '). Start Mailing checks again and will not send until it passes.' }; }
+  if (!x.codes.length && !x.prefixes.length) return null;
+  if (opt.keep) return { soft: false, msg: 'BLOCKED: do not mail this campaign. ' + LB.clashMsg(x) + ' Start Mailing will refuse it until the codes are fixed.' };
+  const lids = []; for (let o = 0; ; o += 1000) { const { data } = await sb.from('campaign_records').select('lead_id').eq('campaign_id', cid).range(o, o + 999); lids.push(...(data || []).map(r => r.lead_id).filter(Boolean)); if (!data || data.length < 1000) break; }
+  await sb.from('campaign_records').delete().eq('campaign_id', cid); await sb.from('campaigns').delete().eq('id', cid);
+  const ul = [...new Set(lids)]; for (let i = 0; i < ul.length; i += 200) { const { data } = await sb.from('campaign_records').select('lead_id,offer_code').in('lead_id', ul.slice(i, i + 200)).not('offer_code', 'is', null).order('id', { ascending: false });
+    const last = new Map(); (data || []).forEach(r => { if (!last.has(r.lead_id)) last.set(r.lead_id, r.offer_code); });
+    await Promise.all(ul.slice(i, i + 200).map(id => sb.from('leads').update({ offer_code: last.get(id) || null }).eq('id', id))); }
+  await sb.from('activity').insert({ kind: 'note', body: `Campaign #${cid} blocked and removed: ${LB.clashMsg(x)}` });
+  return { soft: false, msg: 'BLOCKED: this campaign was not kept. ' + LB.clashMsg(x) + ' Fix the code numbering in Supabase (offer_codes_check.sql) before importing again.' };
+};
+
 // ---- load into a DLG HQ campaign ----
 async function loadCampaign(name, final, opt = {}) {
   const st = LB.status, R = { ...LB.RULES, ...opt };
+  if (final.length > LB.MAX_CODED) throw new Error(LB.tooBigMsg(final.length));
   const drop = opt.drop || (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d.toISOString().slice(0, 10); })();
   const { data: camp, error } = await sb.from('campaigns').insert({ name, channel: 'mail', drop_date: drop, template: R.template, source: 'hq' }).select().single(); if (error) throw error;
   const rows = final.map(c => { const r = c.r, n = c.nm; return { full_name: n.owner, first_name: n.first || null, last_name: n.last || null, mail_address: titleCase(String(r.mail).replace(/\s+\d{5}(-\d{4})?$/, '')), mail_city: titleCase(r.mcity), mail_state: String(r.mstate || '').toUpperCase(), mail_zip: String(r.mzip || '').slice(0, 10),
@@ -416,6 +457,8 @@ async function loadCampaign(name, final, opt = {}) {
   for (let i = 0; i < rows.length; i += 100) { const { data, error } = await sb.rpc('import_campaign_list', { cid: camp.id, rows: rows.slice(i, i + 100), src: 'county', tag: 'Weekly List', skip_dnm: true, skip_ni: true, skip_days: 0 }); if (error) throw error; res.push(data); rec += data.records; st.loaded = rec; }
   await sb.rpc('finish_campaign_import', { cid: camp.id });
   await sb.from('campaigns').update({ records: rec, cost: +(rec * (R.costPerPiece || 0.55)).toFixed(2) }).eq('id', camp.id);
+  const clash = await LB.blockOnCodeClash(camp.id); if (clash && !clash.soft) throw new Error(clash.msg);
+  const codeWarn = clash ? clash.msg : '';
   // stamp FIPS, check results and the buildable tag on each property
   const byKey = new Map(final.map(c => [String(c.r.apn) + '|' + c.r.county.toLowerCase(), c]));
   for (let from = 0; ; from += 1000) { const { data } = await sb.from('campaign_records').select('property_id,properties(id,apn,county,fields)').eq('campaign_id', camp.id).range(from, from + 999); if (!data || !data.length) break;
@@ -423,7 +466,7 @@ async function loadCampaign(name, final, opt = {}) {
       return sb.from('properties').update({ fips: c.r.fips || null, fields: { ...(p.fields || {}), buildable: { checked: new Date().toISOString().slice(0, 10), avg_width_ft: c.sh.avgWidth, length_ft: c.sh.length, road_frontage_ft: c.front, flood: 'not in SFHA', sewer: c.sewer, slope_pct: c.slope ? c.slope.pct : null, relief_ft: c.slope ? c.slope.relief : null, land_value: c.r.landval || null, source: LB.source(c.r.state, c.r.county).name } } }).eq('id', p.id); }));
     if (data.length < 1000) break; }
   const skipped = res.reduce((a, d) => a + d.skipped_dnm + d.skipped_not_interested + d.skipped_recent, 0);
-  return { campaign: camp.id, name, records: rec, skipped };
+  return { campaign: camp.id, name, records: rec, skipped, codeWarn };
 }
 LB.toCampaign = async function (name, opt = {}) {
   const st = LB.status, R = { ...LB.RULES, ...opt }; if (!st || !st.final) throw new Error('Run the list first');
@@ -433,12 +476,14 @@ LB.toCampaign = async function (name, opt = {}) {
   const groups = new Map(); st.final.forEach(c => { const g = groups.get(c.r.county) || []; g.push(c); groups.set(c.r.county, g); });
   const parts = L.map(() => []); let turn = 0;
   for (const g of groups.values()) { for (let i = g.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [g[i], g[j]] = [g[j], g[i]]; } g.forEach(c => { parts[turn % L.length].push(c); turn++; }); }
+  const big = parts.find(p => p.length > LB.MAX_CODED); if (big) throw new Error(LB.tooBigMsg(big.length));
   const base = opt.kind === 'buybox' ? null : true; const out = [];
   for (let i = 0; i < L.length; i++) { st.phase = 'loading into DLG HQ' + (L[i].label ? ' (' + L[i].label + ')' : '');
     const nm = (name && !base ? name : LB.listName(opt.kind || 'weekly', parts[i].length, drop, opt.who)) + (L[i].label ? ' · ' + L[i].label : '');
     out.push(await loadCampaign(nm, parts[i], { ...opt, drop, template: L[i].template })); }
   const rec = out.reduce((a, x) => a + x.records, 0), skipped = out.reduce((a, x) => a + x.skipped, 0);
-  st.campaign = out[0].campaign; st.campaigns = out; st.report = LB.report(st, rec, skipped) + (out.length > 1 ? ' Split test: ' + out.map(x => `${x.name} (${x.records})`).join(' and ') + '.' : ''); st.phase = 'done';
+  const codeWarn = out.map(x => x.codeWarn ? (out.length > 1 ? x.name + ': ' : '') + x.codeWarn : '').filter(Boolean).join(' ');
+  st.campaign = out[0].campaign; st.campaigns = out; st.report = LB.report(st, rec, skipped) + (out.length > 1 ? ' Split test: ' + out.map(x => `${x.name} (${x.records})`).join(' and ') + '.' : '') + (codeWarn ? ' ' + codeWarn : ''); st.phase = 'done';
   await sb.from('activity').insert({ kind: 'note', body: 'List built: ' + st.report });
   return { campaign: out[0].campaign, campaigns: out, records: rec, skipped };
 };
