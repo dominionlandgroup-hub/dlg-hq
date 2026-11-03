@@ -72,24 +72,11 @@
         ${tile('Mail: last 4 weeks', avg4.toLocaleString() + '/wk', 'goal ' + GOAL.toLocaleString() + '/wk · ' + (gap >= 0 ? 'on pace' : 'behind ' + (-gap).toLocaleString() + ' pieces') + ' · this week ' + R.mail[cur].toLocaleString())}
         ${tile('Conversations this week', R.convos[cur], 'last week ' + R.convos[prev])}
         ${tile('Contracts (12 wks)', sum('contracts'), sum('closings') + ' closed · ' + money(sum('profit')))}
-        ${tile('Lots kept', kept.length, 'land portfolio')}
-        ${tile('Notes', notes.length, money(noteInc) + '/mo · ' + money(noteBal) + ' balance')}
       </div>
+      <div class="small muted" style="margin:0 0 6px"><b>How to read this:</b> each column is one week (Monday date on top), the bold column is this week, and the last column adds up 12 weeks. Read across a row to see if that number is going up or down.</div>
       <div class="card" style="padding:0;overflow-x:auto"><table class="ctable"><tr><th>Week of</th>${weeks.map(w => `<th class="right">${lbl(w)}</th>`).join('')}<th class="right">12 wks</th></tr>
         ${rows.map(r => `<tr><td>${r[0]}</td>${weeks.map(w => `<td class="right"${w === cur ? ' style="font-weight:700"' : ''}>${fmt(r, R[r[1]][w])}</td>`).join('')}<td class="right"><b>${fmt(r, sum(r[1]))}</b></td></tr>`).join('')}
       </table></div>
-      <div class="card"><b>Split pipeline</b> <span class="small muted">(Split Finder statuses)</span><div class="small" style="margin-top:6px">
-        ${[['new', 'New'], ['mailed', 'Mailed'], ['contacting', 'Contacting'], ['survey', 'Surveyor check'], ['offer', 'Offer made'], ['contract', 'Under contract'], ['dead', 'Dead']].map(([k, l]) => `${l}: <b>${(sp[k] || 0).toLocaleString()}</b>`).join(' · ')}</div></div>
-      <div class="card"><b>Land portfolio and notes</b>
-        <div class="small muted" style="margin:4px 0 8px">Add a lot you kept or a note you're carrying. It counts toward the tiles above.</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <select id="sc_kind" style="width:auto"><option value="portfolio-lot">Lot I kept</option><option value="note">Note I'm carrying</option></select>
-          <input id="sc_addr" placeholder="Address or parcel" style="width:220px"><input id="sc_county" placeholder="County" style="width:110px">
-          <input id="sc_bal" placeholder="Note balance $" style="width:120px"><input id="sc_pay" placeholder="Monthly payment $" style="width:140px"><input id="sc_rate" placeholder="Rate %" style="width:80px">
-          <button class="btn sm" onclick="scAdd()">Add</button></div>
-        <table class="ctable" style="margin-top:10px"><tr><th>Type</th><th>Property</th><th class="right">Balance</th><th class="right">Monthly</th><th class="right">Rate</th></tr>
-          ${kept.concat(notes).map(p => { const f = nf(p), isN = notes.includes(p); return `<tr><td>${isN ? 'Note' : 'Kept lot'}</td><td>${esc(p.address || p.apn || '')} <span class="small muted">${esc(p.county || '')}</span></td><td class="right">${isN ? money(f.note_balance) : ''}</td><td class="right">${isN ? money(f.note_payment) : ''}</td><td class="right">${isN && f.note_rate ? f.note_rate + '%' : ''}</td></tr>`; }).join('') || '<tr><td colspan="5" class="muted">Nothing yet. Your first kept lot or note goes here.</td></tr>'}
-        </table></div>
       <div class="small muted">Calls only count what's logged in DLG HQ from Quo. Offers = purchase contracts sent from DLG HQ (plus any offer logged on a property); contracts = signed (RabbitSign); profit = sale price − costs − purchase price on the same deal.</div>`;
   };
 
