@@ -192,7 +192,8 @@
       const cand = near(+d.lat, +d.lng).map(c => ({ c, m: mi(+d.lat, +d.lng, c[0], c[1]) })).filter(x => x.m <= RULES.compMi && (!ac || !x.c[3] || (x.c[3] / ac >= 0.5 && x.c[3] / ac <= 2))).sort((a, b) => a.m - b.m);
       if (!cand.length) return null; const w25 = cand.filter(x => x.m <= 0.25); let pick, conf;
       if (w25.length >= 3) { pick = w25.slice(0, 3); conf = 'High'; } else if (cand.length >= 2) { pick = cand.slice(0, 3); conf = 'Medium'; } else if (w25.length === 1) { pick = w25; conf = 'Medium'; } else { pick = cand.slice(0, 1); conf = 'Low'; }
-      return { v: med(pick.map(x => x.c[2])), conf, n: pick.length, d: pick[0].m, desc: pick.map(x => (x.c[5] || 'sale') + ' (' + x.c[6] + '): ' + usd(x.c[2]) + (x.c[3] ? ', ' + (+x.c[3]).toFixed(2) + ' ac' : '') + ', ' + x.m.toFixed(2) + ' mi').join(' | ') }; };
+      const ps = pick.map(x => x.c[2]), lo = Math.min(...ps), hi = Math.max(...ps), split = ps.length > 1 && hi >= 2 * lo; // Damien (Nov 3): comps 2x apart -> use the lowest
+      return { v: split ? lo : med(ps), conf: split ? conf + ', comps disagree - lowest used' : conf, n: pick.length, d: pick[0].m, desc: pick.map(x => (x.c[5] || 'sale') + ' (' + x.c[6] + '): ' + usd(x.c[2]) + (x.c[3] ? ', ' + (+x.c[3]).toFixed(2) + ' ac' : '') + ', ' + x.m.toFixed(2) + ' mi').join(' | ') }; };
     const tot = { ready: 0, none: 0, under: 0, top: 0 };
     for (const cn of counties) { const rows = await rowsOf(list, cn, false); const up = [];
       for (const r of rows) { const eng = r.auto_cut && (/^No comp yet/.test(r.auto_cut) || /^Only one comp/.test(r.auto_cut) || /under \$50K/.test(r.auto_cut)); if (r.auto_cut && !eng) continue; if (eng) r.auto_cut = null;
@@ -279,7 +280,7 @@
   window.vWeekly = async function () {
     W.list = W.list || ('carolinas-' + nextMonday());
     $('view').innerHTML = `<div class="card"><h3 style="margin:0 0 6px">Build the weekly list</h3>
-      <div class="small muted">Your rules: infill lots in a builder buy box · real comp within ½ mile or no letter · comp $50K+ (fee $10K+) · $100K+ comps first · not bought in the last 2 years · no waterfront · not on the MLS (active, coming soon or under contract) · no commercial zoning · offer 69.73% of comp (odd, exact-looking number) · one letter per owner · skips anyone already worked, tagged, opted out or mailed in the last 90 days. Keep this tab open while a step runs.</div>
+      <div class="small muted">Your rules: infill lots in a builder buy box · real comp within ½ mile or no letter (if the comps are 2x apart, the lowest is used) · comp $50K+ (fee $10K+) · $100K+ comps first · not bought in the last 2 years · no waterfront · not on the MLS (active, coming soon or under contract) · no commercial zoning · offer 69.73% of comp (odd, exact-looking number) · one letter per owner · skips anyone already worked, tagged, opted out or mailed in the last 90 days. Keep this tab open while a step runs.</div>
       <div style="margin:10px 0"><label class="small">List name <input id="wk_list" value="${esc2(W.list)}" style="width:230px"></label> <span class="small muted">(lots land in Spot Check under this name)</span></div>
       <div id="wk_steps">
       <div class="card" style="margin:8px 0"><b>1. Pull and check lots</b> <span class="small muted">county parcel maps → owner, size, shape, road frontage, flood, house and 2-year checks. About 10-40 minutes a county.</span><div style="margin:6px 0;display:flex;flex-wrap:wrap;gap:6px 12px">${W.counties.map(c => `<label class="small"><input type="checkbox" class="wk_c" value="${c}"> ${c}</label>`).join('')}</div><button class="btn sm" id="wk_pull">Pull checked counties</button></div>
