@@ -512,7 +512,7 @@ async function vBoard(board){
     const list=_deals.filter(d=>(!pr||d.priority===pr)&&(!f||[d.property_label,leadName(d.leads),d.properties?.address,d.properties?.apn].join(' ').toLowerCase().includes(f)));
     const st=STAGES.filter(s=>s.board===board);
     $('view').innerHTML=`<div class="board">${st.map(s=>{const ds=list.filter(d=>d.stage_id===s.id),tot=ds.reduce((a,d)=>a+(+d.value||0),0);
-      return `<div class="col" data-stage="${s.id}"><div class="hd" style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${esc(s.name)}</span><span style="white-space:nowrap"><button class="btn ghost sm" title="Rename stage" onclick="renameStage(${s.id},'${board}')">✎</button><button class="btn ghost sm" title="Delete stage" onclick="deleteStage(${s.id},'${board}')">🗑</button></span></div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
+      return `<div class="col" data-stage="${s.id}"><div class="hd" style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${esc(s.name)}</span><span style="white-space:nowrap"><button class="btn ghost sm" title="Move left" onclick="moveStage(${s.id},'${board}',-1)">◀</button><button class="btn ghost sm" title="Move right" onclick="moveStage(${s.id},'${board}',1)">▶</button><button class="btn ghost sm" title="Rename stage" onclick="renameStage(${s.id},'${board}')">✎</button><button class="btn ghost sm" title="Delete stage" onclick="deleteStage(${s.id},'${board}')">🗑</button></span></div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
       <div class="cards">${ds.map(card).join('')}</div><button class="addcard" onclick="newDeal('${board}',${s.id})">+ Add Deal</button></div>`}).join('')}</div>`;
     wireDnD(board);};
   $('bf').oninput=draw;$('bp').onchange=draw;draw();
@@ -555,6 +555,9 @@ function wireDnD(board){let dragId=null;
 async function addStage(board){const n=prompt('New stage name');if(!n)return;const pos=Math.max(0,...STAGES.filter(s=>s.board===board).map(s=>s.position))+1;
   const {data,error}=await sb.from('board_stages').insert({board,name:n,position:pos}).select().single();if(error)return toast(error.message);STAGES.push(data);vBoard(board)}
 
+async function moveStage(id,board,dir){const L=STAGES.filter(x=>x.board===board).sort((a,b)=>a.position-b.position||a.id-b.id);const i=L.findIndex(x=>x.id===id),j=i+dir;if(i<0||j<0||j>=L.length)return;
+  [L[i],L[j]]=[L[j],L[i]];for(let k=0;k<L.length;k++){if(L[k].position!==k+1){L[k].position=k+1;const {error}=await sb.from('board_stages').update({position:k+1}).eq('id',L[k].id);if(error)return toast(error.message)}}
+  STAGES.sort((a,b)=>a.position-b.position);vBoard(board)}
 async function renameStage(id,board){const st=STAGES.find(x=>x.id===id);const n=prompt('Rename stage',st?.name||'');if(!n||n===st?.name)return;
   const {error}=await sb.from('board_stages').update({name:n}).eq('id',id);if(error)return toast(error.message);st.name=n;vBoard(board)}
 async function deleteStage(id,board){const st=STAGES.find(x=>x.id===id);if(!st)return;
