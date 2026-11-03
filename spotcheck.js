@@ -25,7 +25,7 @@
   const addCss = () => { if (document.getElementById('sc-css')) return; const s = document.createElement('style'); s.id = 'sc-css'; s.textContent = css; document.head.appendChild(s); };
   const n0 = v => v == null || v === '' || isNaN(+v) ? null : +v;
   const usd = v => n0(v) == null ? '—' : '$' + Math.round(+v).toLocaleString();
-  const offerFor = c => Math.floor(0.7 * c / 500) * 500;
+  const offerFor = c => { let o = Math.round(0.6973 * c); if (o % 5 === 0) o -= 2; return o; }; // Damien (Nov 3): odd, exact-looking offers at 69.73% of comp
   const q = () => sb.from('spot_lots');
 
   // distinct values without loading every row: ask for the next value after the last one (few lists, few counties)

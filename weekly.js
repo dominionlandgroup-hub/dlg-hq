@@ -2,16 +2,18 @@
 // Steps: 1 Pull + check lots  2 Comps  3 MLS check (upload the Canopy export)  4 Water + zoning  5 Spot Check  6 Mail list.
 // Rules (Damien, Nov 2026): infill only; real comp within 1/2 mile or no letter; comp $50K+ ($10K fee floor); $100K+ comps first;
 // no lots bought in the last 2 years (an LLC/company buyer with no price counts as a sale); no waterfront; nothing active,
-// coming soon or under contract on the MLS; no commercial / office / industrial zoning; offer = 70% of comp.
+// coming soon or under contract on the MLS; no commercial / office / industrial zoning; offer = 69.73% of comp of comp.
 // Everything runs in this browser tab. Leave the tab open while a step runs. Work is saved to Spot Check as each county finishes.
 (function () {
   const W = window.WK = { log: [], busy: false, stat: {} };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const esc2 = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const say = m => { W.log.unshift(new Date().toLocaleTimeString() + '  ' + m); if (W.log.length > 400) W.log.pop(); const el = document.getElementById('wk_log'); if (el) el.textContent = W.log.join('\n'); };
-  const RULES = W.RULES = { compMi: 0.5, compFloor: 50000, topComp: 100000, offerPct: 0.7, recentDays: 730, compSince: 730, minWidthFt: 47, minAcres: 0.08, maxAcres: 5.05, minFrontFt: 25 };
+  const RULES = W.RULES = { compMi: 0.5, compFloor: 50000, topComp: 100000, offerPct: 0.6973, recentDays: 730, compSince: 730, minWidthFt: 47, minAcres: 0.08, maxAcres: 5.05, minFrontFt: 25 };
   const NC_COUNTIES = ['Mecklenburg', 'Gaston', 'Lincoln', 'Cabarrus', 'Iredell', 'Rowan', 'Union', 'Stanly', 'Montgomery', 'Catawba', 'Cleveland', 'Davidson', 'Randolph', 'Brunswick', 'Columbus', 'Onslow', 'Pender', 'Duplin', 'Wilson'];
   const SC_COUNTIES = ['York', 'Lancaster'];
+  // Damien (Nov 3): offers go out as odd, exact-looking numbers (69.73% of comp, never ending in 0 or 5)
+  W.offer = c => { let o = Math.round(RULES.offerPct * c); if (o % 5 === 0) o -= 2; return o; };
   W.counties = [...NC_COUNTIES, ...SC_COUNTIES];
   async function gj(u, opt, tries = 4) { for (let i = 0; i < tries; i++) { try { const r = await fetch(u, { ...(opt || {}), signal: AbortSignal.timeout(60000) }); const j = await r.json(); if (!j.error) return j; } catch (e) { } await sleep(1500 * (i + 1)); } return null; }
 
@@ -185,7 +187,7 @@
     const mi = (a, b, c, d) => { const R = 3958.8, t = x => x * Math.PI / 180, dl = t(c - a), dn = t(d - b), h = Math.sin(dl / 2) ** 2 + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
     const near = (la, lo) => { const out = [], i = Math.floor(la * 20), j = Math.floor(lo * 20); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) (G[(i + a) + '|' + (j + b)] || []).forEach(c => out.push(c)); return out; };
     const med = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
-    const usd = v => '$' + Math.round(v).toLocaleString(), off = c => Math.floor(RULES.offerPct * c / 500) * 500;
+    const usd = v => '$' + Math.round(v).toLocaleString(), off = W.offer;
     const auto = d => { if (d.lat == null || d.lng == null) return null; const ac = +d.ac || null;
       const cand = near(+d.lat, +d.lng).map(c => ({ c, m: mi(+d.lat, +d.lng, c[0], c[1]) })).filter(x => x.m <= RULES.compMi && (!ac || !x.c[3] || (x.c[3] / ac >= 0.5 && x.c[3] / ac <= 2))).sort((a, b) => a.m - b.m);
       if (!cand.length) return null; const w25 = cand.filter(x => x.m <= 0.25); let pick, conf;
@@ -262,7 +264,7 @@
   W.mailList = async (list) => { const rows = (await rowsOf(list, null, true, 'id,county,state,apn,decision,comp,priority,data')).sort((a, b) => (b.priority || 0) - (a.priority || 0));
     const seen = new Set(), out = []; const nm = d => { if (d.of || d.ol) return [d.of, d.ol]; const n = String(d.o || '').split(/\s*&\s*|\s+AND\s+/i)[0].trim(); const p = n.split(/\s+/); return /,/.test(n) ? [n.split(',')[1].trim().split(' ')[0], n.split(',')[0]] : [p.slice(1, 2).join(' '), p[0]]; };
     for (const r of rows) { const d = r.data || {}, comp = r.comp != null ? +r.comp : +d.cp; if (!comp) continue; const k = normAddr(d.ma, d.mz) || r.apn; if (seen.has(k)) continue; seen.add(k); const [fn, ln] = nm(d);
-      out.push({ 'First Name': fn || '', 'Last Name': ln || '', 'Owner': d.o || '', 'Mail Address': d.ma || '', 'Mail City': d.mc || '', 'Mail State': d.ms || '', 'Mail Zip': d.mz || '', 'Property Address': d.a || '', 'Property City': d.city || '', 'County': r.county, 'State': r.state, 'Parcel': r.apn, 'Acres': d.ac || '', 'Offer': Math.floor(RULES.offerPct * comp / 500) * 500, 'Comp': Math.round(comp) }); }
+      out.push({ 'First Name': fn || '', 'Last Name': ln || '', 'Owner': d.o || '', 'Mail Address': d.ma || '', 'Mail City': d.mc || '', 'Mail State': d.ms || '', 'Mail Zip': d.mz || '', 'Property Address': d.a || '', 'Property City': d.city || '', 'County': r.county, 'State': r.state, 'Parcel': r.apn, 'Acres': d.ac || '', 'Offer': W.offer(comp), 'Comp': Math.round(comp) }); }
     const cols = Object.keys(out[0] || { 'First Name': '' }); const qv = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     const csv = [cols.join(',')].concat(out.map(o => cols.map(c => c === 'Parcel' ? '="' + o[c] + '"' : qv(o[c])).join(','))).join('\r\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = 'Mail list ' + list + ' (' + out.length + ' letters).csv'; document.body.appendChild(a); a.click(); a.remove();
@@ -275,11 +277,11 @@
   window.vWeekly = async function () {
     W.list = W.list || ('carolinas-' + nextMonday());
     $('view').innerHTML = `<div class="card"><h3 style="margin:0 0 6px">Build the weekly list</h3>
-      <div class="small muted">Your rules: infill lots in a builder buy box · real comp within ½ mile or no letter · comp $50K+ (fee $10K+) · $100K+ comps first · not bought in the last 2 years · no waterfront · not on the MLS (active, coming soon or under contract) · no commercial zoning · offer 70% of comp · one letter per owner · skips anyone already worked, tagged, opted out or mailed in the last 90 days. Keep this tab open while a step runs.</div>
+      <div class="small muted">Your rules: infill lots in a builder buy box · real comp within ½ mile or no letter · comp $50K+ (fee $10K+) · $100K+ comps first · not bought in the last 2 years · no waterfront · not on the MLS (active, coming soon or under contract) · no commercial zoning · offer 69.73% of comp (odd, exact-looking number) · one letter per owner · skips anyone already worked, tagged, opted out or mailed in the last 90 days. Keep this tab open while a step runs.</div>
       <div style="margin:10px 0"><label class="small">List name <input id="wk_list" value="${esc2(W.list)}" style="width:230px"></label> <span class="small muted">(lots land in Spot Check under this name)</span></div>
       <div id="wk_steps">
       <div class="card" style="margin:8px 0"><b>1. Pull and check lots</b> <span class="small muted">county parcel maps → owner, size, shape, road frontage, flood, house and 2-year checks. About 10-40 minutes a county.</span><div style="margin:6px 0;display:flex;flex-wrap:wrap;gap:6px 12px">${W.counties.map(c => `<label class="small"><input type="checkbox" class="wk_c" value="${c}"> ${c}</label>`).join('')}</div><button class="btn sm" id="wk_pull">Pull checked counties</button></div>
-      <div class="card" style="margin:8px 0"><b>2. Comps and offers</b> <span class="small muted">closest land sales within ½ mile, offer = 70%.</span><br><button class="btn sm" id="wk_comps">Run comps</button></div>
+      <div class="card" style="margin:8px 0"><b>2. Comps and offers</b> <span class="small muted">closest land sales within ½ mile, offer = 69.73% of comp.</span><br><button class="btn sm" id="wk_comps">Run comps</button></div>
       <div class="card" style="margin:8px 0"><b>3. MLS check</b> <span class="small muted">In Canopy, search Lots/Acres/Farms in your counties with status Active, Coming Soon, Under Contract (Show and No Show). Check up to 2,500, Export → "Single Line Export". Do it twice if there are more than 2,500 (sort by price, export the top half, then the bottom half). Pick the file(s) here.</span><br><input type="file" id="wk_mlsf" accept=".csv" multiple> <button class="btn sm" id="wk_mls">Run MLS check</button></div>
       <div class="card" style="margin:8px 0"><b>4. Water and zoning</b> <span class="small muted">USGS water map; Charlotte, Cabarrus, Iredell and Gastonia zoning maps.</span><br><button class="btn sm" id="wk_wz">Run water + zoning</button></div>
       <div class="card" style="margin:8px 0"><b>5. Look it over</b> <span class="small muted">Spot Check → pick this list → "Every lot: table + Excel". Read the rows with a check note; Cut anything you don't want.</span><br><button class="btn sm ghost" id="wk_spot">Open Spot Check</button></div>
