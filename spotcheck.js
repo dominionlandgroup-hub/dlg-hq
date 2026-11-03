@@ -4,7 +4,7 @@
 // Nothing is written on page load; every write comes from a click or an edit.
 (function () {
   const PER = 24;
-  const SC = window.SC = { list: '', county: '', undec: false, flagged: false, page: 0, lists: [], counties: [], sum: {}, buyers: new Map() };
+  const SC = window.SC = { view: 'ready', list: '', county: '', undec: false, flagged: false, page: 0, lists: [], counties: [], sum: {}, buyers: new Map() };
   const css = `.sc-bar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}.sc-bar select{width:auto;max-width:100%}.sc-bar label.ck{display:flex;gap:6px;align-items:center;font-size:13px}
 .sc-bar label.ck input{width:auto}
 .sc-sum{overflow-x:auto}.sc-sum td,.sc-sum th{padding:5px 8px;white-space:nowrap}.sc-sum tr.tot td{font-weight:700;border-top:2px solid var(--line)}
@@ -46,7 +46,7 @@
   function drawSummary() { const el = $('sc_sum'); if (!el || SC.sumList !== SC.list) return; const cs = SC.counties, T = { good: 0, cut: 0, und: 0, red: 0 };
     cs.forEach(c => { for (const k in T) T[k] += (SC.sum[c] || {})[k] || 0; });
     const row = (n, x, cls) => `<tr class="${cls || ''}"><td>${esc(n)}</td><td class="right" style="color:#1f7a3a">${x.good.toLocaleString()}</td><td class="right" style="color:#b3261e">${x.cut.toLocaleString()}</td><td class="right">${x.und.toLocaleString()}</td><td class="right" style="color:#b3261e">${x.red.toLocaleString()}</td></tr>`;
-    el.innerHTML = `<table><tr><th>County</th><th class="right">Approved (ready to mail)</th><th class="right">You cut</th><th class="right">Needs your yes/no</th><th class="right">Cut by the checks</th></tr>${cs.map(c => row(c, SC.sum[c] || { good: 0, cut: 0, und: 0, red: 0 })).join('')}${row('Total', T, 'tot')}</table>`; }
+    el.innerHTML = `<table><tr><th>County</th><th class="right">Approved</th><th class="right">You cut</th><th class="right">To check (mails unless cut)</th><th class="right">Cut by the checks</th></tr>${cs.map(c => row(c, SC.sum[c] || { good: 0, cut: 0, und: 0, red: 0 })).join('')}${row('Total', T, 'tot')}</table>`; }
   // keep the summary in step after a click without asking the server again
   function adjust(r, sign) { const s = SC.sumList === SC.list && SC.sum[r.county]; if (!s) return; if (r.decision === 'good') s.good += sign; else if (r.decision === 'cut') s.cut += sign; else if (r.auto_cut) s.red += sign; else s.und += sign; }
 
@@ -59,20 +59,22 @@
   async function openList() {
     $('view').innerHTML = `<div class="card"><div class="sc-bar">
       <label class="ck" ${SC.lists.length > 1 ? '' : 'hidden'}>List <select id="sc_list">${SC.lists.map(l => `<option ${l === SC.list ? 'selected' : ''} value="${esc(l)}">${esc(l)}</option>`).join('')}</select></label>
-      <label class="ck">County <select id="sc_cty"><option value="">All</option></select></label></div>
-      <div class="small muted" style="margin-top:8px">Infill lots only. These are the lots that need your yes or no: <b>Good</b> = mail it, <b>Cut</b> = don't. Lots the checks already cut (water, no road, house, flood, recently bought, already on the MLS) are not shown. Approved lots drop off this list. Everything saves as you go.</div></div>
+      <label class="ck">County <select id="sc_cty"><option value="">All</option></select></label>
+      <span class="sc-views">${[['ready','To check (will mail unless you Cut)'],['good','Approved'],['cut','Cut (by you)'],['auto','Cut by the checks']].map(([k,l])=>`<button class="btn ${SC.view===k?'':'ghost'} sm" data-view="${k}">${l}</button>`).join(' ')}</span></div>
+      <div class="small muted" style="margin-top:8px">${{ready:'Infill lots that passed every check and have a close comp of $50K+. They get mailed unless you click <b>Cut</b>. Clicking <b>Good</b> just marks them checked.',good:'Lots marked approved: ones you clicked Good, plus the clean lots in counties you finished on the Nov 3 page.',cut:'Lots you cut. Click Cut again to undo.',auto:'Lots the checks cut, with the reason in red (water, no road, house, flood, recently bought, no close comp, comp under $50K, on the MLS). Click Good to keep one anyway.'}[SC.view]} Everything saves as you go.</div></div>
       <div class="card sc-sum" id="sc_sum"><span class="muted small">Counting…</span></div><div id="sc_pg1" class="sc-pg"></div><div id="sc_grid" class="sc-grid"></div><div id="sc_pg2" class="sc-pg"></div>`;
     $('sc_list').onchange = e => { SC.list = e.target.value; SC.county = ''; SC.page = 0; openList(); };
     try { SC.counties = await distinct('county', r => r.eq('list', SC.list)); } catch (e) { $('sc_sum').textContent = 'Could not load counties: ' + e.message; SC.counties = []; }
     if (SC.county && !SC.counties.includes(SC.county)) SC.county = '';
     $('sc_cty').innerHTML = '<option value="">All</option>' + SC.counties.map(c => `<option ${c === SC.county ? 'selected' : ''} value="${esc(c)}">${esc(c)}</option>`).join('');
     $('sc_cty').onchange = e => { SC.county = e.target.value; SC.page = 0; loadPage(); };
+    document.querySelectorAll('.sc-views button').forEach(b => b.onclick = () => { SC.view = b.dataset.view; SC.page = 0; openList(); });
     SC.sumList = null; loadSummary().then(drawSummary).catch(e => { if ($('sc_sum')) $('sc_sum').textContent = 'Could not count: ' + e.message; });
     loadPage(); }
 
   async function loadPage() { const g = $('sc_grid'); if (!g) return; g.innerHTML = '<div class="muted">Loading…</div>';
     let r = q().select('id,list,county,state,apn,data,auto_cut,flag,priority,decision,comp,note', { count: 'exact' }).eq('list', SC.list);
-    if (SC.county) r = r.eq('county', SC.county); r = r.is('decision', null).is('auto_cut', null);
+    if (SC.county) r = r.eq('county', SC.county); r = SC.view === 'good' ? r.eq('decision', 'good') : SC.view === 'cut' ? r.eq('decision', 'cut') : SC.view === 'auto' ? r.is('decision', null).not('auto_cut', 'is', null) : r.is('decision', null).is('auto_cut', null);
     const { data, count, error } = await r.order('priority', { ascending: false, nullsFirst: false }).order('id').range(SC.page * PER, SC.page * PER + PER - 1);
     if (error) { g.innerHTML = '<div class="card">Could not load lots: ' + esc(error.message) + '</div>'; return; }
     const pages = Math.max(1, Math.ceil((count || 0) / PER));
