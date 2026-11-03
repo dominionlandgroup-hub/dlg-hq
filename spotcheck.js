@@ -39,16 +39,16 @@
   // summary: per county Good / Cut / Not checked / red auto-cuts not overridden (head counts only)
   async function loadSummary() { const S = {}, list = SC.list;
     await Promise.all(SC.counties.map(async c => { const b = () => q().select('id', { count: 'exact', head: true }).eq('list', SC.list).eq('county', c);
-      const [g, k, u, r] = await Promise.all([b().eq('decision', 'good'), b().eq('decision', 'cut'), b().is('decision', null), b().not('auto_cut', 'is', null).or('decision.is.null,decision.eq.cut')]);
+      const [g, k, u, r] = await Promise.all([b().eq('decision', 'good'), b().eq('decision', 'cut'), b().is('decision', null).is('auto_cut', null), b().is('decision', null).not('auto_cut', 'is', null)]);
       for (const x of [g, k, u, r]) if (x.error) throw x.error;
       S[c] = { good: g.count || 0, cut: k.count || 0, und: u.count || 0, red: r.count || 0 }; }));
     if (list === SC.list) { SC.sum = S; SC.sumList = list; } }
   function drawSummary() { const el = $('sc_sum'); if (!el || SC.sumList !== SC.list) return; const cs = SC.counties, T = { good: 0, cut: 0, und: 0, red: 0 };
     cs.forEach(c => { for (const k in T) T[k] += (SC.sum[c] || {})[k] || 0; });
     const row = (n, x, cls) => `<tr class="${cls || ''}"><td>${esc(n)}</td><td class="right" style="color:#1f7a3a">${x.good.toLocaleString()}</td><td class="right" style="color:#b3261e">${x.cut.toLocaleString()}</td><td class="right">${x.und.toLocaleString()}</td><td class="right" style="color:#b3261e">${x.red.toLocaleString()}</td></tr>`;
-    el.innerHTML = `<table><tr><th>County</th><th class="right">Good (ready to mail)</th><th class="right">Cut</th><th class="right">Not checked yet</th><th class="right">Red auto-cuts not overridden</th></tr>${cs.map(c => row(c, SC.sum[c] || { good: 0, cut: 0, und: 0, red: 0 })).join('')}${row('Total', T, 'tot')}</table>`; }
+    el.innerHTML = `<table><tr><th>County</th><th class="right">Approved (ready to mail)</th><th class="right">You cut</th><th class="right">Needs your yes/no</th><th class="right">Cut by the checks</th></tr>${cs.map(c => row(c, SC.sum[c] || { good: 0, cut: 0, und: 0, red: 0 })).join('')}${row('Total', T, 'tot')}</table>`; }
   // keep the summary in step after a click without asking the server again
-  function adjust(r, sign) { const s = SC.sumList === SC.list && SC.sum[r.county]; if (!s) return; if (r.decision === 'good') s.good += sign; else if (r.decision === 'cut') s.cut += sign; else s.und += sign; if (r.auto_cut && r.decision !== 'good') s.red += sign; }
+  function adjust(r, sign) { const s = SC.sumList === SC.list && SC.sum[r.county]; if (!s) return; if (r.decision === 'good') s.good += sign; else if (r.decision === 'cut') s.cut += sign; else if (r.auto_cut) s.red += sign; else s.und += sign; }
 
   window.vSpotCheck = async function () { addCss();
     $('view').innerHTML = '<div class="card muted">Loading…</div>';
@@ -58,15 +58,11 @@
     await openList(); };
   async function openList() {
     $('view').innerHTML = `<div class="card"><div class="sc-bar">
-      <label class="ck">List <select id="sc_list">${SC.lists.map(l => `<option ${l === SC.list ? 'selected' : ''} value="${esc(l)}">${esc(l)}</option>`).join('')}</select></label>
-      <label class="ck">County <select id="sc_cty"><option value="">All</option></select></label>
-      <label class="ck"><input type="checkbox" id="sc_und" ${SC.undec ? 'checked' : ''}> Only undecided</label>
-      <label class="ck"><input type="checkbox" id="sc_flag" ${SC.flagged ? 'checked' : ''}> Only red / yellow</label></div>
-      <div class="small muted" style="margin-top:8px">Good keeps a lot, Cut drops it; click the lit button again to clear it. Red lots are cut at build unless you click Good. Everything saves as you go.</div></div>
+      <label class="ck" ${SC.lists.length > 1 ? '' : 'hidden'}>List <select id="sc_list">${SC.lists.map(l => `<option ${l === SC.list ? 'selected' : ''} value="${esc(l)}">${esc(l)}</option>`).join('')}</select></label>
+      <label class="ck">County <select id="sc_cty"><option value="">All</option></select></label></div>
+      <div class="small muted" style="margin-top:8px">Infill lots only. These are the lots that need your yes or no: <b>Good</b> = mail it, <b>Cut</b> = don't. Lots the checks already cut (water, no road, house, flood, recently bought, already on the MLS) are not shown. Approved lots drop off this list. Everything saves as you go.</div></div>
       <div class="card sc-sum" id="sc_sum"><span class="muted small">Counting…</span></div><div id="sc_pg1" class="sc-pg"></div><div id="sc_grid" class="sc-grid"></div><div id="sc_pg2" class="sc-pg"></div>`;
     $('sc_list').onchange = e => { SC.list = e.target.value; SC.county = ''; SC.page = 0; openList(); };
-    $('sc_und').onchange = e => { SC.undec = e.target.checked; SC.page = 0; loadPage(); };
-    $('sc_flag').onchange = e => { SC.flagged = e.target.checked; SC.page = 0; loadPage(); };
     try { SC.counties = await distinct('county', r => r.eq('list', SC.list)); } catch (e) { $('sc_sum').textContent = 'Could not load counties: ' + e.message; SC.counties = []; }
     if (SC.county && !SC.counties.includes(SC.county)) SC.county = '';
     $('sc_cty').innerHTML = '<option value="">All</option>' + SC.counties.map(c => `<option ${c === SC.county ? 'selected' : ''} value="${esc(c)}">${esc(c)}</option>`).join('');
@@ -76,7 +72,7 @@
 
   async function loadPage() { const g = $('sc_grid'); if (!g) return; g.innerHTML = '<div class="muted">Loading…</div>';
     let r = q().select('id,list,county,state,apn,data,auto_cut,flag,priority,decision,comp,note', { count: 'exact' }).eq('list', SC.list);
-    if (SC.county) r = r.eq('county', SC.county); if (SC.undec) r = r.is('decision', null); if (SC.flagged) r = r.or('auto_cut.not.is.null,flag.not.is.null');
+    if (SC.county) r = r.eq('county', SC.county); r = r.is('decision', null).is('auto_cut', null);
     const { data, count, error } = await r.order('priority', { ascending: false, nullsFirst: false }).order('id').range(SC.page * PER, SC.page * PER + PER - 1);
     if (error) { g.innerHTML = '<div class="card">Could not load lots: ' + esc(error.message) + '</div>'; return; }
     const pages = Math.max(1, Math.ceil((count || 0) / PER));
@@ -86,11 +82,13 @@
     const pg = `<span class="small">${count ? (SC.page * PER + 1).toLocaleString() : 0} - ${Math.min(count || 0, SC.page * PER + PER).toLocaleString()} of ${(count || 0).toLocaleString()} lots</span><button class="btn ghost sm" ${SC.page ? '' : 'disabled'} data-p="-1">‹ Prev</button><button class="btn ghost sm" ${SC.page < pages - 1 ? '' : 'disabled'} data-p="1">Next ›</button>`;
     for (const id of ['sc_pg1', 'sc_pg2']) { const el = $(id); el.innerHTML = pg; el.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => { SC.page += +b.dataset.p; loadPage(); if (id === 'sc_pg2') $('sc_pg1').scrollIntoView(); }); }
     g.innerHTML = ''; (data || []).forEach(x => g.appendChild(card(x)));
-    if (!(data || []).length) g.innerHTML = '<div class="card muted">No lots match.</div>'; }
+    if (!(data || []).length) g.innerHTML = '<div class="card muted">Nothing left to check here. All done.</div>'; }
 
   function card(r) { const d = r.data || {}, c = document.createElement('div');
     const style = () => { c.className = 'sc-card' + (r.decision === 'good' ? ' good' : r.decision === 'cut' ? ' cut' : ''); };
-    const fits = ((d.f || []).map(id => SC.buyers.get(String(id)) || ('Buyer #' + id)));
+    const fits = d.fn && d.fn.length ? d.fn : ((d.f || []).map(id => SC.buyers.get(String(id)) || ('Buyer #' + id)));
+    const cty = r.county || d.c || '', apn = String(r.apn || d.p || '');
+    const deed = cty === 'Mecklenburg' ? 'https://polaris3g.mecklenburgcountync.gov/pid/' + encodeURIComponent(apn.replace(/\D/g, '').padStart(8, '0')) : 'https://www.google.com/search?q=' + encodeURIComponent(cty + ' County ' + (r.state || 'NC') + ' tax parcel ' + apn);
     const pct = v => n0(v) == null ? '—' : Math.round(+v * 100) + '%', ft = v => n0(v) == null ? '—' : Math.round(+v).toLocaleString() + ' ft';
     const water = n0(d.wd) == null ? '—' : +d.wd < 0 ? 'none nearby' : Math.round(+d.wd).toLocaleString() + ' m';
     const comp = n0(d.cp) != null ? `<b>Comp:</b> ${esc(d.cm || '')} · ${usd(d.cp)}${n0(d.cd) != null ? ' · ' + (+d.cd).toFixed(2) + ' mi' : ''}${n0(d.cac) != null ? ' · ' + (+d.cac).toFixed(2) + ' ac' : ''}<br><b>Offer:</b> <span style="font-size:15px">${usd(d.off)}</span>` : '<i>Neutral letter (no comp yet)</i>';
@@ -101,7 +99,7 @@
       ${r.flag ? `<div class="sc-box sc-yel"><b>Check:</b> ${esc(r.flag)}</div>` : ''}
       <div class="sc-img"><canvas width="512" height="512"></canvas></div>
       <div class="meta"><b>Width:</b> ${ft(d.w)} · <b>Road frontage:</b> ${ft(d.fr)}${n0(d.near) != null ? ' · nearest road ' + Math.round(+d.near) + ' m' : ''}<br><b>Flood:</b> ${pct(d.fl)} · <b>Water:</b> ${water}${d.hs ? '<br><b>House?</b> ' + esc(d.hs) : ''}<br>
-      <b>Fits ${fits.length} buyer${fits.length === 1 ? '' : 's'}:</b> ${fits.length ? esc(fits.join(', ')) : 'none'}</div>
+      <b>Fits ${fits.length} buyer${fits.length === 1 ? '' : 's'}:</b> ${fits.length ? esc(fits.join(', ')) : 'none'}<br><a href="${deed}" target="_blank" rel="noopener">Check deed / owner</a>${n0(d.lat) != null ? ` · <a href="https://www.google.com/maps/search/?api=1&query=${d.lat},${d.lng}" target="_blank" rel="noopener">Google Maps</a>` : ''}</div>
       <div class="sc-box" style="background:var(--bg)">${comp}</div>
       <div class="sc-box sc-comp row2"><b>Your comp $</b><input type="text" inputmode="numeric" class="sc-cv" placeholder="e.g. 65000" value="${n0(r.comp) != null ? Math.round(r.comp) : ''}"><span class="sc-off" style="font-weight:600"></span></div>
       <textarea class="sc-note" placeholder="Note">${esc(r.note || '')}</textarea>

@@ -260,7 +260,7 @@ function vSplitDraw() {
       <td>${esc(r.owner_name || '')}<div class="small muted">${esc(r.owner_type || '')}${r.years_held != null ? ' · ' + Math.round(r.years_held) + ' yrs' : ''}${r.out_of_state ? ' · out of state' : ''}</div></td>
       <td class="right num">${m.lots}</td>
       <td class="right num">${r.frontage_ft != null ? Math.round(r.frontage_ft) + ' ft' : '—'}</td>
-      <td class="right num"><b style="color:${m.pencils ? '#1a7a45' : '#a61b1b'}">${money(m.maxOffer)}</b><div class="small muted">sell ${m.sell} × ${money(m.pad)}</div></td>
+      <td class="right num">${m.maxOffer > 0 ? `<b style="color:${m.pencils ? '#1a7a45' : '#a61b1b'}">${money(m.maxOffer)}</b>` : `<b style="color:#a61b1b">Doesn't pencil</b>`}<div class="small muted">sell ${m.sell} × ${money(m.pad)}</div></td>
       <td class="right num">${r.tax_land_value != null ? money(r.tax_land_value) : '—'}</td>
       <td class="small">${(() => { const b = spBuyers(r); return b.length ? `<b>${b.length}</b> <span class="muted">${esc(b.slice(0, 2).join(', '))}${b.length > 2 ? '…' : ''}</span>` : '<span class="muted">none</span>'; })()}</td>
       <td><select style="width:auto" onchange="spSetStatus(${r.id},this.value)">${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${(r.my_status || 'new') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>${r.my_notes ? '<div class="small muted" style="margin-top:3px">📝 has notes</div>' : ''}</td>
@@ -290,7 +290,7 @@ function spOpen(id) {
       <div class="small" style="margin-top:8px;line-height:1.7">
         ${m.lots} lots on ${esc(String(r.road_name || '').split(/\s*\(/)[0] || 'the road')} − keep ${SP.keep} = sell ${m.sell} × ${money(m.pad)} pad${r.pad_price_source ? ' <span class="muted">(' + esc(r.pad_price_source) + ')</span>' : ''} = ${money(m.sell * m.pad)}<br>
         − ${money(SP.costs)} survey/plat/closing = ${money(m.breakEven)} break-even (free lot, no profit)<br>
-        − ${money(m.goal)} profit (${SP.goalPct ?? 30}% of lot sales)${SP.cushion ? ' − ' + money(SP.cushion) + ' cushion' : ''} = <b>${money(m.maxOffer)} most I can pay</b> (you make ${money(m.goal)} + keep ${SP.keep} lot${SP.keep > 1 ? 's' : ''} worth about ${money(SP.keep * m.pad)})<br>
+        − ${money(m.goal)} profit (${SP.goalPct ?? 30}% of lot sales)${SP.cushion ? ' − ' + money(SP.cushion) + ' cushion' : ''} = <b>${m.maxOffer > 0 ? money(m.maxOffer) + ' most I can pay' : "doesn't pencil (lot sales don't cover costs and profit)"}</b> (you make ${money(m.goal)} + keep ${SP.keep} lot${SP.keep > 1 ? 's' : ''} worth about ${money(SP.keep * m.pad)})<br>
         Tax land value ${money(m.ask)} → ${m.cushion >= 0 ? 'offer covers it with ' + money(m.cushion) + ' to spare' : money(-m.cushion) + ' short of tax value'}.
       </div></div>
     <div class="card"><table>
