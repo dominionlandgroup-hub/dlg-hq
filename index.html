@@ -25,8 +25,6 @@
 <script src="split.js?v=27"></script>
 <script src="scorecard.js?v=10"></script>
 <script src="checklist.js?v=1"></script>
-<script src="spotcheck.js?v=7"></script>
-<script src="weekly.js?v=6"></script>
 <script src="builderhub.js?v=1"></script>
 <style>
 .impsteps{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}.impsteps span{font-size:12px;padding:4px 10px;border-radius:999px;background:#eee;color:#666}.impsteps span.on{background:#efe7fb;color:#4b2a7b;font-weight:700}.impsteps span.done{background:#e3f1e6;color:#2f6b3a}
@@ -237,8 +235,6 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <a class="nav" data-v="tasks" style="display:none">Tasks</a>
     <a class="nav" data-v="inbox-seller">Seller Inbox <span class="badge hidden" id="b_seller"></span></a>
     <a class="nav" data-v="board-seller">Seller Deals</a>
-    <a class="nav" data-v="weekly">Weekly List</a>
-    <a class="nav" data-v="spot">Spot Check</a>
     <a class="nav" data-v="split" style="display:none">Split Finder</a>
     <a class="nav" data-v="targets" style="display:none">Targets</a>
     <a class="nav" data-v="campaigns">Campaigns</a>
@@ -340,8 +336,8 @@ async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=
 // ---------- router ----------
 const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox('seller'),'inbox-buyer':()=>vInbox('buyer'),
  'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,
- followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit(),scorecard:()=>vScorecard(),checklist:()=>vChecklist(),spot:()=>vSpotCheck(),weekly:()=>vWeekly(),targets:()=>vHubTargets(),match:()=>vHubMatch()};
-const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',checklist:'My Checklist',spot:'Spot Check',weekly:'Weekly List',targets:'Targets',match:'Deal matcher'};
+ followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit(),scorecard:()=>vScorecard(),checklist:()=>vChecklist(),targets:()=>vHubTargets(),match:()=>vHubMatch()};
+const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
 function go(v){try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch(decodeURIComponent(m[2]));return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
@@ -1402,7 +1398,7 @@ async function weeklyGo(){const btn=$('wl_go');btn.disabled=true;btn.textContent
     $('wl_out').innerHTML=`<b>Done.</b> ${esc(LB.status.report)}<br><br>${(r.campaigns||[{campaign:r.campaign,name:'List'}]).map(x=>`<div style="margin:6px 0"><b>${esc(x.name)}</b><br><button class="btn" onclick="closeDrawer();startMailing(${x.campaign})">Review &amp; Start Mailing</button> <button class="btn ghost" onclick="LB.pebbleCSV(${x.campaign}).then(n=>toast(n+' records saved for Pebble'))">Download for Pebble</button></div>`).join('')} <button class="btn ghost" onclick="closeDrawer();go('campaigns')">See campaigns</button>`;toast('Weekly list ready')}
   catch(e){clearInterval(tick);$('wl_out').textContent='Stopped: '+e.message+'\n'+(LB.status?.log||[]).slice(-6).join('\n');btn.disabled=false;btn.textContent='Try again'}}
 async function vCampaigns(){
-  $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn ghost" onclick="go('weekly')">🧭 Build weekly list</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;
+  $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;
   const [{data:c},dc,lvr]=await Promise.all([sb.from('campaigns').select('*').limit(2000),campDealCounts(),sb.from('letter_versions').select('id,template,version,note,body,created_at')]);
   window._lv=Object.fromEntries(((lvr&&lvr.data)||[]).map(v=>[v.id,v]));
   window._camps=(c||[]).map(x=>({...x,...campStats(x,dc)}));
