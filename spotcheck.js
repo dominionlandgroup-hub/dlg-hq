@@ -20,6 +20,7 @@
 .sc-dec .good.on{background:#1f7a3a;color:#fff;border-color:#1f7a3a}.sc-dec .cut.on{background:#b3261e;color:#fff;border-color:#b3261e}
 .sc-card .row2{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.sc-card .row2 input{width:110px}
 .sc-card textarea{min-height:44px;margin-top:6px;font-size:13px}
+.sc-tbl{overflow:auto;max-height:75vh;padding:0}.sc-tbl table{border-collapse:collapse;font-size:12px}.sc-tbl th{position:sticky;top:0;background:var(--card);z-index:1}.sc-tbl th,.sc-tbl td{padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis;text-align:left}.sc-tbl tr.no td{color:var(--muted)}.sc-tbl tr.no td:first-child{color:#b3261e;font-weight:600}.sc-tbl tr.ok td:first-child{color:#1f7a3a;font-weight:600}
 .sc-pg{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:10px 0}`;
   const addCss = () => { if (document.getElementById('sc-css')) return; const s = document.createElement('style'); s.id = 'sc-css'; s.textContent = css; document.head.appendChild(s); };
   const n0 = v => v == null || v === '' || isNaN(+v) ? null : +v;
@@ -60,8 +61,8 @@
     $('view').innerHTML = `<div class="card"><div class="sc-bar">
       <label class="ck" ${SC.lists.length > 1 ? '' : 'hidden'}>List <select id="sc_list">${SC.lists.map(l => `<option ${l === SC.list ? 'selected' : ''} value="${esc(l)}">${esc(l)}</option>`).join('')}</select></label>
       <label class="ck">County <select id="sc_cty"><option value="">All</option></select></label>
-      <span class="sc-views">${[['ready','To check (will mail unless you Cut)'],['good','Approved'],['cut','Cut (by you)'],['auto','Cut by the checks']].map(([k,l])=>`<button class="btn ${SC.view===k?'':'ghost'} sm" data-view="${k}">${l}</button>`).join(' ')}</span></div>
-      <div class="small muted" style="margin-top:8px">${{ready:'Infill lots that passed every check and have a close comp of $50K+. They get mailed unless you click <b>Cut</b>. Clicking <b>Good</b> just marks them checked.',good:'Lots marked approved: ones you clicked Good, plus the clean lots in counties you finished on the Nov 3 page.',cut:'Lots you cut. Click Cut again to undo.',auto:'Lots the checks cut, with the reason in red (water, no road, house, flood, recently bought, no close comp, comp under $50K, on the MLS). Click Good to keep one anyway.'}[SC.view]} Everything saves as you go.</div></div>
+      <span class="sc-views">${[['ready','To check (will mail unless you Cut)'],['good','Approved'],['cut','Cut (by you)'],['auto','Cut by the checks'],['table','Every lot: table + Excel']].map(([k,l])=>`<button class="btn ${SC.view===k?'':'ghost'} sm" data-view="${k}">${l}</button>`).join(' ')}</span></div>
+      <div class="small muted" style="margin-top:8px">${{ready:'Infill lots that passed every check and have a close comp of $50K+. They get mailed unless you click <b>Cut</b>. Clicking <b>Good</b> just marks them checked.',good:'Lots marked approved: ones you clicked Good, plus the clean lots in counties you finished on the Nov 3 page.',cut:'Lots you cut. Click Cut again to undo.',auto:'Lots the checks cut, with the reason in red (water, no road, house, flood, recently bought, no close comp, comp under $50K, on the MLS). Click Good to keep one anyway.',table:'Every lot in the list, one row each, with the result of every check and the proof behind it. Pick a county, or download the whole list to Excel and filter it yourself.'}[SC.view]} Everything saves as you go.</div></div>
       <div class="card sc-sum" id="sc_sum"><span class="muted small">Counting…</span></div><div id="sc_pg1" class="sc-pg"></div><div id="sc_grid" class="sc-grid"></div><div id="sc_pg2" class="sc-pg"></div>`;
     $('sc_list').onchange = e => { SC.list = e.target.value; SC.county = ''; SC.page = 0; openList(); };
     try { SC.counties = await distinct('county', r => r.eq('list', SC.list)); } catch (e) { $('sc_sum').textContent = 'Could not load counties: ' + e.message; SC.counties = []; }
@@ -73,6 +74,7 @@
     loadPage(); }
 
   async function loadPage() { const g = $('sc_grid'); if (!g) return; g.innerHTML = '<div class="muted">Loading…</div>';
+    if (SC.view === 'table') return loadTable(g);
     let r = q().select('id,list,county,state,apn,data,auto_cut,flag,priority,decision,comp,note', { count: 'exact' }).eq('list', SC.list);
     if (SC.county) r = r.eq('county', SC.county); r = SC.view === 'good' ? r.eq('decision', 'good') : SC.view === 'cut' ? r.eq('decision', 'cut') : SC.view === 'auto' ? r.is('decision', null).not('auto_cut', 'is', null) : r.is('decision', null).is('auto_cut', null);
     const { data, count, error } = await r.order('priority', { ascending: false, nullsFirst: false }).order('id').range(SC.page * PER, SC.page * PER + PER - 1);
@@ -83,8 +85,46 @@
     if (need.length) { const { data: bs } = await sb.from('buyers').select('id,name,company').in('id', need); need.forEach(id => SC.buyers.set(id, null)); (bs || []).forEach(b => SC.buyers.set(String(b.id), b.company || b.name || ('Buyer #' + b.id))); }
     const pg = `<span class="small">${count ? (SC.page * PER + 1).toLocaleString() : 0} - ${Math.min(count || 0, SC.page * PER + PER).toLocaleString()} of ${(count || 0).toLocaleString()} lots</span><button class="btn ghost sm" ${SC.page ? '' : 'disabled'} data-p="-1">‹ Prev</button><button class="btn ghost sm" ${SC.page < pages - 1 ? '' : 'disabled'} data-p="1">Next ›</button>`;
     for (const id of ['sc_pg1', 'sc_pg2']) { const el = $(id); el.innerHTML = pg; el.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => { SC.page += +b.dataset.p; loadPage(); if (id === 'sc_pg2') $('sc_pg1').scrollIntoView(); }); }
-    g.innerHTML = ''; (data || []).forEach(x => g.appendChild(card(x)));
+    g.style.display = ''; g.innerHTML = ''; (data || []).forEach(x => g.appendChild(card(x)));
     if (!(data || []).length) g.innerHTML = '<div class="card muted">Nothing left to check here. All done.</div>'; }
+
+  // ---- Every lot: one row per lot with every check result, plus a CSV (opens in Excel) of the whole list ----
+  const TPER = 200;
+  const status = r => r.decision === 'good' ? 'Approved' : r.decision === 'cut' ? 'You cut' : r.auto_cut ? 'Cut by the checks' : 'Will mail';
+  const hasNum = d => /^\s*[1-9]\d*[A-Z]?\s/.test(d.a || '');
+  const mlsRes = (r, d) => /^On the MLS/.test(r.auto_cut || '') ? 'ON THE MLS - cut' : /MLS listing/.test(r.flag || '') ? 'Listing on same street - check' : hasNum(d) ? 'Not found (matched by address)' : 'Street only - no listing on this street found';
+  const waterRes = (r, d) => /^Waterfront/.test(r.auto_cut || '') ? 'WATERFRONT - cut' : n0(d.wd) != null && +d.wd >= 0 ? Math.round(+d.wd) + ' m to water' : 'No lake/pond found nearby';
+  const COLS = [
+    ['Status', r => status(r)], ['Why', r => r.auto_cut || (r.decision === 'cut' ? 'You cut it' : 'Passed every check')], ['Check note', r => r.flag || ''],
+    ['County', r => r.county], ['Address', (r, d) => d.a || ''], ['City', (r, d) => d.city || ''], ['Parcel', r => r.apn], ['Acres', (r, d) => n0(d.ac) != null ? (+d.ac).toFixed(2) : ''],
+    ['Owner', (r, d) => d.o || ''], ['Mail to', (r, d) => [d.ma, d.mc, d.ms, d.mz].filter(Boolean).join(' ')],
+    ['Comp $', (r, d) => n0(r.comp) != null ? Math.round(r.comp) : n0(d.cp) != null ? Math.round(d.cp) : ''], ['Comp source', (r, d) => n0(r.comp) != null ? 'Your comp' : d.ac_src === 'auto' ? 'Auto (' + (d.ac_conf || '') + ')' : d.ac_src === 'Nov 3 comp' || d.src === 'nov3' ? 'Nov 3 comp' : d.cp ? 'Comp' : 'None'],
+    ['Comp sales used', (r, d) => d.cm || ''], ['Comp distance mi', (r, d) => n0(d.cd) != null ? (+d.cd).toFixed(2) : ''], ['Offer', (r, d) => { const c = n0(r.comp) != null ? r.comp : n0(d.cp); return c ? offerFor(c) : ''; }],
+    ['MLS check', (r, d) => mlsRes(r, d)], ['Water check', (r, d) => waterRes(r, d)], ['Road frontage ft', (r, d) => n0(d.fr) != null ? Math.round(d.fr) : ''], ['Width ft', (r, d) => n0(d.w) != null ? Math.round(d.w) : ''],
+    ['Flood %', (r, d) => n0(d.fl) != null ? Math.round(+d.fl * 100) : ''], ['House on lot?', (r, d) => d.hs || ''], ['Last sale date', (r, d) => d.sd || ''],
+    ['Your note', r => r.note || ''], ['Map', (r, d) => n0(d.lat) != null ? 'https://www.google.com/maps/search/?api=1&query=' + d.lat + ',' + d.lng : '']];
+  const tq = () => { let r = q().select('id,county,state,apn,data,auto_cut,flag,decision,comp,note', { count: 'exact' }).eq('list', SC.list); if (SC.county) r = r.eq('county', SC.county);
+    const f = SC.tf || 'all'; return f === 'mail' ? r.is('auto_cut', null).or('decision.is.null,decision.eq.good') : f === 'cutc' ? r.is('decision', null).not('auto_cut', 'is', null) : f === 'cuty' ? r.eq('decision', 'cut') : r; };
+  async function loadTable(g) {
+    const f = SC.tf || 'all';
+    const { data, count, error } = await tq().order('county').order('id').range(SC.page * TPER, SC.page * TPER + TPER - 1);
+    if (error) { g.innerHTML = '<div class="card">Could not load lots: ' + esc(error.message) + '</div>'; return; }
+    const pages = Math.max(1, Math.ceil((count || 0) / TPER));
+    const pg = `<label class="ck small">Show <select class="sc-tf">${[['all','Every lot'],['mail','Will mail (approved + to check)'],['cutc','Cut by the checks'],['cuty','You cut']].map(([k,l])=>`<option value="${k}" ${k===f?'selected':''}>${l}</option>`).join('')}</select></label>
+      <button class="btn sm sc-csv">Download ${SC.county ? esc(SC.county) : 'whole list'} to Excel (${(count||0).toLocaleString()} rows)</button><span class="small sc-csvmsg"></span>
+      <span class="small">${count ? (SC.page * TPER + 1).toLocaleString() : 0} - ${Math.min(count || 0, SC.page * TPER + TPER).toLocaleString()} of ${(count || 0).toLocaleString()}</span><button class="btn ghost sm" ${SC.page ? '' : 'disabled'} data-p="-1">‹ Prev</button><button class="btn ghost sm" ${SC.page < pages - 1 ? '' : 'disabled'} data-p="1">Next ›</button>`;
+    for (const id of ['sc_pg1', 'sc_pg2']) { const el = $(id); el.innerHTML = pg; el.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => { SC.page += +b.dataset.p; loadPage(); $('sc_pg1').scrollIntoView(); });
+      el.querySelector('.sc-tf').onchange = e => { SC.tf = e.target.value; SC.page = 0; loadPage(); }; el.querySelector('.sc-csv').onclick = () => csv(el.querySelector('.sc-csvmsg')); }
+    const cell = (k, v) => k === 'Map' && v ? `<a href="${esc(v)}" target="_blank" rel="noopener">map</a>` : esc(v);
+    g.style.display = 'block';
+    g.innerHTML = `<div class="card sc-tbl"><table><tr>${COLS.map(c => `<th>${c[0]}</th>`).join('')}</tr>${(data || []).map(r => { const d = r.data || {}; const st = status(r);
+      return `<tr class="${st === 'Will mail' || st === 'Approved' ? 'ok' : 'no'}">${COLS.map(c => `<td>${cell(c[0], c[1](r, d))}</td>`).join('')}</tr>`; }).join('')}</table></div>`; }
+  async function csv(msg) { const rows = []; let from = 0;
+    for (;;) { msg.textContent = 'Getting rows… ' + rows.length.toLocaleString(); const { data, error } = await tq().order('county').order('id').range(from, from + 999); if (error) { msg.textContent = 'Could not download: ' + error.message; return; } rows.push(...data); if (data.length < 1000) break; from += 1000; }
+    const qv = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    const out = [COLS.map(c => c[0]).join(',')].concat(rows.map(r => { const d = r.data || {}; return COLS.map(c => qv(c[0] === 'Parcel' ? '="' + r.apn + '"' : c[1](r, d))).join(','); })).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + out], { type: 'text/csv' })); a.download = 'Spot Check ' + (SC.county || 'all counties') + ' - ' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+    msg.textContent = rows.length.toLocaleString() + ' rows downloaded'; }
 
   function card(r) { const d = r.data || {}, c = document.createElement('div');
     const style = () => { c.className = 'sc-card' + (r.decision === 'good' ? ' good' : r.decision === 'cut' ? ' cut' : ''); };
