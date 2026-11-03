@@ -132,6 +132,7 @@
     const get = async (url, where) => { const u = url + '/query?' + new URLSearchParams({ where, returnGeometry: 'true', outSR: '4326', f: 'json' }); const j = await (await fetch(u)).json(); return (j.features || []).flatMap(f => (f.geometry && f.geometry.rings) || []); };
     try { if (apn) { let rs;
         if (/^york$/i.test(county) && r.state === 'SC') rs = await get('https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0', `TAXMAPID='${sq(apn)}'`);
+        else if (/^lancaster$/i.test(county) && r.state === 'SC') rs = await get('https://services3.arcgis.com/rJcpRneDUBgTeCT3/arcgis/rest/services/LC_Parcels/FeatureServer/0', `PIN='${sq(apn)}'`);
         else { const p = /^iredell$/i.test(county) && !apn.includes('.') ? apn + '.000' : apn; rs = await get('https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/MapServer/1', `parno='${sq(p)}' AND cntyname='${sq(county)}'`); }
         if (rs.length) return rs; } } catch (e) {}
     try { const u = 'https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/MapServer/1/query?' + new URLSearchParams({ geometry: `${d.lng},${d.lat}`, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', returnGeometry: 'true', outSR: '4326', f: 'json' });
