@@ -1393,7 +1393,8 @@ async function weeklyGo(){const btn=$('wl_go');btn.disabled=true;btn.textContent
     $('wl_out').innerHTML=`<b>Done.</b> ${esc(LB.status.report)}<br><br>${(r.campaigns||[{campaign:r.campaign,name:'List'}]).map(x=>`<div style="margin:6px 0"><b>${esc(x.name)}</b><br><button class="btn" onclick="closeDrawer();startMailing(${x.campaign})">Review &amp; Start Mailing</button> <button class="btn ghost" onclick="LB.pebbleCSV(${x.campaign}).then(n=>toast(n+' records saved for Pebble'))">Download for Pebble</button></div>`).join('')} <button class="btn ghost" onclick="closeDrawer();go('campaigns')">See campaigns</button>`;toast('Weekly list ready')}
   catch(e){clearInterval(tick);$('wl_out').textContent='Stopped: '+e.message+'\n'+(LB.status?.log||[]).slice(-6).join('\n');btn.disabled=false;btn.textContent='Try again'}}
 async function vCampaigns(){
-  $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;
+  $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn ghost" id="sendTog" onclick="sendTogether()" disabled title="Check 2 or more campaigns">Send together</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;
+  window._csel=window._csel||new Set();
   const [{data:c},dc,lvr]=await Promise.all([sb.from('campaigns').select('*').limit(2000),campDealCounts(),sb.from('letter_versions').select('id,template,version,note,body,created_at')]);
   window._lv=Object.fromEntries(((lvr&&lvr.data)||[]).map(v=>[v.id,v]));
   window._camps=(c||[]).map(x=>({...x,...campStats(x,dc)}));
@@ -1416,10 +1417,12 @@ function drawCamps(){const P=25,q=CSTATE.q.toLowerCase();
   const pages=Math.max(1,Math.ceil(L.length/P));CSTATE.page=Math.min(CSTATE.page,pages-1);const S=L.slice(CSTATE.page*P,CSTATE.page*P+P);
   const th=(key,label,cls='right')=>`<th class="${cls} sortable" onclick="sortCamps('${key}')">${label} <span class="arr">${CSTATE.sort===key?(CSTATE.dir==='asc'?'↑':'↓'):'↑↓'}</span></th>`;
   const pager=`<div class="pager"><span class="small">${L.length?CSTATE.page*P+1:0} - ${Math.min(L.length,CSTATE.page*P+P)} of ${L.length} results</span><button class="btn ghost sm" ${CSTATE.page?'':'disabled'} onclick="CSTATE.page--;drawCamps()">‹</button><button class="btn ghost sm" ${CSTATE.page<pages-1?'':'disabled'} onclick="CSTATE.page++;drawCamps()">›</button></div>`;
-  $('ctab').innerHTML=pager+`<div class="card" style="overflow-x:auto;padding:0"><table class="ctable"><tr>${th('name','Name','')}${th('created_at','Created','')}${th('drop_date','Mail date','')}<th>Mailing Progress</th>${th('records','Records')}${th('cost','Amount Spent')}${th('deals','Responses')}${th('resp','Response Rate')}${th('offers','Offers')}${th('purchases','Under Contract')}${th('sales','Closed')}<th></th></tr>
-   ${S.map(x=>`<tr><td><a href="#" class="cname" onclick="go('campaign:${x.id}');return false">${esc(x.name)}</a></td><td>${fmtDate(String(x.created_at||'').slice(0,10))}</td><td>${fmtDate(x.drop_date)}</td><td>${mailProgress(x)}</td>
+  $('ctab').innerHTML=pager+`<div class="card" style="overflow-x:auto;padding:0"><table class="ctable"><tr><th title="Check campaigns to send to the mail house as one list"></th>${th('name','Name','')}${th('created_at','Created','')}${th('drop_date','Mail date','')}<th>Mailing Progress</th>${th('records','Records')}${th('cost','Amount Spent')}${th('deals','Responses')}${th('resp','Response Rate')}${th('offers','Offers')}${th('purchases','Under Contract')}${th('sales','Closed')}<th></th></tr>
+   ${S.map(x=>`<tr><td><input type="checkbox" style="width:auto" ${_csel.has(x.id)?'checked':''} onchange="campSel(${x.id},this.checked)"></td><td><a href="#" class="cname" onclick="go('campaign:${x.id}');return false">${esc(x.name)}</a></td><td>${fmtDate(String(x.created_at||'').slice(0,10))}</td><td>${fmtDate(x.drop_date)}</td><td>${mailProgress(x)}</td>
      <td class="right num">${(x.records||0).toLocaleString()}</td><td class="right num" style="color:#a7822a">${money(x.cost)}</td><td class="right num">${x.deals}</td><td class="right num">${x.resp.toFixed(2)}%</td><td class="right num">${x.offers}</td><td class="right num">${x.purchases}</td><td class="right num">${x.sales}</td>
-     <td><div class="menu"><button class="btn ghost sm" onclick="toggleMenu(this)">···</button><div class="mlist"><a href="#" onclick="startMailing(${x.id});return false">Start Mailing</a><a href="#" style="color:var(--red)" onclick="askDeleteCampaign(${x.id});return false">Delete</a><a href="#" onclick="copyMailLink(${x.id});return false">Copy mail house link</a><a href="#" onclick="remarket(${x.id});return false">Remarket</a><a href="#" onclick="splitCampaign(${x.id});return false">Split</a><a href="#" onclick="editCampaign(${x.id});return false">Edit</a></div></div></td></tr>`).join('')||'<tr><td colspan="12" class="muted">No campaigns match.</td></tr>'}</table></div>`+pager}
+     <td><div class="menu"><button class="btn ghost sm" onclick="toggleMenu(this)">···</button><div class="mlist"><a href="#" onclick="startMailing(${x.id});return false">Start Mailing</a><a href="#" style="color:var(--red)" onclick="askDeleteCampaign(${x.id});return false">Delete</a><a href="#" onclick="copyMailLink(${x.id});return false">Copy mail house link</a><a href="#" onclick="remarket(${x.id});return false">Remarket</a><a href="#" onclick="splitCampaign(${x.id});return false">Split</a><a href="#" onclick="editCampaign(${x.id});return false">Edit</a></div></div></td></tr>`).join('')||'<tr><td colspan="13" class="muted">No campaigns match.</td></tr>'}</table></div>`+pager}
+function campSel(id,on){on?_csel.add(id):_csel.delete(id);const b=$('sendTog');if(b){const n=_csel.size;b.disabled=n<2;b.textContent=n>1?`Send together (${n})`:'Send together'}}
+function sendTogether(){const ids=[..._csel];if(ids.length<2)return toast('Check 2 or more campaigns');startMailing(ids)}
 function sortCamps(k){if(CSTATE.sort===k)CSTATE.dir=CSTATE.dir==='asc'?'desc':'asc';else{CSTATE.sort=k;CSTATE.dir=k==='name'?'asc':'desc'}CSTATE.page=0;drawCamps()}
 function toggleMenu(btn){const m=btn.nextElementSibling;const open=m.style.display==='block';document.querySelectorAll('.mlist').forEach(x=>x.style.display='none');m.style.display=open?'none':'block'}
 document.addEventListener('click',e=>{if(!e.target.closest('.menu'))document.querySelectorAll('.mlist').forEach(x=>x.style.display='none')});
@@ -1512,18 +1515,23 @@ async function vInsights(){const [a,b,k]=dashRange();
    <div class="card" style="overflow-x:auto;padding:0"><table><tr><th>${IST.by==='month'?'Month':IST.by==='county'?'County':'Template'}</th><th class="right">Mailings Sent</th><th class="right">Mailing Cost</th><th class="right">Responses</th><th class="right">Response Rate</th><th class="right">Still Open</th><th class="right">Offers</th><th class="right">Under Contract</th><th class="right">Closed</th><th class="right">Cost per Response</th><th class="right">Cost per Closed Deal</th></tr>
    ${rows.map(([g,v])=>`<tr><td><b>${esc(IST.by==='month'?new Date(g+'-15').toLocaleDateString('en-US',{month:'long',year:'numeric'}):g)}</b></td><td class="right num">${v.mail.toLocaleString()}</td><td class="right num">${money(v.cost)}</td><td class="right num">${v.deals}</td><td class="right num">${v.mail?(v.deals/v.mail*100).toFixed(2):'0.00'}%</td><td class="right num">${v.open}</td><td class="right num">${v.offers}</td><td class="right num">${v.purch}</td><td class="right num">${v.sales}</td><td class="right num">${v.deals?money(v.cost/v.deals):'—'}</td><td class="right num">${v.sales?money(v.cost/v.sales):'—'}</td></tr>`).join('')||'<tr><td colspan="11" class="muted">No insights to show</td></tr>'}</table></div>`}
 
-async function startMailing(id){
-  const [{data:c},{data:tpls}]=await Promise.all([sb.from('campaigns').select('*').eq('id',id).single(),sb.from('templates').select('*').eq('kind','mail').order('name')]);
-  if(c&&c.mail_status&&c.mail_status!=='not_sent'&&prompt(`"${c.name}" was already sent to the mail house (${c.mail_status.replace('_',' ')}). Sending it again could get it printed twice. Type RESEND to send it again.`)!=='RESEND')return;
-  openDrawer(head('Start Mailing')+`
-   <div class="card"><p style="margin-top:0"><b>${esc(c.name)}</b></p>
-   <label class="f">Letter template</label><select id="m_tpl">${(()=>{const L=tpls||[];const nm=(c.name||'').toLowerCase();const pick=L.find(t=>t.file_name===c.template)||L.find(t=>{const n=t.name.toLowerCase();return /letter 2/.test(nm)?/letter 2/.test(n):/teardown/.test(nm)?(/nashville/.test(nm)?/nashville/.test(n):/teardown/.test(n)&&!/nashville/.test(n)):/church/.test(nm)?/church/.test(n):/attorney/.test(nm)?/attorney/.test(n):/estate pr/.test(nm)?/estate pr/.test(n):/house/.test(nm)?/as-is house/.test(n):/letter 1/.test(n)});return L.map(t=>`<option value="${esc(t.file_name)}" ${pick&&pick.file_name===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')})()}</select>
+async function startMailing(idOrIds){
+  const ids=[].concat(idOrIds).map(Number),id=ids[0],arg=JSON.stringify(ids);
+  const [{data:cs},{data:tpls}]=await Promise.all([sb.from('campaigns').select('*').in('id',ids),sb.from('templates').select('*').eq('kind','mail').order('name')]);
+  const C=ids.map(i=>(cs||[]).find(x=>x.id===i)).filter(Boolean);if(!C.length)return toast('Campaign not found');
+  const c={...C[0],name:C.length>1?C.map(x=>x.name).join(' + '):C[0].name,records:C.reduce((t,x)=>t+(x.records||0),0)};
+  const sentB=C.filter(x=>x.mail_status&&x.mail_status!=='not_sent');
+  if(sentB.length&&prompt(`${sentB.map(x=>'"'+x.name+'"').join(', ')} ${sentB.length>1?'were':'was'} already sent to the mail house. Sending again could get it printed twice. Type RESEND to send it again.`)!=='RESEND')return;
+  const tplSet=[...new Set(C.map(x=>x.template).filter(Boolean))];if(tplSet.length>1)c.template=null;
+  openDrawer(head(C.length>1?`Send together (${C.length} campaigns, one list)`:'Start Mailing')+`
+   <div class="card"><p style="margin-top:0"><b>${C.length>1?C.map(x=>esc(x.name)+` <span class="small muted">(${(x.records||0).toLocaleString()})</span>`).join('<br>'):esc(c.name)}</b>${C.length>1?`<br><span class="small">${c.records.toLocaleString()} records total. They go to the mail house as <b>one list, one letter, one email</b>.</span>`:''}</p>
+   <label class="f">Letter template</label><select id="m_tpl">${(()=>{const L=tpls||[];const nm=(c.name||'').toLowerCase();const pick=L.find(t=>t.file_name===c.template)||L.find(t=>{const n=t.name.toLowerCase();return /letter 2/.test(nm)?/letter 2/.test(n):/teardown/.test(nm)?(/nashville/.test(nm)?/nashville/.test(n):/teardown/.test(n)&&!/nashville/.test(n)):/neutral/.test(nm)?/neutral/.test(n):/church/.test(nm)?/church/.test(n):/attorney/.test(nm)?/attorney/.test(n):/estate pr/.test(nm)?/estate pr/.test(n):/house/.test(nm)?/as-is house/.test(n):/letter 1/.test(n)});return L.map(t=>`<option value="${esc(t.file_name)}" ${pick&&pick.file_name===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')})()}</select><div class="small" style="margin-top:4px"><a href="#" onclick="window.open(location.origin+'/mail-templates/'+encodeURIComponent($('m_tpl').value),'_blank');return false">Open this letter to check it</a></div>
    <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Remove opt-outs, do-not-mail, "not selling" / dead, Due Diligence and negative tags, and anyone with an open deal</label>
    <p class="small muted"><b>Before anything is sent, every record is checked against the county's current owner records.</b> Anyone who sold or whose owner changed is taken off and marked do-not-mail. Saves the mail-house list (no download) and opens a draft email to Brandon, cc Paul, with a link to the list. Every merge field (Owner name, first and last name, mailing address, city, state, zip, property address, city, state, zip, county, FIPS, APN, acres, offer code), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. The list is in the draft as a link. The email includes download links for the letter and the handwriting font, so nothing to attach. Just send it (works from your phone too).</p>
    <div class="card" id="m_pray" style="margin:12px 0;background:#f7f3ea;border-left:4px solid #b8963e"><b>Pray before you send</b>
     <p style="font-style:italic;line-height:1.6;margin:8px 0">${esc(PRAYERS[(id||0)%PRAYERS.length].replace('{n}',(c.records||0).toLocaleString()))}</p>
     <button class="btn ghost" onclick="amen(${id})">🙏 Amen</button></div>
-   <button class="btn" id="m_send" disabled title="Pray first" onclick="buildMailList(${id})">Draft email with list</button><div id="m_msg" class="small" style="margin-top:8px"></div></div>`)}
+   <button class="btn" id="m_send" disabled title="Pray first" onclick='buildMailList(${arg})'>Draft email with list</button><div id="m_msg" class="small" style="margin-top:8px"></div></div>`)}
 const PRAYERS=['Lord, this business is Yours before it is mine. Give me wisdom for every call these {n} letters bring, keep me honest with every owner, and lead me to the people You want me to serve. Amen.',
  'Father, I put these {n} letters in Your hands. Give me wisdom, open the right doors and close the wrong ones, and let every deal honor You. Amen.',
  'God, thank You for this business. Grant me wisdom and patience with every seller who calls, and let Your favor go before this mailing. Amen.',
@@ -1532,13 +1540,14 @@ async function amen(id){const {data:c}=await sb.from('campaigns').select('name')
   $('m_send').disabled=false;$('m_send').title='';$('m_pray').innerHTML='<b>🙏 Amen.</b> <span class="small muted">Prayed over this campaign. You can send it now.</span>'}
 const MAIL_FROM='dominionlandgroup@gmail.com'; // Gmail account the mail-house email opens in (skips the account picker, which drops the To/Subject/Body)
 const MAIL_PIECE=0.55; // cost per letter at the mail house
-async function buildMailList(id){
+async function buildMailList(idOrIds){
+  const ids=[].concat(idOrIds).map(Number),id=ids[0];
   $('m_send').disabled=true;$('m_msg').textContent='Checking offer codes…';
   // OFFER CODE GATE: every code must be unique across all of DLG HQ (other campaigns, contacts, old Pebble/GHL codes)
-  let _cx;try{_cx=await LB.offerCodeClashes(id)}catch(e){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">Could not check offer codes: ${esc(e.message)}</b> Nothing was sent. Try again.`}
+  let _cx={codes:[],prefixes:[]};try{for(const i of ids){const x=await LB.offerCodeClashes(i);_cx.codes.push(...(x.codes||[]));_cx.prefixes.push(...(x.prefixes||[]))}}catch(e){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">Could not check offer codes: ${esc(e.message)}</b> Nothing was sent. Try again.`}
   if(_cx.codes.length||_cx.prefixes.length){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">BLOCKED: ${esc(LB.clashMsg(_cx))}</b> Nothing was sent. Fix the codes first (offer_codes_check.sql).`}
   $('m_msg').textContent='Building list…';const all=[];
-  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('id, offer_code, lead_id, property_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,phone2,phone3,status,tags,notes), properties(apn,address,city,state,zip,county,fips,acres,fields,tags)').eq('campaign_id',id).order('id').range(from,from+999);
+  for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('id, campaign_id, offer_code, lead_id, property_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,phone2,phone3,status,tags,notes), properties(apn,address,city,state,zip,county,fips,acres,fields,tags)').in('campaign_id',ids).order('id').range(from,from+999);
     if(error){$('m_msg').textContent=error.message;return}all.push(...data);if(data.length<1000)break}
   const sup=new Set(),on=$('m_sup').checked;if(on){const s=[];for(let f=0;;f+=1000){const r=await sb.from('suppression').select('phone,apn').order('apn').range(f,f+999);if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not load the opt-out list: '+esc(r.error.message)+'</b> Nothing was sent.'}s.push(...r.data);if(r.data.length<1000)break}(s||[]).forEach(x=>{if(p10(x.phone).length===10)sup.add(p10(x.phone));if(x.apn)sup.add('A'+LB.apnKey(x.apn))})}
   // open deals (any deal not closed, lost or cancelled) on the contact or the property: never mail them
@@ -1548,7 +1557,7 @@ async function buildMailList(id){
   const kept0=all.filter(r=>!on||(!r.leads?.do_not_mail&&!noMailWhy(r.leads,r.properties)&&!dealL.has(r.lead_id)&&!dealP.has(r.property_id)&&!supPh(r.leads)&&!(r.properties?.apn&&sup.has('A'+LB.apnKey(r.properties.apn)))));
   // CURRENT OWNER CHECK (Oct 2026): every record is checked against the county's live ownership record.
   // Sold / changed-owner records are taken off the list and the lead is marked Sold + do not mail.
-  const {data:_cn}=await sb.from('campaigns').select('name').eq('id',id).single();
+  const {data:_cns}=await sb.from('campaigns').select('id,name').in('id',ids);const _cname=Object.fromEntries((_cns||[]).map(x=>[x.id,x.name]));const _cn={name:(_cns||[]).map(x=>x.name).join(' + ')};
   const estate=/estate|heir|probate|\bPR\b/i.test(_cn?.name||'');
   $('m_msg').textContent=`Checking current owners with the county (0 of ${kept0.length})…`;
   let chk;try{chk=await OwnerCheck.run(kept0.map(r=>({lead:r.leads||{},prop:r.properties||{}})),{estateCampaign:estate,onProgress:(d,t)=>{$('m_msg').textContent=`Checking current owners with the county (${d.toLocaleString()} of ${t.toLocaleString()})…`}})}
@@ -1570,23 +1579,24 @@ async function buildMailList(id){
   window._notTd=notTd;
   const today=localISO();
   for(const r of gone){const l=r.leads||{};const tags=[...new Set([...(l.tags||[]),'Sold'])];
-    if(r._chk.status!=='sold'){await sb.from('leads').update({notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Taken off campaign "${_cn?.name||id}" (name doesn't match the county owner; lead left open).`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);await sb.from('campaign_records').delete().eq('id',r.id);continue}
-    await sb.from('leads').update({status:'dead',do_not_mail:true,tags,notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Removed from campaign "${_cn?.name||id}". Do not mail.`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);
+    if(r._chk.status!=='sold'){await sb.from('leads').update({notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Taken off campaign "${_cname[r.campaign_id]||_cn.name}" (name doesn't match the county owner; lead left open).`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);await sb.from('campaign_records').delete().eq('id',r.id);continue}
+    await sb.from('leads').update({status:'dead',do_not_mail:true,tags,notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Removed from campaign "${_cname[r.campaign_id]||_cn.name}". Do not mail.`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);
     await sb.from('campaign_records').delete().eq('id',r.id)}
-  window._ml={id,all,kept,unv:new Set(unv)};$('m_send').style.display='none';
-  if(gone.length)await sb.from('campaigns').update({records:all.length-gone.length,cost:+((all.length-gone.length)*MAIL_PIECE).toFixed(2)}).eq('id',id);
+  window._ml={id,ids,all,kept,unv:new Set(unv)};$('m_send').style.display='none';
+  if(gone.length)for(const i of ids){const n=all.filter(r=>r.campaign_id===i).length-gone.filter(r=>r.campaign_id===i).length;await sb.from('campaigns').update({records:n,cost:+(n*MAIL_PIECE).toFixed(2)}).eq('id',i)}
   const line=r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: ${esc(r._chk.reason)}</li>`;
   const ok=kept.length-unv.length;
   $('m_msg').innerHTML=`<b>Owner check done.</b> ${ok.toLocaleString()} confirmed with the county${kept.filter(r=>r._chk.status==='heir').length?` (${kept.filter(r=>r._chk.status==='heir').length} addressed to an heir / PR)`:''}.`
    +((window._notTd||[]).length?`<br><b style="color:var(--red)">${window._notTd.length} removed: house too new or recently renovated for a teardown.</b><details><summary class="small">See which</summary><ul class="small">${window._notTd.map(line).join('')}</ul></details>`:'')+(gone.length?`<br><b style="color:var(--red)">${gone.length} removed: sold or a different owner now.</b> Marked Sold and do-not-mail.<details><summary class="small">See who</summary><ul class="small">${gone.map(line).join('')}</ul></details>`:'<br>Nobody on this list has sold.')
    +(unv.length?`<br><b style="color:#b26a00">${unv.length} couldn't be checked.</b><details><summary class="small">See why</summary><ul class="small">${unv.slice(0,300).map(line).join('')}</ul></details><label class="small"><input type="checkbox" id="m_unv" style="width:auto" ${unv.every(r=>/connected to the owner check|only publishes qualified sales/.test(r._chk?.reason||''))?'checked':''}> Mail these ${unv.length} anyway</label>`:'')
-   +`<br><br><button class="btn" onclick="finishMailList(${id})">Draft email with the checked list</button>`;
+   +`<br><br><button class="btn" onclick='finishMailList(${JSON.stringify(ids)})'>Draft email with the checked list</button>`;
 }
-async function finishMailList(id){
-  const st=window._ml;if(!st||st.id!==id)return buildMailList(id);
+async function finishMailList(idOrIds){
+  const ids=[].concat(idOrIds).map(Number),id=ids[0];
+  const st=window._ml;if(!st||st.id!==id||String(st.ids)!==String(ids))return buildMailList(ids);
   const all=st.all,kept=st.kept.filter(r=>!st.unv.has(r)||$('m_unv')?.checked);
   if(!kept.length)return $('m_msg').innerHTML+='<br><b style="color:var(--red)">No records left to mail.</b>';
-  const {data:_c0}=await sb.from('campaigns').select('drop_date').eq('id',id).single();const _mdate=new Date(((_c0&&_c0.drop_date)||localISO())+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const {data:_c0s}=await sb.from('campaigns').select('drop_date').in('id',ids);const _c0={drop_date:(_c0s||[]).map(x=>x.drop_date).filter(Boolean).sort()[0]};const _mdate=new Date(((_c0&&_c0.drop_date)||localISO())+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   // Teardown letter: one letter per owner; the owner's other properties go in Other_Property_Line
   const tplName=($('m_tpl')?.value||'');const perOwner=/teardown/i.test(tplName);
   const tc=x=>String(x||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
@@ -1601,21 +1611,23 @@ async function finishMailList(id){
      OwnerName:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),FirstName:l.first_name||'',LastName:l.last_name||'',MailAddress:l.mail_address||'',MailCity:l.mail_city||'',MailState:l.mail_state||'',MailZip:l.mail_zip||'',
      PropertyState:p.state||'',PropertyZip:p.zip||(/^\d{5}$/.test(p.city||'')?p.city:''),County:p.county||'',FIPS:p.fips||'',Acres:p.acres!=null?String(+(+p.acres).toFixed(2)):'',MailDate:_mdate}});
   const missing=rows.filter(r=>!r.OfferCode).length;
-  const {data:c}=await sb.from('campaigns').select('name,mail_token').eq('id',id).single();
+  const {data:_cs}=await sb.from('campaigns').select('id,name,mail_token').in('id',ids);const CS=ids.map(i=>(_cs||[]).find(x=>x.id===i)).filter(Boolean);
+  const c={name:CS.length>1?`${CS[0].name} + ${CS.length-1} more`:CS[0].name,mail_token:CS[0].mail_token};
   // No download: the list goes to secure storage and the draft email links to it (valid 7 days)
   const csvName=`${c.name.replace(/[^\w ]+/g,'').trim()} - mail house.csv`;
-  const path=`mail-lists/${id}/${Date.now()}-${csvName.replace(/[^\w.\- ]+/g,'_')}`;
+  const path=`mail-lists/${ids.join('-')}/${Date.now()}-${csvName.replace(/[^\w.\- ]+/g,'_')}`;
   const {error:upErr}=await sb.storage.from('deal-files').upload(path,new Blob([Papa.unparse(rows)],{type:'text/csv'}),{contentType:'text/csv'});
   if(upErr)return $('m_msg').textContent='Could not save the list: '+upErr.message;
   const {data:sl,error:slErr}=await sb.storage.from('deal-files').createSignedUrl(path,604800);
   if(slErr)return $('m_msg').textContent='Could not create the list link: '+slErr.message;
-  await sb.from('campaigns').update({template:$('m_tpl').value,mail_status:'to_house',mail_to_house_at:new Date().toISOString(),records:rows.length,cost:+(rows.length*MAIL_PIECE).toFixed(2)}).eq('id',id);
+  const _byC={};src.forEach(r=>{_byC[r.campaign_id]=(_byC[r.campaign_id]||0)+1});
+  for(const i of ids){const n=ids.length>1?(_byC[i]||0):rows.length;await sb.from('campaigns').update({template:$('m_tpl').value,mail_status:'to_house',mail_to_house_at:new Date().toISOString(),records:n,cost:+(n*MAIL_PIECE).toFixed(2)}).eq('id',i)}
   $('m_msg').innerHTML=`${rows.length.toLocaleString()} records (${all.length-rows.length} removed).${missing?` <b style="color:var(--red)">${missing} have no offer code.</b> Add codes before sending; Brandon flags lists without them.`:''}`;
-  const body=`Hello,\n\nHere is a new list for "${c.name}" (${rows.length} records). Download it here (link valid 7 days):\n${sl.signedUrl}\n\nLetter template (Word merge file):
+  const body=`Hello,\n\n${CS.length>1?`Here is ONE list (${rows.length} records) that covers ${CS.length} campaigns: ${CS.map(x=>x.name).join(', ')}. Please run it as a single job with one letter.`:`Here is a new list for "${c.name}" (${rows.length} records).`} Download it here (link valid 7 days):\n${sl.signedUrl}\n\nLetter template (Word merge file):
 ${location.origin}/mail-templates/${encodeURIComponent($('m_tpl').value)}
 
 Handwriting font (please install before printing so the letter prints right):
-${location.origin}/mail-templates/PatrickHand-Regular.ttf\n\nPlease use this link to mark the job Received, Processing and Sent as it moves along:\n${mailLink(c)}\n\nPlease send a sample and postage when ready.\n\nThanks!\nDamien Dupee\nDominion Land Group`;
+${location.origin}/mail-templates/PatrickHand-Regular.ttf\n\nPlease use ${CS.length>1?'these links':'this link'} to mark the job Received, Processing and Sent as it moves along:\n${CS.length>1?CS.map(x=>x.name+': '+mailLink(x)).join('\n'):mailLink(c)}\n\nPlease send a sample and postage when ready.\n\nThanks!\nDamien Dupee\nDominion Land Group`;
   const su=encodeURIComponent('NEW DATA - '+c.name),bd=encodeURIComponent(body);
   const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const url=mobile?`mailto:${MAIL_HOUSE.to}?cc=${MAIL_HOUSE.cc}&subject=${su}&body=${bd}`:`https://mail.google.com/mail/u/${encodeURIComponent(MAIL_FROM)}/?view=cm&fs=1&tf=1&to=${MAIL_HOUSE.to}&cc=${MAIL_HOUSE.cc}&su=${su}&body=${bd}`;
