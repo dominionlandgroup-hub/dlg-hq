@@ -19,7 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="listbuilder.js?v=24"></script>
+<script src="listbuilder.js?v=25"></script>
 <script src="owner-check.js?v=4"></script>
 <script src="followups.js?v=5"></script>
 <script src="split.js?v=27"></script>
@@ -1531,7 +1531,7 @@ const PRAYERS=['Lord, this business is Yours before it is mine. Give me wisdom f
 async function amen(id){const {data:c}=await sb.from('campaigns').select('name').eq('id',id).single();await sb.from('activity').insert({kind:'note',body:'Prayed over campaign: '+(c?.name||id)});
   $('m_send').disabled=false;$('m_send').title='';$('m_pray').innerHTML='<b>🙏 Amen.</b> <span class="small muted">Prayed over this campaign. You can send it now.</span>'}
 const MAIL_FROM='dominionlandgroup@gmail.com'; // Gmail account the mail-house email opens in (skips the account picker, which drops the To/Subject/Body)
-const MAIL_PIECE=0.55; // cost per letter at the mail house
+const MAIL_PIECE=0.56; // cost per letter at the mail house
 async function buildMailList(id){
   $('m_send').disabled=true;$('m_msg').textContent='Checking offer codes…';
   // OFFER CODE GATE: every code must be unique across all of DLG HQ (other campaigns, contacts, old Pebble/GHL codes)
@@ -2136,7 +2136,7 @@ async function vImport(){IMP={step:1,counties:[],cols:[],rows:[],map:{}};const {
    <label class="f">Campaign name</label><input id="icName" placeholder="e.g. Gaston NC Lots Oct 2026">
    <div class="row" style="margin-top:8px"><label class="f" style="flex:1">Mail date<input id="icDate" type="date" value="${localISO()}"></label>
     <label class="f" style="flex:1">Letter<select id="icTpl"><option value="">Pick at Start Mailing (from the campaign name)</option>${(tpls||[]).map(t=>`<option value="${esc(t.file_name)}">${esc(t.name)}</option>`).join('')}</select></label>
-    <label class="f" style="flex:1">Cost per letter<input id="icPiece" type="number" step="0.01" value="0.55"></label></div>
+    <label class="f" style="flex:1">Cost per letter<input id="icPiece" type="number" step="0.01" value="0.56"></label></div>
    <label class="f" style="margin-top:10px">Counties <span class="small muted">(pick every county on the list; more than one needs a FIPS column)</span></label>
    <div id="icCtys" class="tagrow"></div><div class="row" style="margin-top:6px"><input id="icCtyIn" list="ctyList" placeholder="Type a county, e.g. Gaston, NC" onkeydown="if(event.key==='Enter'){impAddCounty();event.preventDefault()}"><button class="btn ghost" style="flex:0" onclick="impAddCounty()">Add county</button></div>
    <datalist id="ctyList">${NC_COUNTIES.map(c=>`<option value="${c}">`).join('')}</datalist>
@@ -2175,7 +2175,7 @@ async function impSave(){const msg=t=>$('impMsg').innerHTML=t,M=IMP.map,name=$('
   const tot={leads:0,properties:0,records:0,skipped_dnm:0,skipped_not_interested:0,skipped_recent:0,duplicate_codes:0};const skip={skip_dnm:$('skDnm').checked,skip_ni:$('skNi').checked,skip_days:$('skRec').checked?Number($('skDays').value)||0:0};
   for(let i=0;i<rows.length;i+=500){const {data,error}=await sb.rpc('import_campaign_list',{cid:camp.id,rows:rows.slice(i,i+500),src:'hq',tag:null,...skip});
     if(error){$('impSave').disabled=false;return msg('Stopped: '+esc(error.message))}for(const k in tot)tot[k]+=data[k];msg(`Saved ${tot.records.toLocaleString()} of ${rows.length.toLocaleString()} records…`)}
-  const {data:fin,error:finErr}=await sb.rpc('finish_campaign_import',{cid:camp.id});if(finErr){$('impSave').disabled=false;return msg(`<b style="color:var(--red)">Records saved, but offer codes were not assigned: ${esc(finErr.message)}</b> Do not mail this campaign until it has codes.`)}const piece=Number($('icPiece').value)||0.55;
+  const {data:fin,error:finErr}=await sb.rpc('finish_campaign_import',{cid:camp.id});if(finErr){$('impSave').disabled=false;return msg(`<b style="color:var(--red)">Records saved, but offer codes were not assigned: ${esc(finErr.message)}</b> Do not mail this campaign until it has codes.`)}const piece=Number($('icPiece').value)||0.56;
   await sb.from('campaigns').update({records:tot.records,cost:+(tot.records*piece).toFixed(2)}).eq('id',camp.id);
   if(Object.keys(fipsMap).length){msg('Saving FIPS codes…');for(let o=0;;o+=1000){const {data}=await sb.from('campaign_records').select('properties(id,apn,county,fips)').eq('campaign_id',camp.id).range(o,o+999);if(!data||!data.length)break;
     const ups=data.map(x=>x.properties).filter(p=>p&&!p.fips&&fipsMap[p.apn+'|'+String(p.county||'').toLowerCase()]);for(let i=0;i<ups.length;i+=25)await Promise.all(ups.slice(i,i+25).map(p=>sb.from('properties').update({fips:fipsMap[p.apn+'|'+String(p.county||'').toLowerCase()]}).eq('id',p.id)));if(data.length<1000)break}}
