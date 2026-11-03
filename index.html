@@ -512,7 +512,7 @@ async function vBoard(board){
     const list=_deals.filter(d=>(!pr||d.priority===pr)&&(!f||[d.property_label,leadName(d.leads),d.properties?.address,d.properties?.apn].join(' ').toLowerCase().includes(f)));
     const st=STAGES.filter(s=>s.board===board);
     $('view').innerHTML=`<div class="board">${st.map(s=>{const ds=list.filter(d=>d.stage_id===s.id),tot=ds.reduce((a,d)=>a+(+d.value||0),0);
-      return `<div class="col" data-stage="${s.id}"><div class="hd" style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${esc(s.name)}</span><span style="white-space:nowrap"><button class="btn ghost sm" title="Move left" onclick="moveStage(${s.id},'${board}',-1)">◀</button><button class="btn ghost sm" title="Move right" onclick="moveStage(${s.id},'${board}',1)">▶</button><button class="btn ghost sm" title="Rename stage" onclick="renameStage(${s.id},'${board}')">✎</button><button class="btn ghost sm" title="Delete stage" onclick="deleteStage(${s.id},'${board}')">🗑</button></span></div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
+      return `<div class="col" data-stage="${s.id}"><div class="hd" draggable="true" title="Drag to move this stage" style="cursor:grab;display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${esc(s.name)}</span><span style="white-space:nowrap"><button class="btn ghost sm" title="Move left" onclick="moveStage(${s.id},'${board}',-1)">◀</button><button class="btn ghost sm" title="Move right" onclick="moveStage(${s.id},'${board}',1)">▶</button><button class="btn ghost sm" title="Rename stage" onclick="renameStage(${s.id},'${board}')">✎</button><button class="btn ghost sm" title="Delete stage" onclick="deleteStage(${s.id},'${board}')">🗑</button></span></div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
       <div class="cards">${ds.map(card).join('')}</div><button class="addcard" onclick="newDeal('${board}',${s.id})">+ Add Deal</button></div>`}).join('')}</div>`;
     wireDnD(board);};
   $('bf').oninput=draw;$('bp').onchange=draw;draw();
@@ -543,10 +543,16 @@ async function syncDealStage(id,sid,prev){const s=STAGES.find(x=>x.id===sid);if(
   if(stIsDead(s)||stIsClosed(s)){const {data:d}=await sb.from('deals').select('lead_id').eq('id',id).single();if(d?.lead_id)await sb.from('followup_enrollments').update({status:'stopped'}).eq('lead_id',d.lead_id).eq('status','active')}
   await stageMilestone(id,sid)}
 async function stageMilestone(id,sid){const s=STAGES.find(x=>x.id===sid);if(!s)return;if(s.board==='buyer'&&!stIsDead(s))await dealMilestone(id,'purchase');if(s.board==='buyer'&&(s.closed||/^closed$/i.test(s.name)))await dealMilestone(id,'sale')}
-function wireDnD(board){let dragId=null;
-  document.querySelectorAll('.dcard').forEach(c=>{c.ondragstart=e=>{dragId=+c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c.dataset.id)};c.ondragend=()=>c.classList.remove('dragging')});
+function wireDnD(board){let dragId=null,dragStage=null;
+  document.querySelectorAll('.col > .hd').forEach(h=>{h.ondragstart=e=>{dragStage=+h.parentElement.dataset.stage;dragId=null;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','stage')};h.ondragend=()=>{dragStage=null}});
+  document.querySelectorAll('.dcard').forEach(c=>{c.ondragstart=e=>{e.stopPropagation();dragStage=null;dragId=+c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c.dataset.id)};c.ondragend=()=>c.classList.remove('dragging')});
   document.querySelectorAll('.col').forEach(col=>{col.ondragover=e=>{e.preventDefault();col.classList.add('over')};col.ondragleave=()=>col.classList.remove('over');
-    col.ondrop=async e=>{e.preventDefault();col.classList.remove('over');if(!dragId)return;const sid=+col.dataset.stage;const d=_deals.find(x=>x.id===dragId);if(!d||d.stage_id===sid)return;
+    col.ondrop=async e=>{e.preventDefault();col.classList.remove('over');
+      if(dragStage){const from=dragStage,to=+col.dataset.stage;dragStage=null;if(from===to)return;const L=STAGES.filter(x=>x.board===board).sort((a,b)=>a.position-b.position||a.id-b.id);
+        const fi=L.findIndex(x=>x.id===from),ti=L.findIndex(x=>x.id===to);const [m]=L.splice(fi,1);L.splice(ti,0,m);
+        for(let k=0;k<L.length;k++){if(L[k].position!==k+1){L[k].position=k+1;const {error}=await sb.from('board_stages').update({position:k+1}).eq('id',L[k].id);if(error)return toast(error.message)}}
+        STAGES.sort((a,b)=>a.position-b.position);return vBoard(board)}
+      if(!dragId)return;const sid=+col.dataset.stage;const d=_deals.find(x=>x.id===dragId);if(!d||d.stage_id===sid)return;
       const s=STAGES.find(x=>x.id===sid);
       const upd={stage_id:sid,updated_at:new Date().toISOString(),status:stIsClosed(s)?'won':stIsDead(s)?'lost':'open'};
       const {error}=await sb.from('deals').update(upd).eq('id',dragId);
