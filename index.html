@@ -512,7 +512,7 @@ async function vBoard(board){
     const list=_deals.filter(d=>(!pr||d.priority===pr)&&(!f||[d.property_label,leadName(d.leads),d.properties?.address,d.properties?.apn].join(' ').toLowerCase().includes(f)));
     const st=STAGES.filter(s=>s.board===board);
     $('view').innerHTML=`<div class="board">${st.map(s=>{const ds=list.filter(d=>d.stage_id===s.id),tot=ds.reduce((a,d)=>a+(+d.value||0),0);
-      return `<div class="col" data-stage="${s.id}"><div class="hd">${esc(s.name)}</div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
+      return `<div class="col" data-stage="${s.id}"><div class="hd" style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${esc(s.name)}</span><span style="white-space:nowrap"><button class="btn ghost sm" title="Rename stage" onclick="renameStage(${s.id},'${board}')">✎</button><button class="btn ghost sm" title="Delete stage" onclick="deleteStage(${s.id},'${board}')">🗑</button></span></div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
       <div class="cards">${ds.map(card).join('')}</div><button class="addcard" onclick="newDeal('${board}',${s.id})">+ Add Deal</button></div>`}).join('')}</div>`;
     wireDnD(board);};
   $('bf').oninput=draw;$('bp').onchange=draw;draw();
@@ -554,6 +554,21 @@ function wireDnD(board){let dragId=null;
       vBoard(board)}});}
 async function addStage(board){const n=prompt('New stage name');if(!n)return;const pos=Math.max(0,...STAGES.filter(s=>s.board===board).map(s=>s.position))+1;
   const {data,error}=await sb.from('board_stages').insert({board,name:n,position:pos}).select().single();if(error)return toast(error.message);STAGES.push(data);vBoard(board)}
+
+async function renameStage(id,board){const st=STAGES.find(x=>x.id===id);const n=prompt('Rename stage',st?.name||'');if(!n||n===st?.name)return;
+  const {error}=await sb.from('board_stages').update({name:n}).eq('id',id);if(error)return toast(error.message);st.name=n;vBoard(board)}
+async function deleteStage(id,board){const st=STAGES.find(x=>x.id===id);if(!st)return;
+  const {count,error}=await sb.from('deals').select('id',{count:'exact',head:true}).eq('stage_id',id);if(error)return toast(error.message);
+  const others=STAGES.filter(x=>x.board===board&&x.id!==id);
+  if(!count){if(!confirm(`Delete the "${st.name}" stage? It has no deals.`))return;return doDeleteStage(id,board,null)}
+  if(!others.length)return toast('This is the only stage on the board. Add another stage first.');
+  openDrawer(head('Delete stage: '+esc(st.name))+`<div class="card"><p style="margin-top:0">This stage has <b>${count}</b> deal${count===1?'':'s'}. Pick where to move ${count===1?'it':'them'} before the stage is deleted. No deals are deleted.</p>
+   <label class="f">Move deals to</label><select id="ds_to">${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>
+   <br><br><button class="btn danger" onclick="doDeleteStage(${id},'${board}',+$('ds_to').value)">Move deals and delete stage</button></div>`)}
+async function doDeleteStage(id,board,to){
+  if(to){const {error}=await sb.from('deals').update({stage_id:to}).eq('stage_id',id);if(error)return toast(error.message)}
+  const {error}=await sb.from('board_stages').delete().eq('id',id);if(error)return toast(error.message);
+  STAGES=STAGES.filter(x=>x.id!==id);closeDrawer();toast('Stage deleted');vBoard(board)}
 
 // buyer pickers: option text = name (company); a search box above the select filters by name, company or email and always keeps the selected buyer
 const buyerQ=b=>[b.name,b.company,b.email].filter(Boolean).join(' ').toLowerCase();
