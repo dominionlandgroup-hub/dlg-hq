@@ -278,7 +278,7 @@
   async function run(label, fn) { if (W.busy) return alert('A step is still running. Wait for it to finish.'); W.busy = true; draw(); try { await fn(); } catch (e) { say('STOPPED: ' + e.message); } W.busy = false; draw(); }
   function draw() { const el = document.getElementById('wk_steps'); if (!el) return; el.querySelectorAll('button').forEach(b => b.disabled = W.busy); const s = document.getElementById('wk_stat'); if (s) s.innerHTML = Object.entries(W.stat).map(([k, v]) => `<b>${esc2(k)}</b>: ${esc2(v)}`).join(' · '); }
   window.vWeekly = async function () {
-    W.list = W.list || ('carolinas-' + nextMonday());
+    W.list = W.list || 'carolinas-2026-11';
     $('view').innerHTML = `<div class="card"><h3 style="margin:0 0 6px">Build the weekly list</h3>
       <div class="small muted">Your rules: infill lots in a builder buy box · one comp: the closest single-lot, non-waterfront sale within ½ mile, or no letter · comp $50K+ (fee $10K+) · $100K+ comps first · not bought in the last 2 years · no waterfront · not on the MLS (active, coming soon or under contract) · no commercial zoning · offer 69.73% of comp (odd, exact-looking number) · one letter per owner · skips anyone already worked, tagged, opted out or mailed in the last 90 days. Keep this tab open while a step runs.</div>
       <div style="margin:10px 0"><label class="small">List name <input id="wk_list" value="${esc2(W.list)}" style="width:230px"></label> <span class="small muted">(lots land in Spot Check under this name)</span></div>
@@ -291,11 +291,11 @@
       <div class="card" style="margin:8px 0"><b>6. Mail list</b> <span class="small muted">Downloads an Excel (CSV) of every lot that will mail: one letter per owner, first and last name split, offer and comp. Send it to Paul and Brandon with the letter.</span><br><button class="btn sm" id="wk_mail">Download mail list</button></div>
       </div><div class="small" id="wk_stat" style="margin:6px 0"></div><pre id="wk_log" class="small" style="background:var(--bg);padding:8px;border-radius:8px;max-height:320px;overflow:auto;white-space:pre-wrap">${esc2(W.log.join('\n'))}</pre></div>`;
     const L = () => (W.list = $('wk_list').value.trim());
-    $('wk_pull').onclick = () => { const cs = [...document.querySelectorAll('.wk_c:checked')].map(x => x.value); if (!cs.length) return alert('Check at least one county.'); run('pull', async () => { for (const c of cs) { try { await W.county(c, L()); } catch (e) { say(c + ' STOPPED: ' + e.message); } } }); };
-    $('wk_comps').onclick = () => run('comps', async () => { const cs = [...new Set((await rowsOf(L(), null, false, 'id,county')).map(r => r.county))]; await W.comps(L(), cs); });
-    $('wk_mls').onclick = () => { const fs = [...$('wk_mlsf').files]; if (!fs.length) return alert('Pick the Canopy export file first.'); run('mls', () => W.mls(L(), fs)); };
-    $('wk_wz').onclick = () => run('wz', () => W.waterZoning(L()));
+    $('wk_pull').onclick = () => { const cs = [...document.querySelectorAll('.wk_c:checked')].map(x => x.value); if (!cs.length) return alert('Check at least one county.'); const list = L(); run('pull', async () => { for (const c of cs) { try { await W.county(c, list); } catch (e) { say(c + ' STOPPED: ' + e.message); } } }); };
+    $('wk_comps').onclick = () => { const list = L(); run('comps', async () => { const cs = [...new Set((await rowsOf(list, null, false, 'id,county')).map(r => r.county))]; await W.comps(list, cs); }); };
+    $('wk_mls').onclick = () => { const fs = [...$('wk_mlsf').files], list = L(); if (!fs.length) return alert('Pick the Canopy export file first.'); run('mls', () => W.mls(list, fs)); };
+    $('wk_wz').onclick = () => { const list = L(); run('wz', () => W.waterZoning(list)); };
     $('wk_spot').onclick = () => { if (window.SC) { SC.list = L(); SC.view = 'table'; } go('spot'); };
-    $('wk_mail').onclick = () => run('mail', () => W.mailList(L()));
+    $('wk_mail').onclick = () => { const list = L(); run('mail', () => W.mailList(list)); };
     draw(); };
 })();
