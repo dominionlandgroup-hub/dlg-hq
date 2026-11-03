@@ -480,15 +480,9 @@ async function vDashboard(){
    <div class="card"><h3 class="sec">Summary</h3><div class="pstats">${stat('Responses<br>added',kfmt(deals))}${stat('Offers<br>made',Math.round(h.offers)+offersLive)}${stat('Properties<br>under contract',underContract)}${stat('Properties<br>closed',closedD.length)}${stat('Avg. days contract<br>to assign',avgDur)}${stat('Fees<br>closed',money(feeTotal))}${stat('Fees<br>pending',money(pendingFee))}<div class="pst"><div class="l big">ROI</div><div class="v">${pc(roi)}</div></div></div></div>
    <div class="card"><h3 class="sec">Responses added</h3><div style="height:150px"><canvas id="chDeals"></canvas></div></div>
   </div>
-  <div class="grid2" style="margin-top:14px">
-   <div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="sec" style="margin:0">Campaign report</h3><button class="btn ghost sm" onclick="go('campaigns')">See campaigns</button></div>
+  <div class="card" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="sec" style="margin:0">Campaign report</h3><button class="btn ghost sm" onclick="go('campaigns')">See campaigns</button></div>
      <div class="pstats" style="margin-top:14px">${stat('Campaigns<br>mailed',C.length)}${stat('Amount<br>spent','$'+kfmt(cSpent))}${stat('Total<br>records',kfmt(cRec))}${stat('Total<br>leads',deals.toLocaleString())}${stat('Cost per<br>lead',deals?money(cSpent/deals):'—')}${stat('Response<br>rate',cRec?(deals/cRec*100).toFixed(2)+'%':'0.00%')}${stat('Conversion<br>rate',conv.toFixed(2)+'%')}${stat('Leads per<br>deal',assignedD.length&&deals?(deals/assignedD.length).toFixed(1):'—')}<div class="pst"><div class="l big">ROAS</div><div class="v">${pc(roas)}</div></div></div>
      <h3 class="sec" style="margin-top:18px">Mailings</h3><div style="height:170px"><canvas id="chMail"></canvas></div></div>
-   <div class="card"><h3 class="sec">Mail goal</h3>
-     <div style="display:flex;align-items:baseline;gap:10px;margin-top:14px"><div style="font-size:40px;font-weight:700;color:#5C2977">${mailedThisWeek.toLocaleString()}</div><div class="muted">of ${MAIL_GOAL.toLocaleString()} pieces this week</div></div>
-     <div style="height:12px;background:#eee;border-radius:6px;margin-top:10px;overflow:hidden"><div style="height:100%;width:${mailPct}%;background:#5C2977"></div></div>
-     <div class="pstats" style="margin-top:14px">${stat('Queued<br>next week',queuedNext.toLocaleString())}${stat('Queued<br>week after',queuedAfter.toLocaleString())}</div></div>
-  </div>
   <div class="card" style="margin-top:14px;overflow-x:auto"><h3 class="sec" style="display:flex;justify-content:space-between;align-items:center"><span>Assignments</span><span class="small">Fee % of price ${pc(roi)}</span></h3>
    <table class="roi"><tr><th>Property</th><th>Status</th><th class="right">Contract price</th><th class="right">Assigned for</th><th class="right">Assignment fee</th><th class="right">Days to close</th></tr>
    ${dRows.map(({d,st})=>{const bp=bpOf(d),sp=spOf(d),fee=d.value!=null?+d.value:null;const pu=txOf(d,'purchase'),sa=txOf(d,'sale');const du=st==='Closed'&&pu&&sa?Math.round((new Date(sa.tx_date)-new Date(pu.tx_date))/864e5):null;
