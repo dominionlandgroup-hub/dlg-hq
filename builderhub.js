@@ -1,5 +1,5 @@
 // DLG HQ - Targets and Deal matcher (ported from the old DLG Builder Hub page, Nov 2026).
-// Mecklenburg and Gaston only. Parcel, comp and builder-permit data are static files in data/hub/ (same files the Hub used).
+// Mecklenburg and Gaston only. Owner target lists live in the private hub_targets table; parcel, comp and builder-permit data are static files in data/hub/ (same files the Hub used).
 // Targets: vacant lots, split parcels (3+ lots) and infill lots (comps + sewer/septic) to mail or call. Read-only, no leads.
 // Deal matcher: type an APN (or zip + acres) and see what builders paid nearby, a suggested offer, builders building close by,
 // and whose buy box fits. Buy boxes come only from DLG HQ's buyers table. Nothing is written anywhere.
@@ -59,7 +59,7 @@
   async function getJSON(name) { const r = await fetch(`data/hub/${name}_${BH.mkt}.json?v=${DATA_V}`); if (!r.ok) throw new Error(name); return r.json(); }
   function D() { return BH.data[BH.mkt] || (BH.data[BH.mkt] = {}); }
   async function base() { const d = D(); if (!d.Z) { const [Z, CP, B] = await Promise.all([getJSON('zones'), getJSON('comps'), getJSON('builders')]); Object.assign(d, { Z, CP, B }); } return d; }
-  async function targets() { const d = await base(); if (!d.T) { const j = await getJSON('targets'); d.T = j.r.map(r => Object.fromEntries(j.k.map((k, i) => [k, r[i]]))); } return d; }
+  async function targets() { const d = await base(); if (!d.T) { const { data: tr, error: te } = await sb.from('hub_targets').select('data').eq('key', 'targets_' + BH.mkt).single(); if (te) throw new Error('targets: ' + te.message); const j = tr.data; d.T = j.r.map(r => Object.fromEntries(j.k.map((k, i) => [k, r[i]]))); } return d; }
   async function pins() { const d = D(); if (!d.P) { d.P = await getJSON('pins'); d.PI = new Map(Object.keys(d.P).map(k => [npin(k), k])); } return d; }
   async function bpts() { const d = D(); if (!d.BP) { try { d.BP = await getJSON('bpts'); } catch (e) { d.BP = {}; } } return d; }
   async function loadBuyers() { const all = []; for (let f = 0; ; f += 1000) { const r = await sb.from('buyers').select('*').order('name').range(f, f + 999); if (r.error) throw r.error; all.push(...(r.data || [])); if (!r.data || r.data.length < 1000) break; } return (BH.buyers = all); }
