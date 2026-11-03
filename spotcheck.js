@@ -104,13 +104,15 @@
     ['Flood %', (r, d) => n0(d.fl) != null ? Math.round(+d.fl * 100) : ''], ['House on lot?', (r, d) => d.hs || ''], ['Last sale date', (r, d) => d.sd || ''],
     ['Your note', r => r.note || ''], ['Map', (r, d) => n0(d.lat) != null ? 'https://www.google.com/maps/search/?api=1&query=' + d.lat + ',' + d.lng : '']];
   const tq = () => { let r = q().select('id,county,state,apn,data,auto_cut,flag,decision,comp,note', { count: 'exact' }).eq('list', SC.list); if (SC.county) r = r.eq('county', SC.county);
-    const f = SC.tf || 'all'; return f === 'mail' ? r.is('auto_cut', null).or('decision.is.null,decision.eq.good') : f === 'cutc' ? r.is('decision', null).not('auto_cut', 'is', null) : f === 'cuty' ? r.eq('decision', 'cut') : r; };
+    const f = SC.tf || 'all'; 
+    const KW = ['MLS listing', 'Near ', 'manufactured', 'touching a public road', 'flood zone', 'land use', 'mixed use', 'did not finish'];
+    return f === 'ready' ? r.is('auto_cut', null).or('decision.is.null,decision.eq.good').or('flag.is.null,and(' + KW.map(k => 'flag.not.ilike.*' + k + '*').join(',') + ')').not('data->>cp', 'is', null) : f === 'flagged' ? r.is('auto_cut', null).is('decision', null).or(KW.map(k => 'flag.ilike.*' + k + '*').join(',')) : f === 'mail' ? r.is('auto_cut', null).or('decision.is.null,decision.eq.good') : f === 'cutc' ? r.is('decision', null).not('auto_cut', 'is', null) : f === 'cuty' ? r.eq('decision', 'cut') : r; };
   async function loadTable(g) {
     const f = SC.tf || 'all';
     const { data, count, error } = await tq().order('county').order('id').range(SC.page * TPER, SC.page * TPER + TPER - 1);
     if (error) { g.innerHTML = '<div class="card">Could not load lots: ' + esc(error.message) + '</div>'; return; }
     const pages = Math.max(1, Math.ceil((count || 0) / TPER));
-    const pg = `<label class="ck small">Show <select class="sc-tf">${[['all','Every lot'],['mail','Will mail (approved + to check)'],['cutc','Cut by the checks'],['cuty','You cut']].map(([k,l])=>`<option value="${k}" ${k===f?'selected':''}>${l}</option>`).join('')}</select></label>
+    const pg = `<label class="ck small">Show <select class="sc-tf">${[['all','Every lot'],['ready','Ready (no warning notes)'],['flagged','Flagged - needs your look'],['mail','Will mail (approved + to check)'],['cutc','Cut by the checks'],['cuty','You cut']].map(([k,l])=>`<option value="${k}" ${k===f?'selected':''}>${l}</option>`).join('')}</select></label>
       <button class="btn sm sc-csv">Download ${SC.county ? esc(SC.county) : 'whole list'} to Excel (${(count||0).toLocaleString()} rows)</button><span class="small sc-csvmsg"></span>
       <span class="small">${count ? (SC.page * TPER + 1).toLocaleString() : 0} - ${Math.min(count || 0, SC.page * TPER + TPER).toLocaleString()} of ${(count || 0).toLocaleString()}</span><button class="btn ghost sm" ${SC.page ? '' : 'disabled'} data-p="-1">‹ Prev</button><button class="btn ghost sm" ${SC.page < pages - 1 ? '' : 'disabled'} data-p="1">Next ›</button>`;
     for (const id of ['sc_pg1', 'sc_pg2']) { const el = $(id); el.innerHTML = pg; el.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => { SC.page += +b.dataset.p; loadPage(); $('sc_pg1').scrollIntoView(); });
