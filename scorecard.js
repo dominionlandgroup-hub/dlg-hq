@@ -46,7 +46,7 @@
     const sp = {}; for (const r of splits) sp[r.k] = r.count;
 
     const rows = [
-      ['Pieces mailed', 'mail', v => v.toLocaleString()], ['4-week average (goal 2,000)', 'avg4', v => v ? v.toLocaleString() : ''], ['Mail cost', 'mailCost', money],
+      ['Pieces mailed', 'mail', v => v.toLocaleString()], ['4-week average (goal 5,000)', 'avg4', v => v ? v.toLocaleString() : ''], ['Mail cost', 'mailCost', money],
       ['Calls', 'calls'], ['Real conversations (1 min+)', 'convos'], ['Seller texts / emails in', 'replies'],
       ['New seller leads', 'leads'], ['Offers sent (contract sent)', 'offers'], ['Contracts signed', 'contracts'],
       ['Closings', 'closings'], ['Profit closed', 'profit', money],
@@ -55,7 +55,7 @@
     const cur = weeks[weeks.length - 1], prev = weeks[weeks.length - 2];
     const sum = k => Object.values(R[k]).reduce((a, b) => a + b, 0);
     const tile = (t, v, s) => `<div class="card" style="flex:1;min-width:150px;margin:0"><div class="small muted">${t}</div><div style="font-size:24px;font-weight:700">${v}</div><div class="small muted">${s || ''}</div></div>`;
-    const GOAL = 2000, last4 = weeks.slice(-4).reduce((a, w) => a + R.mail[w], 0), avg4 = Math.round(last4 / 4), gap = last4 - GOAL * 4;
+    const GOAL = 5000, last4 = weeks.slice(-4).reduce((a, w) => a + R.mail[w], 0), avg4 = Math.round(last4 / 4), gap = last4 - GOAL * 4;
     R.avg4 = Object.fromEntries(weeks.map((w, i) => [w, i < 3 ? 0 : Math.round(weeks.slice(i - 3, i + 1).reduce((a, x) => a + R.mail[x], 0) / 4)]));
     const fmt = (r, v) => r[2] ? r[2](v) : (v || 0).toLocaleString();
     $('view').innerHTML = `
