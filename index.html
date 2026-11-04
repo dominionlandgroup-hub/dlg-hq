@@ -1709,6 +1709,16 @@ async function finishMailList(idOrIds){
     const {data:s1,error:slErr}=await sb.storage.from('deal-files').createSignedUrl(pth,604800);
     if(slErr)return $('m_msg').textContent='Could not create the list link: '+slErr.message;links.push({url:s1.signedUrl,n:parts[k].length})}
   const sl={signedUrl:links.length>1?'\n'+links.map((x,k)=>`File ${k+1} of ${links.length} (${x.n.toLocaleString()} records): ${x.url}`).join('\n'):links[0].url};
+  // ONLY WHAT WENT TO THE MAIL HOUSE STAYS IN THE CAMPAIGN (Nov 2026): anything in these campaigns that is not in the
+  // file (couldn't be checked, held, extras) moves to a later campaign, so the campaign's count, cost, response rate and
+  // the 90-day check all match the letters actually mailed.
+  {const md=_c0.drop_date||localISO(),tpl=$('m_tpl').value,inFile=new Set(kept.map(r=>r.id)),left=[];
+    for(const i of ids)for(let f=0;;f+=1000){const {data}=await sb.from('campaign_records').select('id,campaign_id,lead_id,property_id').eq('campaign_id',i).order('id').range(f,f+999);(data||[]).forEach(r=>{if(!inFile.has(r.id))left.push(r)});if(!data||data.length<1000)break}
+    if(left.length){try{const later=await laterCampaigns(ids,tpl,md);const nd=new Date(new Date(md+'T12:00:00').getTime()+7*864e5).toISOString().slice(0,10);
+        const t=later[0]||await newLaterCampaign({name:c.name},tpl,nd,'Not mailed');await moveRecords(left,t.id);
+        $('m_msg').innerHTML+=`<br>${left.length.toLocaleString()} record${left.length===1?'':'s'} not in the file moved to "${esc(t.name)}", so this campaign only counts what was mailed.`}
+      catch(e){$('m_msg').innerHTML+=`<br><b style="color:var(--red)">${left.length} records not in the file could not be moved: ${esc(e.message)}</b> The campaign count below still only counts the file.`}}
+    const sentIds=[...inFile];for(let i=0;i<sentIds.length;i+=200)await sb.from('campaign_records').update({sent_at:md}).in('id',sentIds.slice(i,i+200))}
   const _byC={};src.forEach(r=>{_byC[r.campaign_id]=(_byC[r.campaign_id]||0)+1});
   for(const i of ids){const n=ids.length>1?(_byC[i]||0):rows.length;await sb.from('campaigns').update({template:$('m_tpl').value,mail_status:'to_house',mail_to_house_at:new Date().toISOString(),records:n,cost:+(n*MAIL_PIECE).toFixed(2)}).eq('id',i)}
   $('m_msg').innerHTML=`${rows.length.toLocaleString()} records (${all.length-rows.length} removed).${missing?` <b style="color:var(--red)">${missing} have no offer code.</b> Add codes before sending; Brandon flags lists without them.`:''}`;
