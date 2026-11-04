@@ -418,9 +418,9 @@ LB.run = async function (opt = {}) {
 };
 
 // ---- offer code safeguards ----
-// Offer codes are "<prefix>-<3-digit record number>". The database pads to 3 digits and cuts longer numbers,
-// so record 1,000 and up would repeat earlier codes (317-100, 317-101...). Keep every campaign at 999 records or fewer.
-LB.MAX_CODED = 999;
+// Offer codes are "<prefix>-<record number>", padded to at least 3 digits (001-999, then 1000-9999).
+// Needs assign_offer_codes in the database to pad with greatest(3, length(n)) instead of a fixed 3 (Nov 2026 fix).
+LB.MAX_CODED = 9999;
 LB.tooBigMsg = n => `This campaign would have ${Number(n).toLocaleString()} records. Offer codes only go up to ${LB.MAX_CODED} per campaign (record 1,000 would repeat an earlier code). Split the list into campaigns of ${LB.MAX_CODED} or fewer.`;
 // Every code on campaign `cid` is compared with ALL offer codes already in DLG HQ: other campaigns' records,
 // contacts (leads.offer_code) and old Pebble/GHL codes (legacy_codes). Also flags a prefix (the "317" in 317-109)
