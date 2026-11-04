@@ -41,9 +41,14 @@ const check=async(r)=>{const c=r.properties.county,a=r.properties.apn;if(!a)retu
  if((wj.features||[]).some(f=>(f.attributes.NAME&&String(f.attributes.NAME).trim())||(f.attributes.SQKM||0)>=0.05))return {...out,fail:'aerial: waterfront'};
  // roads: state maintained + local inside town limits
  const pad=0.0004;const e=env(rings,pad);const eg={geometry:JSON.stringify(e),geometryType:'esriGeometryEnvelope',inSR:4326,spatialRel:'esriSpatialRelIntersects',outSR:4326,f:'json',returnGeometry:true};
- const s1=await P('https://services.arcgis.com/NuWFvHYDMVmmxMeM/ArcGIS/rest/services/NCDOT_StateMaintainedRoadsER/FeatureServer/0/query',{...eg,outFields:'RouteClass'});
- let lines=(s1.features||[]).flatMap(f=>(f.geometry.paths||[]).map(p=>p.map(pj.f)));let fr=frontage(rm,lines);
- if(fr<15){const ctr=grid(rings,1)[0];const tj=await P('https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer/4/query',{geometry:JSON.stringify({x:ctr[0],y:ctr[1],spatialReference:{wkid:4326}}),geometryType:'esriGeometryPoint',inSR:4326,spatialRel:'esriSpatialRelIntersects',outFields:'NAME',returnGeometry:false,f:'json'});
+ const isSC=/^SC$/i.test(String(r.properties.state||''))||/^(York|Chester|Lancaster|Cherokee|Greenville|Spartanburg|Anderson|Pickens|Oconee|Horry)$/i.test(c);
+ let lines,fr;
+ if(isSC){// SC: every public road in the Census TIGER file counts (primary, secondary, local, ramps); private drives and trails don't
+  const T='https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Transportation/MapServer/';const js=await Promise.all([2,6,8].map(l=>P(T+l+'/query',{...eg,where:"MTFCC IN ('S1100','S1200','S1400','S1640')",outFields:'MTFCC'})));
+  lines=js.flatMap(j=>(j.features||[]).flatMap(f=>(f.geometry.paths||[]).map(p=>p.map(pj.f))));fr=frontage(rm,lines)}
+ else{const s1=await P('https://services.arcgis.com/NuWFvHYDMVmmxMeM/ArcGIS/rest/services/NCDOT_StateMaintainedRoadsER/FeatureServer/0/query',{...eg,outFields:'RouteClass'});
+ lines=(s1.features||[]).flatMap(f=>(f.geometry.paths||[]).map(p=>p.map(pj.f)));fr=frontage(rm,lines)}
+ if(fr<15&&!isSC){const ctr=grid(rings,1)[0];const tj=await P('https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer/4/query',{geometry:JSON.stringify({x:ctr[0],y:ctr[1],spatialReference:{wkid:4326}}),geometryType:'esriGeometryPoint',inSR:4326,spatialRel:'esriSpatialRelIntersects',outFields:'NAME',returnGeometry:false,f:'json'});
   if((tj.features||[]).length){const s2=await P('https://gis11.services.ncdot.gov/arcgis/rest/services/NCDOT_RoadNC/RoadNC_CenterlinesGray/MapServer/4/query',{...eg,where:"RouteClass='5'",outFields:'RouteClass'});lines=lines.concat((s2.features||[]).flatMap(f=>(f.geometry.paths||[]).map(p=>p.map(pj.f))));fr=frontage(rm,lines);out.town=tj.features[0].attributes.NAME}}
  out.frontFt=Math.round(fr*3.28);
  if(fr<=0.5)return {...out,fail:'hold: no public road frontage'};
