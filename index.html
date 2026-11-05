@@ -466,7 +466,8 @@ async function vDashboard(){
   const isMailCamp=c=>!c.channel||c.channel==='mail';
   const inWeek=(c,i)=>{const [w0,w1]=wkRange(i);return isMailCamp(c)&&c.drop_date>=w0&&c.drop_date<=w1};
   const wk0Sent=(camps||[]).filter(c=>inWeek(c,0)&&c.mail_status==='sent');
-  const _let={};{const ids=[...new Set([...C,...wk0Sent].map(c=>c.id))];for(let i=0;i<ids.length;i+=20){for(let f=0;;f+=1000){const {data:pg}=await sb.from('campaign_records').select('id,campaign_id,lead_id,property_id,'+OWN_SEL).in('campaign_id',ids.slice(i,i+20)).order('id').range(f,f+999);if(!pg||!pg.length)break;pg.forEach(r=>{(_let[r.campaign_id]=_let[r.campaign_id]||new Set()).add(ownKey(r))});if(pg.length<1000)break}}}
+  const _let={};{const ids=[...new Set([...C,...wk0Sent].map(c=>c.id))];for(let i=0;i<ids.length;i+=20){for(let f=0;;f+=1000){const {data:pg}=await sb.from('campaign_records').select('id,campaign_id,lead_id,property_id,'+OWN_SEL).in('campaign_id',ids.slice(i,i+20)).order('id').range(f,f+999);if(!pg||!pg.length)break;pg.forEach(r=>{(_let[r.campaign_id]=_let[r.campaign_id]||[]).push(r)});if(pg.length<1000)break}}
+    for(const k in _let)_let[k]=new Set(ownIndex(_let[k]).map(ownKey))}
   const lettersOf=c=>_let[c.id]?_let[c.id].size:(c.records||0);
   // no rescaling: a counted campaign costs its letters x MAIL_PIECE; any other campaign uses its saved cost (letters x MAIL_PIECE)
   const costOf=c=>_let[c.id]?_let[c.id].size*MAIL_PIECE:(+c.cost||0);
@@ -1598,17 +1599,23 @@ const MAIL_PIECE=0.55; // cost per letter at the mail house
 const MAIL_MIN=5000,MAIL_MAX=5200,MAIL_FILE_MAX=5000;
 // ONE LETTER PER OWNER (Nov 2026): an owner (same mailing address, or same lead) with several lots on a mailing gets ONE
 // letter that lists all their parcels. Sizes (5,000 minimum, 5,200 cap) and costs count letters, not lots.
-// Owner = same mailing address + zip + same owner name (words in any order), so many LLCs at one registered-agent
-// address are still separate letters. Every query feeding ownKey must select OWN_SEL (owner name + mailing address).
+// Owner = same mailing address + zip: everyone at one household (spouses, co-owners, name spellings) gets ONE letter.
+// The only split: when two or more clearly different COMPANIES (LLC, Inc, Corp, Trust, Church...) share the address
+// (e.g. a registered-agent address), each company gets its own letter; the individuals there still share one letter.
+// ownIndex(recs) works this out for a set of records (letterCount calls it); every query feeding it must select OWN_SEL.
 const ownName=l=>String(l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' ')).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().split(' ').filter(Boolean).sort().join(' ');
-const ownKey=r=>{const l=r.leads||{};const a=String(l.mail_address||'').toLowerCase().replace(/[^a-z0-9]/g,''),z=String(l.mail_zip||'').slice(0,5);return a?('a'+a+'|'+z+'|'+ownName(l)):('l'+(r.lead_id||r.id))};
+const OWN_CO=/\b(llc|l l c|inc|incorporated|corp|corporation|co|company|companies|church|ministries|trust|trustees?|bank|association|assn|partners|partnership|lp|llp|ltd|limited|holdings|properties|investments|group|homes|builders|development|realty|enterprises|foundation)\b/;
+const ownAddr=r=>{const l=r.leads||{};const a=String(l.mail_address||'').toLowerCase().replace(/[^a-z0-9]/g,''),z=String(l.mail_zip||'').slice(0,5);return a?('a'+a+'|'+z):('l'+(r.lead_id||r.id))};
+const ownIndex=recs=>{const cos={};recs.forEach(r=>{const a=ownAddr(r),n=ownName(r.leads||{});if(a[0]==='a'&&OWN_CO.test(n))(cos[a]=cos[a]||new Set()).add(n)});
+  recs.forEach(r=>{const a=ownAddr(r),n=ownName(r.leads||{});r._ok=(cos[a]&&cos[a].size>1&&OWN_CO.test(n))?a+'|c:'+n:a});return recs};
+const ownKey=r=>r._ok||ownAddr(r);
 const OWN_SEL='leads(full_name,first_name,last_name,mail_address,mail_zip)';
-const letterCount=recs=>new Set(recs.map(ownKey)).size;
+const letterCount=recs=>new Set(ownIndex(recs).map(ownKey)).size;
 const joinList=a=>a.length<=1?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
 const parcelsText=apns=>{const a=[...new Set(apns.filter(Boolean))];if(a.length<=1)return `lot (parcel ${a[0]||''})`;const shown=a.length>2?a.slice(0,2).concat([`${a.length-2} more`]):a;return `lots (parcels ${joinList(shown)})`};
-async function recountCampaign(cid,piece=MAIL_PIECE){const ks=new Set();let n=0;for(let f=0;;f+=1000){const {data,error}=await sb.from('campaign_records').select('id,lead_id,'+OWN_SEL).eq('campaign_id',cid).order('id').range(f,f+999);if(error)throw error;if(!data||!data.length)break;n+=data.length;data.forEach(r=>ks.add(ownKey(r)));if(data.length<1000)break}
+async function recountCampaign(cid,piece=MAIL_PIECE){const all=[];for(let f=0;;f+=1000){const {data,error}=await sb.from('campaign_records').select('id,lead_id,'+OWN_SEL).eq('campaign_id',cid).order('id').range(f,f+999);if(error)throw error;if(!data||!data.length)break;all.push(...data);if(data.length<1000)break}
   // records = lots; cost = letters (one per owner) x the cost per piece
-  await sb.from('campaigns').update({records:n,cost:+(ks.size*piece).toFixed(2)}).eq('id',cid);return n}
+  await sb.from('campaigns').update({records:all.length,cost:+(letterCount(all)*piece).toFixed(2)}).eq('id',cid);return all.length}
 // Highest record number used with an offer code prefix ANYWHERE in DLG HQ (campaign records, contacts, old Pebble/GHL codes).
 // Paged in id order so no row is skipped or read twice.
 async function codeMax(pre){let max=0;const re=new RegExp('^'+pre.replace(/[^A-Za-z0-9]/g,'')+'-(\\d+)$','i');
@@ -1738,7 +1745,7 @@ async function _finishMailList(idOrIds){
     // c) over the budget cap: whole owners (all their lots, from any of these campaigns) move to the next dated campaign
     // (or a new one a week later). Owners in the latest-mailing campaign move first; nobody's lots are split up.
     if(letterCount(kept)>MAIL_MAX){const pos={};[...(_dd||[])].sort((a,b)=>String(a.drop_date||'').localeCompare(String(b.drop_date||''))||ids.indexOf(a.id)-ids.indexOf(b.id)).forEach((x,i)=>pos[x.id]=i);
-      const grp=new Map();kept.forEach(r=>{const k=ownKey(r);if(!grp.has(k))grp.set(k,[]);grp.get(k).push(r)});
+      ownIndex(kept);const grp=new Map();kept.forEach(r=>{const k=ownKey(r);if(!grp.has(k))grp.set(k,[]);grp.get(k).push(r)});
       const G=[...grp.values()].map((g,i)=>({g,i,p:Math.min(...g.map(r=>pos[r.campaign_id]??0))})).sort((a,b)=>a.p-b.p||a.i-b.i);
       const extra=G.slice(MAIL_MAX).flatMap(x=>x.g),later=await laterCampaigns(ids,tpl,md,{dest:true});
       const nd=new Date(new Date(md+'T12:00:00').getTime()+7*864e5).toISOString().slice(0,10);const t=later[0]||await newLaterCampaign(me,tpl,nd,'Extras');
@@ -1750,7 +1757,7 @@ async function _finishMailList(idOrIds){
   const tplName=($('m_tpl')?.value||'');const perOwner=/teardown/i.test(tplName);
   const tc=x=>String(x||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
   const paddr=p=>[p.address?tc(p.address):'',/^\d{5}$/.test(p.city||'')?'':tc(p.city||'')].filter(Boolean).join(', ');
-  const byOwner={};kept.forEach(r=>{const k=ownKey(r);(byOwner[k]=byOwner[k]||[]).push(r)});
+  ownIndex(kept);const byOwner={};kept.forEach(r=>{const k=ownKey(r);(byOwner[k]=byOwner[k]||[]).push(r)});
   const otherLine=(r)=>{const f=r.properties?.fields||{};if(f.Other_Property_Line)return f.Other_Property_Line;const o=(byOwner[ownKey(r)]||[]).filter(x=>x!==r&&x.properties?.address).map(x=>paddr(x.properties));if(!o.length)return '';
     return `I also see that you own ${o.length===1?o[0]:o.slice(0,-1).join(', ')+' and '+o[o.length-1]}. I would be glad to make you an offer on ${o.length===1?'that property':'those properties'} as well.`};
   const src=Object.values(byOwner).map(g=>g[0]);
