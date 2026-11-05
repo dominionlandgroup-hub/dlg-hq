@@ -12,7 +12,7 @@ const SRV={Gaston:['https://gis.gastoncountync.gov/publicgis/rest/services/Publi
  Greenville:['https://services.arcgis.com/zTM0LZtJeE1HzO09/arcgis/rest/services/kx_greenville_county_sc_tax_parcel_SHP/FeatureServer/0/query',a=>`PIN='${a.replace(/\D/g,'')}'`]};
 const ST='https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query';
 const vars=a=>{a=a.trim();const s=a.replace(/[^0-9A-Za-z.]/g,''),s2=a.replace(/[^0-9A-Za-z]/g,'');return [...new Set([a,s,s2])].filter(Boolean)};
-const getGeom=async(c,a)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const j=await P(u,{where:w(a),outFields:'OBJECTID',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
+const getGeom=async(c,a)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const j=await P(u,{where:w(a),outFields:c==='Greenville'?'FID':'OBJECTID',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
  if(!g&&!/^(York|Chester|Lancaster|Cherokee|Greenville|Spartanburg|Anderson|Pickens|Oconee|Horry)$/.test(c)){const vs=vars(a).map(v=>`'${esc(v)}'`).join(',');const j=await P(ST,{where:`cntyname='${c}' AND (parno IN (${vs}) OR altparno IN (${vs}))`,outFields:'objectid',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}
  return g};
 const inPoly=(pt,rs)=>{let c=false;for(const r of rs)for(let i=0,j=r.length-1;i<r.length;j=i++){const [xi,yi]=r[i],[xj,yj]=r[j];if(((yi>pt[1])!=(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/(yj-yi)+xi))c=!c}return c};
