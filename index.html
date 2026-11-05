@@ -221,7 +221,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <div style="text-align:center;margin-bottom:12px"><svg style="width:64px;height:64px;display:block;margin:0 auto 8px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 207.27 203.63"><defs><style>.cls-1{fill:#d5a940;}.cls-2{fill:#5c2977;}</style></defs><g id="Capa_2" data-name="Capa 2"><g id="Capa_4" data-name="Capa 4"><path class="cls-1" d="M134.08,106l73.19,18.29-53.77-8q-11-2.23-22.73-3.49a28.62,28.62,0,1,0-54.26,0c-7.83.83-15.43,2-22.72,3.49L0,124.25l72.25-18L22.4,104l50.79-2.69L0,83,73.66,94,28.45,72.9l48,16.94L15.78,44.93,79.63,83.25,45.93,46.46l37.82,34L44.93,15.78,89.25,75.62l-17-46.89,21.93,45.9L83,0l18,72.25,2.19-49.85L106,73.2,124.25,0l-11,73.66,21.1-45.22-16.94,48,44.9-60.62L124,79.63l36.79-33.69-34,37.82,64.68-38.83L131.66,89.26l46.89-17.05-45.9,21.93L207.27,83,135,101.08l49.84,2.19Z"/><path class="cls-2" d="M141,185v0c-1.31-.3-2.62-.58-3.94-.83v0C138.34,184.45,139.66,184.72,141,185Z"/><path class="cls-2" d="M146.88,186.23q-2.94-.79-5.91-1.47V160.57a3.14,3.14,0,0,0-1.26-2.5l-16.23-11.92V118.43a3.11,3.11,0,0,0-1.06-2.33l-5-4.4-11.8-10.29a3.08,3.08,0,0,0-4.11,0L90.18,111.69l-4.89,4.44a3.05,3.05,0,0,0-1,2.29v9.06L67.47,140.85a3.07,3.07,0,0,0-1.16,2.41v41.5c-2,.45-4,.94-5.91,1.47a132.1,132.1,0,0,0-39.61,17.4,262.22,262.22,0,0,1,41.09-10.57c1.74-.28,3.46-.58,5.2-.79s3.45-.55,5.2-.74c3.46-.45,7-.8,10.43-1.06,7-.6,13.94-.94,20.92-.86,7-.08,14,.26,20.94.86q5.22.39,10.43,1.06c1.73.19,3.46.51,5.2.74s3.46.51,5.19.79a262.05,262.05,0,0,1,41.1,10.57A132.32,132.32,0,0,0,146.88,186.23Zm-62.6-4.45c-.82.08-1.64.16-2.46.26-1.09.15-2.17.32-3.26.48,0-.7-.09-1.4-.13-2.1q-.66-10.56-1.32-21.12l-.34,0c-.44,7.91-.89,15.81-1.28,23.72-1.48.25-3,.51-4.45.79l-.8.15V143.67l14-11.16Zm17.29-1.09h0c-1.78,0-3.55.08-5.33.17,0-1.87-.09-3.74-.16-5.6q-.63-19.55-1.28-39.06l-.33,0c-.47,15-1,29.9-1.35,44.86-1.64.1-3.28.21-4.91.35V118.79l8.09-7.34,5.27-4.78Zm18,.73h0c-1.86-.17-3.74-.31-5.6-.41,0-1.91-.09-3.83-.16-5.75q-.63-19.55-1.28-39.06l-.33,0c-.46,14.9-1,29.79-1.34,44.69h0c-1.77-.08-3.54-.14-5.3-.17V106.55l5.61,4.91,8.43,7.35ZM137,183.94h0l-.79-.15c-1.56-.3-3.12-.57-4.68-.83h0c0-.31-.07-.62-.11-.93q-.68-6.18-1.34-12.35h-.33c-.41,4.27-.82,8.54-1.18,12.81h0l-3.1-.44-2-.23V151L137,161Z"/></g></g></svg><h2 style="margin:0;color:var(--brand)">DLG HQ</h2><div class="small" style="color:var(--gold-d);font-weight:600;letter-spacing:.4px">KINGDOM FIRST</div><div class="verse" style="margin-top:10px" id="verse2"></div></div>
     <input id="email" type="email" placeholder="Email" style="margin-bottom:8px">
     <input id="pw" type="password" placeholder="Password" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')signIn()">
-    <div class="row"><button class="btn" onclick="signIn()">Sign in</button><button class="btn ghost" onclick="signUp()">Create login</button></div>
+    <div class="row"><button class="btn" onclick="signIn()">Sign in</button></div>
     <div id="loginErr" class="small" style="color:var(--red);margin-top:8px"></div>
   </div>
 </section>
@@ -257,7 +257,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <div class="foot"><div id="verse" class="verse" style="margin-bottom:12px"></div><span id="who"></span><br><button onclick="sb.auth.signOut().then(boot)">Sign out</button></div>
   </aside>
   <main>
-    <div class="gsearch"><div class="gwrap"><input id="gq" placeholder="Search offer codes, contacts, phones, APNs, addresses, deals" autocomplete="off"><button class="gbtn" onclick="go('search:'+encodeURIComponent($('gq').value.trim()))">⌕</button><div id="gres" class="gres"></div></div></div>
+    <div class="gsearch"><div class="gwrap"><input id="gq" placeholder="Search offer codes, contacts, phones, APNs, addresses, deals" autocomplete="off"><button class="gbtn" onclick="go('search:'+encQ($('gq').value.trim()))">⌕</button><div id="gres" class="gres"></div></div></div>
     <div class="topbar"><button class="btn ghost sm" id="mtoggle" onclick="$('side').classList.toggle('open')">☰</button><h1 id="title">Dashboard</h1><div id="actions"></div></div>
     <div id="view"></div>
   </main>
@@ -323,7 +323,6 @@ async function boot(){
   go(location.hash.slice(1)||store.get('view')||'dashboard');refreshBadges();setInterval(refreshBadges,60000);setInterval(livePoll,15000);livePoll();setTimeout(rsSweep,8000);
 }
 async function signIn(){const {error}=await sb.auth.signInWithPassword({email:$('email').value,password:$('pw').value});if(error){$('loginErr').textContent=error.message;return}boot()}
-async function signUp(){const {error}=await sb.auth.signUp({email:$('email').value,password:$('pw').value});$('loginErr').textContent=error?error.message:'Login created. Confirm the email Supabase sent, then sign in.'}
 // live inbox: new texts/calls/emails show up without refreshing
 let _lastIn=null;
 async function livePoll(){if(document.hidden)return;
@@ -343,7 +342,7 @@ const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox
  followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit(),scorecard:()=>vScorecard(),checklist:()=>vChecklist(),targets:()=>vHubTargets(),match:()=>vHubMatch()};
 const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
-function go(v){try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch(decodeURIComponent(m[2]));return}
+function go(v){try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch((()=>{try{return decodeURIComponent(m[2])}catch(e){return m[2]}})());return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
   document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v===v));{const on=document.querySelector('details.navmore a.nav.on');if(on)on.closest('details').open=true;}
   $('title').textContent=TITLES[v];$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');VIEWS[v]()}
@@ -624,12 +623,16 @@ async function rsSweep(){if(RS_CHECKED.has('sweep'))return;RS_CHECKED.add('sweep
   const {data}=await sb.from('deals').select('id,rs_folder_id,rs_status,as_folder_id,as_status').or('and(rs_folder_id.not.is.null,rs_status.neq.signed),and(as_folder_id.not.is.null,as_status.neq.signed)').limit(25);
   for(const d of data||[]){const jobs=[];if(d.rs_folder_id&&d.rs_status!=='signed')jobs.push('psa');if(d.as_folder_id&&d.as_status!=='signed')jobs.push('asg');
     for(const k of jobs){RS_CHECKED.add(d.id+':'+k);try{await sb.functions.invoke('rabbitsign/status',{body:{deal_id:d.id,remind:false,kind:k}})}catch(e){}}}}
+// every buyer (paged past the 1,000-row limit) for the buyer pickers
+async function loadBuyers(){return (await pageAll(()=>sb.from('buyers').select('id,name,company,email').order('name').order('id'))).data||[]}
 async function openDealForm(d){
   const xp=(d?.extra_property_ids||[]).length?((await sb.from('properties').select('id,apn,address,city,county,acres').in('id',d.extra_property_ids)).data||[]):[];
-  if(!BUYERS){const {data}=await sb.from('buyers').select('id,name,company,email').order('name');BUYERS=data||[]}
+  if(!BUYERS)BUYERS=await loadBuyers();
+  // a buyer no longer in the list (deleted / not loaded) stays selected instead of being blanked on save
+  if(d.buyer_id&&!BUYERS.some(b=>b.id===d.buyer_id))BUYERS.push({id:d.buyer_id,name:'Buyer #'+d.buyer_id});
   const none={data:[]};
   const [{data:camps},{data:tasks},{data:plans},{data:enr},{data:msgs}]=await Promise.all([
-    sb.from('campaigns').select('id,name,drop_date').order('created_at',{ascending:false}).limit(1000),
+    pageAll(()=>sb.from('campaigns').select('id,name,drop_date').order('created_at',{ascending:false}).order('id',{ascending:false})),
     d.id?sb.from('tasks').select('*').eq('deal_id',d.id).order('due_at'):none,
     sb.from('followup_plans').select('id,name').order('name'),
     d.lead_id?sb.from('followup_enrollments').select('*, followup_plans(name)').eq('lead_id',d.lead_id).eq('status','active'):none,
@@ -659,7 +662,7 @@ async function openDealForm(d){
      <div class="g3"><div><label class="f">Escalate up to</label><div class="moneyin"><span>$</span><input id="d_esc_max" type="number" step="any" value="${esc(d.as_meta?.esc_max??'')}"></div></div><div><label class="f">Escalation increments</label><div class="moneyin"><span>$</span><input id="d_esc_step" type="number" step="any" value="${esc(d.as_meta?.esc_step??'')}"></div></div><div class="small muted" style="align-self:end">${d.as_meta?.esc_max&&d.purchase_price?'Offer '+money(d.purchase_price)+' escalating by '+money(d.as_meta.esc_step||0)+' up to '+money(d.as_meta.esc_max):'Purchase price = starting offer'}</div></div>
      <div class="small muted" style="margin:-4px 0 8px">Value = your fee after the JV partner's cut. The dashboard counts Value.</div>
      <div class="g2">${tf('attorney','Closing attorney')}<div><label class="f">Buyer</label>${buyerSearch('d_buyer_id')}<select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>buyerOpt(b,b.id===d.buyer_id)).join('')}</select></div></div>
-     <div class="g2"><div style="grid-column:1/-1"><label class="f">Campaign</label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div></div>
+     <div class="g2"><div style="grid-column:1/-1"><label class="f">Campaign</label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}${d.campaign_id&&!(camps||[]).some(c=>c.id===d.campaign_id)?`<option value="${d.campaign_id}" selected>Campaign #${d.campaign_id}</option>`:''}</select></div></div>
      <div class="g2">${tf('source','Source')}${!d.id||!p?tf('property_label','Property address'):`<input id="d_property_label" type="hidden" value="${esc(d.property_label||'')}">`}</div>
      <div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="saveDeal(${d.id||0},'${board}')">Save deal</button>
      ${d.id?(board==='seller'?`<button class="btn" style="background:var(--accent)" onclick="moveToBuyer(${d.id})">Under contract → Buyer Deals</button>`:`<button class="btn ghost" onclick="moveToSeller(${d.id})">← Back to Seller Deals</button>`)+`<button class="btn danger" style="margin-left:auto" onclick="delDeal(${d.id},'${board}')">Delete deal</button>`:''}</div></div>
@@ -754,7 +757,8 @@ async function pickLead(dealId){const q=$('d_lq').value.trim();if(!q)return;cons
   $('d_lres').innerHTML=(data||[]).map(l=>`<div class="pitem" onclick="linkLead(${dealId},${l.id})">${esc(leadName(l))} <span class="small muted">${esc(l.phone||'')} ${esc(l.prop_address||'')}</span></div>`).join('')||'<div class="muted small">No match.</div>'}
 async function linkLead(dealId,leadId){await sb.from('deals').update({lead_id:leadId}).eq('id',dealId);openDeal(dealId)}
 async function addTask(dealId,leadId){const t=$('d_task').value.trim();if(!t)return;await sb.from('tasks').insert({deal_id:dealId,lead_id:leadId,title:t,due_at:$('d_taskdue').value?$('d_taskdue').value+'T12:00:00':null});openDeal(dealId)}
-async function toggleTask(id,done){await sb.from('tasks').update({status:done?'done':'todo'}).eq('id',id)}
+// done_at (bug_sweep_nov5.sql) sorts "Done recently"; falls back to status only if the column isn't there yet
+async function toggleTask(id,done){const {error}=await sb.from('tasks').update({status:done?'done':'todo',done_at:done?new Date().toISOString():null}).eq('id',id);if(error)await sb.from('tasks').update({status:done?'done':'todo'}).eq('id',id)}
 async function enroll(leadId,dealId){const p=$('d_plan').value;if(!p)return;
   const {data:l}=await sb.from('leads').select('status,tags,do_not_mail').eq('id',leadId).single();
   if(l&&(['dead','not_selling'].includes(l.status)||(l.tags||[]).some(t=>/opted out|dnc|not interested|not selling|sold|listed/i.test(t))))return toast('Not enrolled: this contact is marked '+(l.status==='dead'||l.status==='not_selling'?l.status.replace('_',' '):'do not contact'));
@@ -1081,7 +1085,7 @@ async function rsAsgDialog(id){const {deal}=kDeal();
   const {data:d}=await sb.from('deals').select('buyer_id,as_folder_id,as_status, buyers(id,name,company,represents,email)').eq('id',id).single();
   if(d?.as_folder_id&&d.as_status!=='signed'&&!confirm('An assignment for this deal was already sent through RabbitSign. Send a new one anyway?'))return;
   const psa=await rsSignedPsa(id);let me={name:'Damien Dupee',email:'dominionlandgroup@gmail.com'};try{me=JSON.parse(localStorage.getItem('rs_me'))||me}catch(e){}
-  const b=d?.buyers||{};if(!BUYERS)BUYERS=(await sb.from('buyers').select('id,name,company,email').order('name')).data||[];
+  const b=d?.buyers||{};if(!BUYERS)BUYERS=await loadBuyers();
   $('k_msg').innerHTML=`<div class="card" style="margin-top:10px"><h4 style="margin:0 0 6px">Send Assignment for e-signature</h4>
     <div class="small muted" style="margin-bottom:8px">One PDF goes out: the signed purchase agreement in front, the assignment behind it. You sign first, then the buyer. When both have signed, the signed copy is saved to this deal, the deal moves to <b>Buyer Deals › Assigned to Buyer - No EMD</b> with the fee on the card, and the assignment price is filled in.</div>
     <div class="small" style="margin-bottom:8px;padding:8px;border:1px solid var(--line);border-radius:8px">${psa?`📎 Front: <b>${esc(psa.name)}</b>`:`⚠️ No signed purchase agreement found on this deal. It will go out with the assignment only, unless you upload the signed copy first (name it starting with "SIGNED -").`}</div>
@@ -1808,6 +1812,8 @@ async function saveCampaign(id){const v=k=>$('c_'+k).value||null;const r={name:v
 function openCampaign(id){closeDrawer();go('campaign:'+id)}
 
 // ---------- global search (like Pebble's top search) ----------
+// the query inside onclick='...' strings: also encode ' ( ) ! * ~ so a #search: link can't break out of the string
+const encQ=s=>encodeURIComponent(String(s??'')).replace(/[!'()*~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());
 const hl=(t,q)=>{t=esc(t||'');if(!q)return t;const i=t.toLowerCase().indexOf(q.toLowerCase());return i<0?t:t.slice(0,i)+'<mark>'+t.slice(i,i+q.length)+'</mark>'+t.slice(i+q.length)};
 async function gsearch(q,lim){const {data,error}=await sb.rpc('global_search',{q,lim});if(error){toast(error.message);return null}return data}
 function gsHTML(r,q,full){if(!r)return '';const sec=(title,items,fn,key)=>items&&items.length?`<div class="gh"><span>${title}</span><span>${full?'':items.length}</span></div>`+items.map(fn).join(''):'';
@@ -1818,15 +1824,15 @@ function gsHTML(r,q,full){if(!r)return '';const sec=(title,items,fn,key)=>items&
    ||'<div class="muted small" style="padding:12px">No results.</div>'}
 function gsGo(view,fn){$('gres').style.display='none';if(view)go(view);if(fn)fn()}
 (function(){let t;const inp=()=>$('gq');document.addEventListener('input',e=>{if(e.target.id!=='gq')return;clearTimeout(t);const q=e.target.value.trim();if(q.length<2){$('gres').style.display='none';return}
-  t=setTimeout(async()=>{const r=await gsearch(q,5);if(inp().value.trim()!==q)return;$('gres').innerHTML=gsHTML(r,q)+`<a href="#" onclick="gsGo('search:${encodeURIComponent(q)}');return false" class="sm" style="text-align:center">See all results</a>`;$('gres').style.display='block'},250)});
- document.addEventListener('keydown',e=>{if(e.target.id==='gq'&&e.key==='Enter'){gsGo('search:'+encodeURIComponent(e.target.value.trim()))}});
+  t=setTimeout(async()=>{const r=await gsearch(q,5);if(inp().value.trim()!==q)return;$('gres').innerHTML=gsHTML(r,q)+`<a href="#" onclick="gsGo('search:${encQ(q)}');return false" class="sm" style="text-align:center">See all results</a>`;$('gres').style.display='block'},250)});
+ document.addEventListener('keydown',e=>{if(e.target.id==='gq'&&e.key==='Enter'){gsGo('search:'+encQ(e.target.value.trim()))}});
  document.addEventListener('click',e=>{if(!e.target.closest('.gwrap'))$('gres').style.display='none'})})();
 let GSTAB='all';
 async function vSearch(q){$('title').textContent='Global Search';$('gq').value=q;const r=await gsearch(q,50);if(!r)return;
   const n={records:r.records?.length||0,contacts:r.contacts?.length||0,properties:r.properties?.length||0,deals:r.deals?.length||0};
   const tabs=[['all','All'],['contacts',`Contacts (${n.contacts})`],['properties',`Properties (${n.properties})`],['deals',`Deals (${n.deals})`],['records',`Campaign records (${n.records})`]];
   const pick=GSTAB==='all'?r:{[GSTAB]:r[GSTAB]};
-  $('view').innerHTML=`<div class="card"><div class="tabs">${tabs.map(([k,l])=>`<button class="${GSTAB===k?'on':''}" onclick="GSTAB='${k}';vSearch(decodeURIComponent('${encodeURIComponent(q)}'))">${l}</button>`).join('')}</div></div><div class="card gres" style="display:block;position:static;box-shadow:none;max-height:none">${gsHTML(pick,q,true)}</div>`}
+  $('view').innerHTML=`<div class="card"><div class="tabs">${tabs.map(([k,l])=>`<button class="${GSTAB===k?'on':''}" onclick="GSTAB='${k}';vSearch(decodeURIComponent('${encQ(q)}'))">${l}</button>`).join('')}</div></div><div class="card gres" style="display:block;position:static;box-shadow:none;max-height:none">${gsHTML(pick,q,true)}</div>`}
 
 // ---------- campaign record page (Pebble: Campaign Record + Add Deal) ----------
 async function vRecord(id){const {data:r,error}=await sb.from('campaign_records').select('*, campaigns(id,name,drop_date,mail_status,mail_sent_at,template), leads(*), properties(*)').eq('id',id).single();
@@ -1850,10 +1856,12 @@ async function vRecord(id){const {data:r,error}=await sb.from('campaign_records'
      <div class="card"><h3 class="sec" style="margin-top:0">Deals</h3>${(deals||[]).map(d=>`<div style="padding:6px 0;border-top:1px solid var(--line)"><a href="#" onclick="openDeal(${d.id});return false">${esc(d.property_label||'Deal')}</a> <span class="small muted">· ${d.board==='buyer'?'Buyer Deals':'Seller Deals'} · ${esc(STAGES.find(s=>s.id===d.stage_id)?.name||'')}${d.value?' · '+money(d.value):''}</span></div>`).join('')||'<div class="muted small">No deal yet. Use <b>+ Add Deal</b> when this owner responds.</div>'}</div>
      <div class="card"><h3 class="sec" style="margin-top:0">Other mailings to this owner</h3>${(others||[]).map(o=>`<div class="small" style="padding:4px 0"><a href="#" onclick="go('record:${o.id}');return false"><b>${esc(o.offer_code||'')}</b></a> · ${esc(o.campaigns?.name||'')} · ${fmtDate(o.campaigns?.drop_date)}</div>`).join('')||'<div class="muted small">None.</div>'}</div>
    </div></div>`}
+// stage options for the Add Deal drawer's board picker (a named function: an inlined function's quotes broke the onchange)
+function adStages(b){return STAGES.filter(s=>s.board===b).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}
 async function addDealFromRecord(id){const {data:r}=await sb.from('campaign_records').select('*, campaigns(id,name), leads(id,full_name), properties(id,apn,address,city,county,county_state)').eq('id',id).single();
-  const p=r.properties,l=r.leads;const st=b=>STAGES.filter(s=>s.board===b).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  const p=r.properties,l=r.leads;const st=adStages;
   openDrawer(head('Add Deal')+`<div class="card"><label class="f">Deal Title</label><input id="ad_t" value="${esc(l?.full_name||p?.address||'')}">
-   <label class="f">Board</label><select id="ad_b" onchange="$('ad_s').innerHTML=(${st.toString()})(this.value)"><option value="seller">Seller Deals</option><option value="buyer">Buyer Deals</option></select>
+   <label class="f">Board</label><select id="ad_b" onchange="$('ad_s').innerHTML=adStages(this.value)"><option value="seller">Seller Deals</option><option value="buyer">Buyer Deals</option></select>
    <label class="f">Stage</label><select id="ad_s">${st('seller')}</select>
    <label class="f">Priority</label><select id="ad_p"><option value="">None</option><option>hot</option><option>warm</option><option>cold</option></select>
    <label class="f">Estimated Deal Value (optional)</label><input id="ad_v" type="number" placeholder="10,000">
@@ -2209,8 +2217,11 @@ async function saveTpl(id,kind){const r={kind,name:$('t_name').value||'Untitled'
 async function delTpl(id){if(!confirm('Delete template?'))return;await sb.from('templates').delete().eq('id',id);closeDrawer();vTemplates()}
 
 // ---------- tasks ----------
-async function vTasks(){const {data}=await sb.from('tasks').select('*, deals(id,property_label), leads(full_name)').not('title','like','CL|%').order('due_at',{nullsFirst:false}).limit(500);
-  const open=(data||[]).filter(t=>t.status==='todo'),done=(data||[]).filter(t=>t.status==='done').slice(0,30);
+async function vTasks(){const T=()=>sb.from('tasks').select('*, deals(id,property_label), leads(full_name)').not('title','like','CL|%');
+  // every open task (paged), and the 30 most recently finished
+  const {data:open0}=await pageAll(()=>T().eq('status','todo').order('due_at',{nullsFirst:false}).order('id'));
+  let {data:done0,error:de}=await T().eq('status','done').order('done_at',{ascending:false,nullsFirst:false}).order('id',{ascending:false}).limit(30);if(de)({data:done0}=await T().eq('status','done').order('id',{ascending:false}).limit(30));
+  const open=open0||[],done=done0||[];
   const row=t=>`<tr><td style="width:30px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked).then(vTasks)"></td><td>${esc(t.title)}<div class="small muted">${t.deals?`<a href="#" onclick="openDeal(${t.deals.id});return false">${esc(t.deals.property_label||'deal')}</a>`:''} ${esc(t.leads?.full_name||'')}</div></td><td class="small" style="color:${t.due_at&&String(t.due_at).slice(0,10)<new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date())&&t.status==='todo'?'var(--red)':'inherit'}">${t.due_at?fmtDate(t.due_at):''}</td></tr>`;
   $('view').innerHTML=`<div class="card" style="padding:0"><table><tr><th></th><th>To do (${open.length})</th><th>Due</th></tr>${open.map(row).join('')||'<tr><td colspan="3" class="muted">All clear.</td></tr>'}</table></div><div class="card" style="padding:0"><table><tr><th></th><th>Done recently</th><th></th></tr>${done.map(row).join('')}</table></div>`}
 
