@@ -52,7 +52,14 @@ const check=async(r)=>{const FL=String(r.properties.state||'').toUpperCase()==='
  // South Carolina has no statewide parcel map: a county without its own source can't be checked
  const sc=FL||String(r.properties.state||'').toUpperCase()==='SC'||(!r.properties.state&&SC_CO.test(c||'')&&!/^union$/i.test(c||''));if(sc&&(!SRV[c]||/^union$/i.test(c)))return {fail:'hold: no parcel map for this county'};
  // Onslow (old LandPortal data): APN is the account number without its leading zeros ('65289' = altparno '065289')
- const g=await getGeom(c,/^onslow$/i.test(c||'')&&/^\d{1,5}$/.test(String(a).trim())?String(a).trim().padStart(6,'0'):a,sc);if(!g||!g.rings)return {fail:'hold: parcel not found on county map'};const rings=g.rings;const pj=proj(rings);const rm=rings.map(x=>x.map(pj.f));
+ const g=await getGeom(c,/^onslow$/i.test(c||'')&&/^\d{1,5}$/.test(String(a).trim())?String(a).trim().padStart(6,'0'):a,sc);if(!g||!g.rings)return {fail:'hold: parcel not found on county map'};
+ // CURRENT OWNER + BUILDING VALUE (Nov 2026): NC lots are looked up on the state parcel map. A building worth $20K+ means a house or
+ // big structure the aerial missed (Catawba's map has no building values, so it is skipped there); an owner on the map that doesn't
+ // match the owner on the list means the lot sold. Old LandPortal/Pebble data had both problems.
+ if(!sc){try{const vs=vars(/^onslow$/i.test(c||'')&&/^\d{1,5}$/.test(String(a).trim())?String(a).trim().padStart(6,'0'):a).map(v=>`'${esc(v)}'`).join(',');const j=await P(ST,{where:`cntyname='${c}' AND (parno IN (${vs}) OR altparno IN (${vs}))`,outFields:'ownname,improvval',returnGeometry:false,f:'json',resultRecordCount:1});const at=j.features?.[0]?.attributes;
+  if(at){if((at.improvval||0)>=20000&&!/^catawba$/i.test(c||''))return {fail:'aerial: county shows a building worth $'+Math.round(at.improvval).toLocaleString()+' (house or structure)'};
+   const w=String(r.owner||'').toUpperCase().replace(/[^A-Z ]/g,' ').split(/\s+/).filter(x=>x.length>2&&!/^(LLC|INC|THE|AND|CORP|TRUST|ESTATE|HEIRS|ETAL|ETUX)$/.test(x));const own=String(at.ownname||'').toUpperCase();
+   if(w.length&&own&&!w.some(x=>own.includes(x)))return {fail:'hold: owner changed (county now shows '+String(at.ownname).slice(0,40)+')'}}}catch(e){}}const rings=g.rings;const pj=proj(rings);const rm=rings.map(x=>x.map(pj.f));
  const areaM=polyArea(rm),acres=areaM/4046.86;const mr=minRect(rm.flat());const avgW=areaM/mr.L,fill=areaM/mr.a;
  const out={acres:+acres.toFixed(3),avgWft:Math.round(avgW*3.28),Lft:Math.round(mr.L*3.28)};
  if(acres<0.1)return {...out,fail:'aerial: too small'};

@@ -5,7 +5,7 @@
 // PropStream's "Do Not Mail" column is ignored on purpose (Damien, Nov 2026); DLG HQ's own do-not-mail / not-interested
 // contacts are still left off by the import (skip_dnm / skip_ni).
 (function () {
-  const RULES = 'Road frontage (50 ft+ on a public road; NC: state-maintained, or a town street inside city limits; SC: any public road; Brunswick: Rivers Edge, Ocean Ridge Plantation, SeaScape and SeaWatch private roads are OK) · no flag/long strips · any part in a flood zone · 15%+ slope · house or building on the lot (possible encroachment) · under 0.1 acre · under 40 ft wide · triangles / odd shapes · waterfront';
+  const RULES = 'NC: current owner on the state parcel map must match the list, and no building worth $20K+ (house/structure) · Road frontage (50 ft+ on a public road; NC: state-maintained, or a town street inside city limits; SC: any public road; Brunswick: Rivers Edge, Ocean Ridge Plantation, SeaScape and SeaWatch private roads are OK) · no flag/long strips · any part in a flood zone · 15%+ slope · house or building on the lot (possible encroachment) · under 0.1 acre · under 40 ft wide · triangles / odd shapes · waterfront';
   let CK = null; // {key,name,cols,rows,map,res,run,imp}
   // ---- IndexedDB (localStorage ran out of room) ----
   let _db; const db = () => _db || (_db = new Promise((ok, no) => { const r = indexedDB.open('dlghq-checker', 1); r.onupgradeneeded = () => r.result.createObjectStore('runs'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }));
@@ -14,7 +14,7 @@
   // the file's rows are saved once (key + ':rows'); results, column picks and the import state on every save
   const save = () => CK && idbSet(CK.key, { name: CK.name, cols: CK.cols, n: CK.rows.length, map: CK.map, res: CK.res, imp: CK.imp || null, at: Date.now() }).then(() => idbSet('last', CK.key));
   const loadRun = async k => { const p = k && await idbGet(k), rows = p && await idbGet(k + ':rows'); return p && rows ? { ...p, rows } : null; };
-  const loadRC = () => window.RC ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'tools/rc.js?v=6'; s.onload = ok; s.onerror = () => no(new Error('The checker script (tools/rc.js) did not load. Reload and try again.')); document.head.appendChild(s); });
+  const loadRC = () => window.RC ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'tools/rc.js?v=7'; s.onload = ok; s.onerror = () => no(new Error('The checker script (tools/rc.js) did not load. Reload and try again.')); document.head.appendChild(s); });
   // ---- columns: PropStream export, or a generic CSV ----
   const K = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
   const F = { first: ['Owner 1 First Name', 'owner1firstname', 'firstname'], last: ['Owner 1 Last Name', 'owner1lastname', 'lastname'], full: ['Owner Name', 'ownername', 'owner1fullname', 'owner1name', 'fullname', 'owner'],
@@ -76,7 +76,7 @@
     if (!CK.map.apn || !CK.map.county) return alert('Pick the APN and County columns first.');
     try { await loadRC(); } catch (e) { return alert(e.message); }
     CK.run = true; const todo = CK.rows.map((r, i) => [r, i]).filter(([, i]) => !CK.res[i] || CK.res[i].error); let j = 0, c = 0; ckShow();
-    const one = async ([r, i]) => { const row = { properties: { apn: apnOf(r), county: county(r), state: val(r, 'state').toUpperCase() } };
+    const one = async ([r, i]) => { const row = { properties: { apn: apnOf(r), county: county(r), state: val(r, 'state').toUpperCase() }, owner: [val(r, 'first'), val(r, 'last'), val(r, 'full')].join(' ') };
       let o; for (let t = 0; t < 3; t++) { try { o = await RC.check(row); break; } catch (e) { o = { error: String(e.message || e).slice(0, 80) }; await new Promise(z => setTimeout(z, 1500 * (t + 1))); } }
       CK.res[i] = o; if (++c % 25 === 0) { save(); if (CUR === 'checker') ckShow(); } };
     const w = async () => { while (CK.run && j < todo.length) await one(todo[j++]); };

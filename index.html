@@ -26,7 +26,7 @@
 <script src="scorecard.js?v=12"></script>
 <script src="checklist.js?v=1"></script>
 <script src="builderhub.js?v=1"></script>
-<script src="checker.js?v=6"></script>
+<script src="checker.js?v=7"></script>
 <style>
 .impsteps{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}.impsteps span{font-size:12px;padding:4px 10px;border-radius:999px;background:#eee;color:#666}.impsteps span.on{background:#efe7fb;color:#4b2a7b;font-weight:700}.impsteps span.done{background:#e3f1e6;color:#2f6b3a}
 .tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.tagchip{display:inline-flex;align-items:center;gap:4px;background:#efe7fb;color:#4b2a7b;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;font-weight:600}.tagchip.sm{padding:2px 8px;font-size:11px}.tagchip button{border:0;background:none;color:#4b2a7b;cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.tagadd{border:1px dashed #b9a6d6;background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#4b2a7b}.linkres{position:absolute;left:0;right:0;z-index:20;background:var(--card,#fff);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:8px;max-height:300px;overflow:auto}.linkres .pitem{padding:8px 10px;border-bottom:1px solid var(--line,#eee);cursor:pointer}.linkres .pitem:hover{background:#f5f1fb}
@@ -240,6 +240,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <a class="nav" data-v="inbox-buyer">Buyer Inbox <span class="badge hidden" id="b_buyer"></span></a>
     <a class="nav" data-v="board-buyer">Buyer Deals</a>
     <a class="nav" data-v="buyers">Buyers</a>
+    <a class="nav" data-v="prospects">Buyer Prospects</a>
     <a class="nav" data-v="match">Deal matcher</a>
     <a class="nav" data-v="scorecard" style="display:none">Weekly Scorecard</a>
     <a class="nav" data-v="tasks" style="display:none">Tasks</a>
@@ -340,9 +341,9 @@ async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=
 
 // ---------- router ----------
 const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox('seller'),'inbox-buyer':()=>vInbox('buyer'),
- 'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,
+ 'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,prospects:vProspects,
  followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit(),scorecard:()=>vScorecard(),checklist:()=>vChecklist(),checker:()=>vChecker(),targets:()=>vHubTargets(),match:()=>vHubMatch()};
-const TITLES={checker:'List Checker',dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
+const TITLES={prospects:'Buyer Prospects',checker:'List Checker',dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
 function go(v){try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch((()=>{try{return decodeURIComponent(m[2])}catch(e){return m[2]}})());return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
@@ -1618,7 +1619,9 @@ const joinList=a=>a.length<=1?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.le
 const parcelsText=apns=>{const a=[...new Set(apns.filter(Boolean))];if(a.length<=1)return `lot (parcel ${a[0]||''})`;const shown=a.length>2?a.slice(0,2).concat([`${a.length-2} more`]):a;return `lots (parcels ${joinList(shown)})`};
 async function recountCampaign(cid,piece=MAIL_PIECE){const all=[];for(let f=0;;f+=1000){const {data,error}=await sb.from('campaign_records').select('id,lead_id,'+OWN_SEL).eq('campaign_id',cid).order('id').range(f,f+999);if(error)throw error;if(!data||!data.length)break;all.push(...data);if(data.length<1000)break}
   // records = lots; cost = letters (one per owner) x the cost per piece
-  await sb.from('campaigns').update({records:all.length,cost:+(letterCount(all)*piece).toFixed(2)}).eq('id',cid);return all.length}
+  // JV (Nov 2026): a partner's mailing (name has "JV") is her cost, not DLG's, so it stays at $0
+  const {data:_cn}=await sb.from('campaigns').select('name').eq('id',cid).maybeSingle();const jv=/\bJV\b/.test(_cn?.name||'');
+  await sb.from('campaigns').update({records:all.length,cost:jv?0:+(letterCount(all)*piece).toFixed(2)}).eq('id',cid);return all.length}
 // Highest record number used with an offer code prefix ANYWHERE in DLG HQ (campaign records, contacts, old Pebble/GHL codes).
 // Paged in id order so no row is skipped or read twice.
 async function codeMax(pre){let max=0;const re=new RegExp('^'+pre.replace(/[^A-Za-z0-9]/g,'')+'-(\\d+)$','i');
@@ -1823,8 +1826,10 @@ async function _finishMailList(idOrIds){
   const otherLine=(r)=>{const f=r.properties?.fields||{};if(f.Other_Property_Line)return f.Other_Property_Line;const o=(byOwner[ownKey(r)]||[]).filter(x=>x!==r&&x.properties?.address).map(x=>paddr(x.properties));if(!o.length)return '';
     return `I also see that you own ${o.length===1?o[0]:o.slice(0,-1).join(', ')+' and '+o[o.length-1]}. I would be glad to make you an offer on ${o.length===1?'that property':'those properties'} as well.`};
   const src=Object.values(byOwner).map(g=>g[0]);
+  // DOUBLED NAMES (Nov 2026): some imports repeat the owner ("Jolu inc Jolu inc"); keep one copy
+  const dedupName=x=>{x=String(x||'').replace(/\s+/g,' ').trim();const w=x.split(' ');if(w.length%2===0){const h=w.length/2;if(w.slice(0,h).join(' ').toLowerCase()===w.slice(h).join(' ').toLowerCase())return w.slice(0,h).join(' ')}return x};
   const rows=src
-   .map(r=>{const l=r.leads||{},p=r.properties||{},f=p.fields||{};const nm=splitName(l);return {Salutation:f.Salutation||(/attorney/i.test(tplName)&&l.last_name?'Attorney '+tc(l.last_name):null)||(/\b(llc|inc|corp|co|company|church|ministries|trust|trustees?|estate|bank|association|partners|lp|ltd|holdings)\b/i.test(l.full_name||'')||!nm.first?'Property Owner':tc(nm.first)),Property_Address:paddr(p),Ownership_Line:f.Ownership_Line||'',Neighborhood:f.Neighborhood||f.Subdivision||f.neighborhood||f.subdivision||tc(/^\d{5}$/.test(p.city||'')?'':p.city)||'your neighborhood',Other_Property_Line:perOwner?otherLine(r):(f.Other_Property_Line||''),Owner:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),Greeting:l.first_name||l.full_name||'Property Owner',
+   .map(r=>{const l0=r.leads||{},l={...l0,full_name:dedupName(l0.full_name)},p=r.properties||{},f=p.fields||{};const nm=splitName(l);return {Salutation:f.Salutation||(/attorney/i.test(tplName)&&l.last_name?'Attorney '+tc(l.last_name):null)||(/\b(llc|inc|corp|co|company|church|ministries|trust|trustees?|estate|bank|association|partners|lp|ltd|holdings)\b/i.test(l.full_name||'')||!nm.first?'Property Owner':tc(nm.first)),Property_Address:paddr(p),Ownership_Line:f.Ownership_Line||'',Neighborhood:f.Neighborhood||f.Subdivision||f.neighborhood||f.subdivision||tc(/^\d{5}$/.test(p.city||'')?'':p.city)||'your neighborhood',Other_Property_Line:perOwner?otherLine(r):(f.Other_Property_Line||''),Owner:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),Greeting:l.first_name||l.full_name||'Property Owner',
      Mail1:l.mail_address||'',Mail2:'',Mail3:[l.mail_city,[l.mail_state,l.mail_zip].filter(Boolean).join(' ')].filter(Boolean).join(', '),PropertyAddress:p.address||'',PropertyCity:/^\d{5}$/.test(p.city||'')?'':(p.city||''),APN:perOwner?(p.apn||''):joinList([...new Set((byOwner[ownKey(r)]||[r]).map(x=>x.properties?.apn).filter(Boolean))]),Parcels:parcelsText((byOwner[ownKey(r)]||[r]).map(x=>x.properties?.apn)),Lots:String((byOwner[ownKey(r)]||[r]).length),OfferCode:r.offer_code||'',
      OwnerName:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),FirstName:l.first_name||'',LastName:l.last_name||'',MailAddress:l.mail_address||'',MailCity:l.mail_city||'',MailState:l.mail_state||'',MailZip:l.mail_zip||'',
      PropertyState:p.state||'',PropertyZip:p.zip||(/^\d{5}$/.test(p.city||'')?p.city:''),County:p.county||'',FIPS:p.fips||'',Acres:perOwner?(p.acres!=null?String(+(+p.acres).toFixed(2)):''):joinList((byOwner[ownKey(r)]||[r]).map(x=>x.properties?.acres!=null?String(+(+x.properties.acres).toFixed(2)):'').filter(Boolean)),MailDate:_mdate}});
@@ -2012,7 +2017,7 @@ function buildLine(b){if(!b)return '';const x=[b.slope_pct!=null?`Slope ${b.slop
 // LOT CHECK (Nov 2026): the List Checker's checks (tools/rc.js) on one property, from its page
 async function lotCheck(id){const o=$('lc_out');o.textContent='Checking… (about 10 seconds)';
   try{const {data:p}=await sb.from('properties').select('apn,county,state').eq('id',id).single();if(!p||!p.apn||!p.county)return o.textContent='This property needs an APN and a county to check.';
-    if(!window.RC)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='tools/rc.js?v=6';s.onload=ok;s.onerror=()=>no(new Error('The checker did not load. Reload and try again.'));document.head.appendChild(s)});
+    if(!window.RC)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='tools/rc.js?v=7';s.onload=ok;s.onerror=()=>no(new Error('The checker did not load. Reload and try again.'));document.head.appendChild(s)});
     let r;for(let t=0;t<3;t++){try{r=await RC.check({properties:{apn:p.apn,county:p.county,state:p.state||''}});break}catch(e){r={error:String(e.message||e)};await new Promise(z=>setTimeout(z,1500))}}
     const m=[r.acres!=null?r.acres+' acres':'',r.avgWft?'about '+r.avgWft+' ft wide':'',r.floodPct!=null?(r.floodPct?r.floodPct+'% in a flood zone':'no flood zone'):'',r.slope!=null?r.slope+'% slope':''].filter(Boolean).join(' · ');
     o.innerHTML=r.pass?`<b style="color:#1d7a3a">Passed</b>${m?' · '+m:''}`:r.error?`<b style="color:#b26a00">Couldn't check:</b> ${esc(r.error)}`:`<b style="color:var(--red)">${esc(r.fail)}</b>${m?' · '+m:''}`}
@@ -2193,9 +2198,26 @@ async function wsUpload(){const fs=$('ws_up').files;if(!fs.length)return toast('
   for(const f of fs){const path=`${Date.now()}-${f.name.replace(/[^\w.\- ()]+/g,'_')}`;const {error}=await sb.storage.from('wals-files').upload(path,f);if(error)return toast(error.message);await sb.from('wals_files').insert({name:f.name,path,position:++pos})}
   toast('Uploaded');vCourse()}
 async function wsDelFile(id){if(!confirm('Remove this download from the course?'))return;await sb.from('wals_files').delete().eq('id',id);vCourse()}
+// BUYER PROSPECTS (Nov 2026): builders/LLCs found on the state parcel map that built or bought lots recently. They have no buy box
+// (and usually no phone/email) yet, so they stay off the Buyers page until they fill out the form or Damien moves them over.
+const PROSPECT_GROUP='Building buyers list';
+async function vProspects(){
+  $('actions').innerHTML=`<button class="btn ghost" onclick="navigator.clipboard.writeText(BB_FORM);toast('Form link copied')">Copy buy-box form link</button>`;
+  let data=[];for(let f=0;;f+=1000){const r=await sb.from('buyers').select('*').eq('bb_group',PROSPECT_GROUP).order('name').range(f,f+999);data.push(...(r.data||[]));if(!r.data||r.data.length<1000)break}
+  const cos=[...new Set(data.flatMap(b=>b.counties||[]))].sort();
+  $('view').innerHTML=`<div class="card"><h3 class="sec" style="margin:0">Buyer prospects (${data.length})</h3><div class="small muted" style="margin-top:4px">Builders and LLCs that built new homes or bought lots in the last 18 months in your thin counties (from the NC state parcel map). No buy box yet. Get a phone number, call or text, and send their form link. When they fill it out, or you click Move to Buyers, they show on the Buyers page.</div>
+    <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><input id="pq" placeholder="Filter by name" style="flex:1;min-width:200px"><select id="pc" style="width:auto"><option value="">All counties</option>${cos.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div></div>
+   <div class="card" style="padding:0;overflow-x:auto"><table id="ptab"></table></div>`;
+  const draw=()=>{const q=$('pq').value.toLowerCase(),c=$('pc').value;const rows=data.filter(b=>(!q||String(b.name||'').toLowerCase().includes(q))&&(!c||(b.counties||[]).includes(c)));
+    $('ptab').innerHTML=`<tr><th>Company</th><th>County</th><th>Recent activity</th><th>Phone</th><th></th></tr>`+rows.map(b=>{const act=String(b.notes||'').replace(/^.*?\.\s*/,'').replace(/\.\s*Mailing address:.*$/,'');const mail=(/Mailing address: ([^.]*)/.exec(b.notes||'')||[])[1]||'';
+      return `<tr><td><b>${esc(b.name||'')}</b><div class="small muted">${esc(mail)}</div></td><td>${esc((b.counties||[]).join(', '))}</td><td class="small">${esc(act)}</td><td>${esc(b.phone||'')}</td>
+       <td style="white-space:nowrap"><button class="btn ghost sm" onclick="navigator.clipboard.writeText(BB_LINK+'${b.bb_code||b.bb_token}');toast('Their form link is copied')">Copy form link</button> <button class="btn ghost sm" onclick="editBuyer(${b.id})">Open</button> <button class="btn ghost sm" onclick="prospectMove(${b.id})">Move to Buyers</button></td></tr>`}).join('')+(!rows.length?'<tr><td colspan="5" class="muted">No prospects match.</td></tr>':'')};
+  $('pq').oninput=draw;$('pc').onchange=draw;draw()}
+async function prospectMove(id){const {error}=await sb.from('buyers').update({bb_group:'Buyers list'}).eq('id',id);if(error)return toast(error.message);toast('Moved to Buyers');vProspects()}
 async function vBuyers(){
   $('actions').innerHTML=`<button class="btn ghost" onclick="navigator.clipboard.writeText(BB_FORM);toast('Form link copied')">Copy buy-box form link</button><button class="btn" onclick="editBuyer(0)">+ Add Buyer</button>`;
   let data=[];for(let f=0;;f+=1000){const r=await sb.from('buyers').select('*').order('name').range(f,f+999);data.push(...(r.data||[]));if(!r.data||r.data.length<1000)break}
+  data=data.filter(b=>b.bb_group!==PROSPECT_GROUP); // prospects (no buy box yet) live on the Buyer Prospects page
   const {data:sw}=await sb.rpc('buybox_switch',{turn:null});
   const cnt=k=>data.filter(b=>(b.bb_status||'not sent')===k&&(k!=='not sent'||b.bb_group)).length;
   const warmLeft=data.filter(b=>b.bb_group==='Past buyer'&&b.bb_status==='not sent').length;
@@ -2207,14 +2229,14 @@ async function vBuyers(){
      <button class="btn ${sw==='on'?'ghost':''}" style="flex:0 0 auto" onclick="bbSwitch('${sw==='on'?'off':'on'}')">${sw==='on'?'Turn off':'Turn on sending'}</button></div>
      <div class="pstats" style="grid-template-columns:repeat(6,1fr);margin-top:12px">${[['Not sent yet',cnt('not sent')],['Sent',cnt('sent')],['Got buy box',cnt('got buy box')],['Replied',cnt('replied')],['No response',cnt('no response')],['Removed / bounced',cnt('removed')+cnt('bounced')]].map(([l,v])=>`<div><div class="small muted" data-enc="1">${l}</div><div style="font-size:20px;font-weight:700">${v}</div></div>`).join('')}</div>
      ${warmLeft?`<div class="small muted" style="margin-top:6px">${warmLeft} past buyers get the warm version first.</div>`:''}</div>
-   <div class="card" style="padding:10px"><div class="row" style="gap:8px;flex-wrap:wrap"><input id="bq" placeholder="Filter by name, company, county, city or email" style="flex:2;min-width:220px">
+   <div class="card" style="padding:10px"><div class="row" style="gap:8px;flex-wrap:wrap"><input id="bq" placeholder="Filter by name, company, county, city, email or group (e.g. Building buyers list)" style="flex:2;min-width:220px">
      <input id="bm" placeholder="Who buys here? Zip, city, county or full address" style="flex:1;min-width:240px">
      <select id="bs" style="width:auto"><option value="">Any status</option>${['got buy box','sent','replied','not sent','no response','removed','bounced'].map(x=>`<option>${x}</option>`).join('')}</select></div></div>
    <div class="card" style="padding:0;overflow-x:auto"><table id="btab"></table></div>`;
   const draw=()=>{const f=$('bq').value.toLowerCase(),m=$('bm').value.trim().toLowerCase(),st=$('bs').value;
     const mz=(m.match(/\b\d{5}\b/)||[])[0],norm=x=>String(x).toLowerCase().replace(/\s+(county|co\.?)$/,'').trim();
     const hit=b=>!m||(mz&&(b.zips||[]).includes(mz))||[...(b.cities||[]),...(b.counties||[])].some(x=>{const v=norm(x);return v&&(v===norm(m)||(m.includes(',')||mz)&&new RegExp('\\b'+v.replace(/[^a-z ]/g,'')+'\\b').test(m))})||(!mz&&!m.includes(',')&&(b.zips||[]).some(z=>z===m));
-    const rows=data.filter(b=>(!f||JSON.stringify([b.name,b.company,b.email,b.counties,b.cities,b.buy_box]).toLowerCase().includes(f))&&(!st||(b.bb_status||'not sent')===st)&&hit(b))
+    const rows=data.filter(b=>(!f||JSON.stringify([b.name,b.company,b.email,b.counties,b.cities,b.buy_box,b.bb_group,b.notes]).toLowerCase().includes(f))&&(!st||(b.bb_status||'not sent')===st)&&hit(b))
       .sort((a,b)=>(!!b.bb_submitted_at)-(!!a.bb_submitted_at)||(b.bb_group==='Past buyer')-(a.bb_group==='Past buyer'));
     $('btab').innerHTML=(m?`<tr><td colspan="5" class="small" style="background:#f6f7f9"><b>${rows.filter(b=>b.bb_submitted_at).length}</b> with a buy box that covers <b>${esc(m)}</b>${rows.length>rows.filter(b=>b.bb_submitted_at).length?` · ${rows.length-rows.filter(b=>b.bb_submitted_at).length} more listed there without a buy box`:''}</td></tr>`:'')+`<tr><th>Name</th><th>Where they buy</th><th>Buy box</th><th>Contact</th><th>Buy-box status</th></tr>`+rows.slice(0,500).map(b=>`<tr class="click" onclick="editBuyer(${b.id})"><td><b>${esc(b.name||'')}</b><div class="small muted">${esc(b.company&&b.company!==b.name?b.company:'')}${b.bb_group==='Past buyer'?' <span class="pill">past buyer</span>':''}${b.kind==='agent'?' <span class="pill">agent</span>':''}</div></td>
       <td class="small">${esc([(b.counties||[]).join(', '),(b.cities||[]).join(', ')].filter(Boolean).join(' · '))}${(b.zips||[]).length?`<div class="muted">${esc(b.zips.slice(0,8).join(', '))}${b.zips.length>8?' …':''}</div>`:''}</td>
