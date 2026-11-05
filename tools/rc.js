@@ -29,7 +29,9 @@ const brunsPrivate=async a=>{const vs=[...new Set([a.trim().toUpperCase(),a.repl
  const d=(j.features||[]).map(f=>String(f.attributes.LegalDescription||'')).find(x=>BRUNS_OK.test(x));return d?d.match(BRUNS_OK)[0].toUpperCase():null};
 const ST='https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query';
 // APN spellings to try on NC OneMap; also the first 10 digits (Forsyth 6882-46-0712.000 is altparno 6882460712 there)
-const vars=a=>{a=a.trim();const s=a.replace(/[^0-9A-Za-z.]/g,''),s2=a.replace(/[^0-9A-Za-z]/g,''),d=a.replace(/\D/g,'');return [...new Set([a,s,s2,d.length>10?d.slice(0,10):''])].filter(Boolean)};
+const vars=a=>{a=a.trim();const s=a.replace(/[^0-9A-Za-z.]/g,''),s2=a.replace(/[^0-9A-Za-z]/g,''),d=a.replace(/\D/g,'');// old LandPortal data: Wake = 'PIN REID' (REID is the state map's altparno); Pasquotank parno has two spaces ('7996  711915')
+ const reid=(/\s(\d{6,8})$/.exec(a)||[])[1]||'',dbl=/^\d{4} \d{6}$/.test(a)?a.replace(' ','  '):'';
+ return [...new Set([a,s,s2,d.length>10?d.slice(0,10):'',reid,dbl])].filter(Boolean)};
 const SC_CO=/^(york|chester|lancaster|spartanburg|greenville|anderson|pickens|oconee|union|laurens|newberry|fairfield|kershaw|richland|lexington|charleston|berkeley|dorchester|horry|aiken|sumter|florence)$/i;
 const getGeom=async(c,a,sc)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const wh=w(a);if(!wh)throw 0;const j=await P(u,{where:wh,outFields:'*',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
  if(!g&&!SC_ONLY.test(c||'')&&!sc){const vs=vars(a).map(v=>`'${esc(v)}'`).join(',');const j=await P(ST,{where:`cntyname='${c}' AND (parno IN (${vs}) OR altparno IN (${vs}))`,outFields:'objectid',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}
