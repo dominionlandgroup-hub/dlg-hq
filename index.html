@@ -26,7 +26,7 @@
 <script src="scorecard.js?v=12"></script>
 <script src="checklist.js?v=1"></script>
 <script src="builderhub.js?v=1"></script>
-<script src="checker.js?v=4"></script>
+<script src="checker.js?v=5"></script>
 <style>
 .impsteps{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}.impsteps span{font-size:12px;padding:4px 10px;border-radius:999px;background:#eee;color:#666}.impsteps span.on{background:#efe7fb;color:#4b2a7b;font-weight:700}.impsteps span.done{background:#e3f1e6;color:#2f6b3a}
 .tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.tagchip{display:inline-flex;align-items:center;gap:4px;background:#efe7fb;color:#4b2a7b;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;font-weight:600}.tagchip.sm{padding:2px 8px;font-size:11px}.tagchip button{border:0;background:none;color:#4b2a7b;cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.tagadd{border:1px dashed #b9a6d6;background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#4b2a7b}.linkres{position:absolute;left:0;right:0;z-index:20;background:var(--card,#fff);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:8px;max-height:300px;overflow:auto}.linkres .pitem{padding:8px 10px;border-bottom:1px solid var(--line,#eee);cursor:pointer}.linkres .pitem:hover{background:#f5f1fb}
@@ -1724,7 +1724,15 @@ async function buildMailList(idOrIds,opt={}){
       for(let f=0;;f+=1000){const r=await sb.from('campaign_records').select('id,'+col+',campaign_id,campaigns!inner(name,drop_date,mail_status)').in(col,list.slice(i,i+200)).not('campaign_id','in','('+ids.join(',')+')').gt('campaigns.drop_date',_lo).lt('campaigns.drop_date',_hi).order('id').range(f,f+999);
         if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not run the 90-day check: '+esc(r.error.message)+'</b> Nothing was sent.'}
         (r.data||[]).forEach(x=>{if(!_went(x.campaigns))return;const k=col[0]+x[col],o=last[k];if(!o||x.campaigns.drop_date>o.d)last[k]={d:x.campaigns.drop_date,n:x.campaigns.name}});if((r.data||[]).length<1000)break}}
-    for(let i=kept0.length-1;i>=0;i--){const r=kept0[i],h=[last['l'+r.lead_id],last['p'+r.property_id]].filter(Boolean).sort((a,b)=>b.d.localeCompare(a.d))[0];
+    // SAME HOUSEHOLD (Nov 2026): a different contact at the same mailing address is the same household - one letter per
+    // household, so an address already in another campaign inside the 90 days is held too (caught 4 in Week 3 by hand)
+    const _hk=l=>{const a=String(l&&l.mail_address||'').toUpperCase().replace(/[^A-Z0-9]/g,''),z=String(l&&l.mail_zip||'').trim().slice(0,5);return a&&/^\d{5}$/.test(z)?a+'|'+z:''};
+    const mine=new Set(kept0.map(r=>_hk(r.leads)).filter(Boolean)),zips=[...new Set(kept0.flatMap(r=>{const z=String(r.leads?.mail_zip||'').trim();return z?[z,z.slice(0,5)]:[]}))];
+    for(let i=0;i<zips.length;i+=50){$('m_msg').textContent=`Checking households at the same mailing address (zips ${Math.min(i+50,zips.length).toLocaleString()} of ${zips.length.toLocaleString()})…`;
+      for(let f=0;;f+=1000){const r=await sb.from('campaign_records').select('id,campaign_id,leads!inner(mail_address,mail_zip),campaigns!inner(name,drop_date,mail_status)').in('leads.mail_zip',zips.slice(i,i+50)).not('campaign_id','in','('+ids.join(',')+')').gt('campaigns.drop_date',_lo).lt('campaigns.drop_date',_hi).order('id').range(f,f+999);
+        if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not run the household check: '+esc(r.error.message)+'</b> Nothing was sent.'}
+        (r.data||[]).forEach(x=>{if(!_went(x.campaigns))return;const k=_hk(x.leads);if(!k||!mine.has(k))return;const o=last['h'+k];if(!o||x.campaigns.drop_date>o.d)last['h'+k]={d:x.campaigns.drop_date,n:x.campaigns.name}});if((r.data||[]).length<1000)break}}
+    for(let i=kept0.length-1;i>=0;i--){const r=kept0[i],h=[last['l'+r.lead_id],last['p'+r.property_id],last['h'+_hk(r.leads)]].filter(Boolean).sort((a,b)=>b.d.localeCompare(a.d))[0];
       if(h){const ok=new Date(new Date(h.d+'T12:00:00').getTime()+90*864e5).toISOString().slice(0,10);r._held={...h,ok};held.push(r);kept0.splice(i,1)}}}
   window._held=held;
   // CURRENT OWNER CHECK (Oct 2026): every record is checked against the county's live ownership record.
@@ -1848,7 +1856,7 @@ async function _finishMailList(idOrIds){
   for(const i of ids){const n=ids.length>1?(_byC[i]||0):rows.length,lots=ids.length>1?(_lotC[i]||0):kept.length;await sb.from('campaigns').update({template:$('m_tpl').value,mail_status:'to_house',mail_to_house_at:new Date().toISOString(),records:lots,cost:+(n*MAIL_PIECE).toFixed(2)}).eq('id',i)}
   window._ml=null;window._mlDone=String(ids);
   $('m_msg').innerHTML=`${rows.length.toLocaleString()} letters (${kept.length.toLocaleString()} lots; ${all.length-kept.length} removed).${missing?` <b style="color:var(--red)">${missing} have no offer code.</b> Add codes before sending; Brandon flags lists without them.`:''}`;
-  const body=`Hello,\n\n${CS.length>1?`Here is ONE list (${rows.length} records) that covers ${CS.length} campaigns: ${CS.map(x=>x.name).join(', ')}. Please run it as a single job with one letter.`:`Here is a new list for "${c.name}" (${rows.length} records).`}${links.length>1?` It comes in ${links.length} files (${MAIL_FILE_MAX.toLocaleString()} max per file); please run them together as one job.`:''} Download ${links.length>1?'them':'it'} here (link${links.length>1?'s':''} valid 7 days):\n${sl.signedUrl}\n\nLetter template (Word merge file):
+  const body=`Hello,\n\n${CS.length>1?`Here is ONE list (${rows.length} records) that covers ${CS.length} campaigns: ${CS.map(x=>x.name).join(', ')}. Please run it as a single job with one letter.`:`Here is a new list for "${c.name}" (${rows.length} records).`}${links.length>1?` It comes in ${links.length} files (${MAIL_FILE_MAX.toLocaleString()} max per file); please run them together as one job.`:''} The list (Excel) and the letter (Word merge file) are attached. Mail date: ${_mdate}. Offer codes are in the OfferCode column.\n\nBackup download link for the list (valid 7 days):\n${sl.signedUrl}\n\nLetter template (Word merge file), also attached:
 ${location.origin}/mail-templates/${encodeURIComponent($('m_tpl').value)}
 
 Handwriting font (please install before printing so the letter prints right):
@@ -1858,10 +1866,20 @@ ${location.origin}/mail-templates/PatrickHand-Regular.ttf\n\nPlease use ${CS.len
   const url=mobile?`mailto:${MAIL_HOUSE.to}?cc=${MAIL_HOUSE.cc}&subject=${su}&body=${bd}`:`https://mail.google.com/mail/u/${encodeURIComponent(MAIL_FROM)}/?view=cm&fs=1&tf=1&to=${MAIL_HOUSE.to}&cc=${MAIL_HOUSE.cc}&su=${su}&body=${bd}`;
   // Phones block pop-ups opened after loading, so always show a tap-to-open button too
   $('m_msg').innerHTML+=`<br><br><a class="btn" href="${url}" ${mobile?'':'target="_blank"'}>✉️ Open email to the mail house</a>`;
-  window._mhBody={to:MAIL_HOUSE.to,cc:MAIL_HOUSE.cc,subject:'NEW DATA - '+c.name,body};
+  window._mhBody={to:MAIL_HOUSE.to,cc:MAIL_HOUSE.cc,subject:'NEW DATA - '+c.name,body};window._mhFile={name:c.name,rows,tpl:$('m_tpl').value};
+  $('m_msg').innerHTML+=`<div class="card" style="margin-top:10px;border-left:4px solid #4b2a7b"><b>Attach these 2 files to the email:</b><br><button class="btn sm" onclick="mhExcel()">⬇ Mail list (Excel)</button> <a class="btn ghost sm" href="mail-templates/${encodeURIComponent($('m_tpl').value)}" download>⬇ Letter (Word)</a><div class="small muted" style="margin-top:4px">They download to your Downloads folder. In the Gmail draft click the paperclip, pick both files, then Send.</div></div>`;
   $('m_msg').innerHTML+=` <button class="btn ghost" onclick="navigator.clipboard.writeText(_mhBody.body).then(()=>toast('Email text copied - paste it into Gmail'))">Copy email text</button><div class="small muted" style="margin-top:6px">If Gmail opens without the email filled in, click Copy email text and paste it. To: ${MAIL_HOUSE.to} · Cc: ${MAIL_HOUSE.cc}</div>`;
   if(!mobile)window.open(url,'_blank');
 }
+// MAIL HOUSE EXCEL (Nov 2026): the list Brandon gets, as .xlsx (sheet "Mail List", every cell text so APNs, zips and
+// offer codes keep their leading zeros), split at MAIL_FILE_MAX rows like the CSV
+async function mhExcel(){const F=window._mhFile;if(!F||!F.rows.length)return toast('Run Start Mailing first');
+  if(!window.XLSX)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=ok;s.onerror=()=>no(new Error('Could not load the Excel tool'));document.head.appendChild(s)}).catch(e=>toast(e.message));if(!window.XLSX)return;
+  const H=Object.keys(F.rows[0]),n=Math.ceil(F.rows.length/MAIL_FILE_MAX),base=String(F.name).replace(/[\\/:*?"<>|]+/g,'-');
+  for(let k=0;k<n;k++){const part=F.rows.slice(k*MAIL_FILE_MAX,(k+1)*MAIL_FILE_MAX);const ws=XLSX.utils.aoa_to_sheet([H,...part.map(r=>H.map(h=>String(r[h]??'')))]);
+    Object.keys(ws).forEach(a=>{if(a[0]!=='!'){ws[a].t='s';ws[a].z='@'}});ws['!freeze']={xSplit:0,ySplit:1};const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Mail List');
+    XLSX.writeFile(wb,`${base} - Mail List${n>1?` (file ${k+1} of ${n})`:''}.xlsx`);await new Promise(r=>setTimeout(r,800))}
+  toast(n>1?`${n} Excel files downloaded`:'Excel downloaded')}
 async function editCampaign(id){const {data:c}=id?await sb.from('campaigns').select('*').eq('id',id).single():{data:{channel:'mail'}};
   const f=(k,l,t='text')=>`<label class="f">${l}</label><input id="c_${k}" type="${t}" value="${esc(c[k]??'')}">`;
   openDrawer(head((id?'Edit':'New')+' campaign')+`<div class="card">${f('name','Name')}
@@ -1991,6 +2009,14 @@ function prayerGo(d){PRAYER_I=(PRAYER_I+d+PROP_PRAYERS.length)%PROP_PRAYERS.leng
 function prayerStart(){clearInterval(PRAYER_T);PRAYER_T=setInterval(()=>{PRAYER_I=(PRAYER_I+1)%PROP_PRAYERS.length;prayerShow()},25000)}
 function buildLine(b){if(!b)return '';const x=[b.slope_pct!=null?`Slope ${b.slope_pct}%`:null,b.avg_width_ft?`${b.avg_width_ft} ft wide`:null,b.length_ft?`${b.length_ft} ft deep`:null,b.road_frontage_ft!=null?`${b.road_frontage_ft} ft on a public road`:null,b.flood?(b.flood==='not in SFHA'?'Not in a flood zone':b.flood):null,b.sewer&&b.sewer!=='unknown'?b.sewer.replace(/^./,c=>c.toUpperCase()):null,b.land_value?'County land value '+money(b.land_value):null].filter(Boolean);
   return x.length?`<div class="small" style="margin-top:4px;color:#2f6b3a">✓ Buildable check ${esc(b.checked||'')}: ${esc(x.join(' · '))}</div>`:''}
+// LOT CHECK (Nov 2026): the List Checker's checks (tools/rc.js) on one property, from its page
+async function lotCheck(id){const o=$('lc_out');o.textContent='Checking… (about 10 seconds)';
+  try{const {data:p}=await sb.from('properties').select('apn,county,state').eq('id',id).single();if(!p||!p.apn||!p.county)return o.textContent='This property needs an APN and a county to check.';
+    if(!window.RC)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='tools/rc.js?v=5';s.onload=ok;s.onerror=()=>no(new Error('The checker did not load. Reload and try again.'));document.head.appendChild(s)});
+    let r;for(let t=0;t<3;t++){try{r=await RC.check({properties:{apn:p.apn,county:p.county,state:p.state||''}});break}catch(e){r={error:String(e.message||e)};await new Promise(z=>setTimeout(z,1500))}}
+    const m=[r.acres!=null?r.acres+' acres':'',r.avgWft?'about '+r.avgWft+' ft wide':'',r.floodPct!=null?(r.floodPct?r.floodPct+'% in a flood zone':'no flood zone'):'',r.slope!=null?r.slope+'% slope':''].filter(Boolean).join(' · ');
+    o.innerHTML=r.pass?`<b style="color:#1d7a3a">Passed</b>${m?' · '+m:''}`:r.error?`<b style="color:#b26a00">Couldn't check:</b> ${esc(r.error)}`:`<b style="color:var(--red)">${esc(r.fail)}</b>${m?' · '+m:''}`}
+  catch(e){o.innerHTML=`<b style="color:var(--red)">${esc(e.message||e)}</b>`}}
 async function openProperty(id){
   const [{data:p},{data:own},{data:cr},{data:tx},{data:dl}]=await Promise.all([sb.from('properties').select('*').eq('id',id).single(),
     sb.from('property_owners').select('leads(*)').eq('property_id',id),
@@ -2004,6 +2030,7 @@ async function openProperty(id){
     ${(tx||[]).map(t=>`<tr><td>${t.tx_date||''}</td><td style="text-transform:capitalize">${t.kind}</td><td colspan="2">${esc(t.notes||'')}</td><td class="right"><b>${money(t.price)}</b></td></tr>`).join('')}</table>
     ${buy&&sell?`<p><b>Profit ${money(sell.price-cost)}</b> · ROI ${((sell.price-cost)/cost*100).toFixed(2)}%</p>`:''}
     <div class="row" style="margin-top:10px"><select id="tx_k" style="flex:0 0 120px"><option>offer</option><option>purchase</option><option>sale</option></select><input id="tx_d" type="date"><input id="tx_p" type="number" placeholder="Price"><input id="tx_c" type="number" placeholder="Costs"><button class="btn ghost" style="flex:0" onclick="addTx(${id})">Add</button></div></div>
+   <div class="card"><b>Lot check</b> <span class="small muted">road frontage, flood, slope, building on the lot, size and shape (free public maps)</span><div style="margin-top:6px"><button class="btn ghost sm" onclick="lotCheck(${id})">Check this lot</button></div><div id="lc_out" class="small" style="margin-top:6px"></div></div>
    <div class="card"><b>Deals</b> ${(dl||[]).map(d=>`<a href="#" onclick="openDeal(${d.id});return false">${d.board} deal · ${esc(STAGES.find(s=>s.id===d.stage_id)?.name||'')}</a>`).join(' · ')||'<span class="muted small">none</span>'}
      <div class="row" style="margin-top:8px"><button class="btn ghost sm" style="flex:0" onclick="dealFromProperty(${id},'seller')">+ Seller deal</button><button class="btn ghost sm" style="flex:0" onclick="dealFromProperty(${id},'buyer')">+ Buyer deal</button></div></div>
    ${prayerCard()}
