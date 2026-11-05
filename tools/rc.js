@@ -15,7 +15,8 @@ const SRV={Gaston:['https://gis.gastoncountync.gov/publicgis/rest/services/Publi
  Duplin:['https://gis.duplinnc.gov/server/rest/services/TaxMapping/Parcels/FeatureServer/0/query',a=>`ParcelNumber='${esc(String(a).replace(/  -$/,''))}'`],
  // Guilford: PropStream's APN is the county REID with leading zeros ('0095315' = reid '95315'); the state map has no REID
  Guilford:['https://gcgis.guilfordcountync.gov/arcgis/rest/services/Hosted/Parcel_Boundaries/FeatureServer/0/query',a=>/^\d{1,8}$/.test(String(a).trim())?`reid='${String(a).trim().replace(/^0+/,'')}'`:''],
- Greenville:['https://services.arcgis.com/zTM0LZtJeE1HzO09/arcgis/rest/services/kx_greenville_county_sc_tax_parcel_SHP/FeatureServer/0/query',a=>`PIN='${a.replace(/\D/g,'')}'`]};
+ // Greenville: keep the letter prefix (B004.05-01-115.00 = PIN 'B004050111500'); stripping it lost every B/P/M parcel
+ Greenville:['https://services.arcgis.com/zTM0LZtJeE1HzO09/arcgis/rest/services/kx_greenville_county_sc_tax_parcel_SHP/FeatureServer/0/query',a=>`PIN='${a.replace(/[^0-9A-Za-z]/g,'').toUpperCase()}'`]};
 // counties only in SC (Cherokee and Union are also NC counties, so those need State = SC): never looked up on the NC statewide map
 const SC_ONLY=/^(York|Chester|Lancaster|Greenville|Spartanburg|Anderson|Pickens|Oconee|Horry)$/i;
 // Brunswick NC private-road communities: lots here pass even without public road frontage (Brunswick GIS LegalDescription)
