@@ -92,7 +92,9 @@ async function send(b: any) {
 }
 
 async function saveSigned(dealId: number, propertyId: number | null, downloadUrl: string, prefix: string) {
-  const zip = new Uint8Array(await (await fetch(downloadUrl)).arrayBuffer());
+  const res = await fetch(downloadUrl);
+  if (!res.ok) throw new Error("Could not download the signed contract from RabbitSign: " + res.status);
+  const zip = new Uint8Array(await res.arrayBuffer());
   let files: Record<string, Uint8Array> = {};
   try { files = unzipSync(zip); } catch { files = { "Signed contract.zip": zip }; }
   const saved: string[] = [];
@@ -161,14 +163,28 @@ async function sync(dealId: number | null, folderId: string, kind?: "psa" | "asg
   if (dealId) {
     const A = kind === "asg";
     const { data: deal } = await sb.from("deals").select("rs_status,as_status,property_id").eq("id", dealId).single();
+    const col = A ? "as_status" : "rs_status";
     const was = A ? deal?.as_status : deal?.rs_status;
-    const upd: Record<string, unknown> = { [A ? "as_status" : "rs_status"]: allSigned ? "signed" : (f.folderStatus || "sent").toLowerCase(), [A ? "as_signers" : "rs_signers"]: signers, updated_at: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const base: Record<string, unknown> = { [A ? "as_signers" : "rs_signers"]: signers, updated_at: now };
     if (allSigned && f.downloadUrl && was !== "signed") {
-      saved = await saveSigned(dealId, deal?.property_id || null, f.downloadUrl, A ? "SIGNED ASSIGNMENT" : "SIGNED");
-      upd[A ? "as_signed_at" : "rs_signed_at"] = new Date().toISOString();
-      await sb.from("deals").update(upd).eq("id", dealId);
-      if (A) await assigned(dealId); else { await milestone(dealId, "purchase"); await toBuyerBoard(dealId); }
-    } else await sb.from("deals").update(upd).eq("id", dealId);
+      // Claim the filing atomically: only one run (webhook or app sync) moves the status to "filing" and saves the PDF.
+      // A "filing" claim older than 10 minutes (a run that crashed) can be taken over.
+      const stale = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const { data: claim } = await sb.from("deals").update({ ...base, [col]: "filing" }).eq("id", dealId)
+        .or(`${col}.is.null,${col}.not.in.(signed,filing),and(${col}.eq.filing,updated_at.lt.${stale})`).select("id");
+      if (claim?.length) {
+        try { saved = await saveSigned(dealId, deal?.property_id || null, f.downloadUrl, A ? "SIGNED ASSIGNMENT" : "SIGNED"); }
+        catch (e) { await sb.from("deals").update({ [col]: was ?? null, updated_at: new Date().toISOString() }).eq("id", dealId).eq(col, "filing"); throw e; }
+        if (!saved.length) { await sb.from("deals").update({ [col]: was ?? null, updated_at: new Date().toISOString() }).eq("id", dealId).eq(col, "filing"); throw new Error("The signed contract could not be saved; the deal was left as it was so the next sync files it."); }
+        // signed only once the signed PDF is saved
+        await sb.from("deals").update({ [col]: "signed", [A ? "as_signed_at" : "rs_signed_at"]: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", dealId);
+        if (A) await assigned(dealId); else { await milestone(dealId, "purchase"); await toBuyerBoard(dealId); }
+      }
+    } else if (allSigned) {
+      // already filed, or signed but the signed PDF isn't ready yet: keep the status as it is so a later sync files it
+      await sb.from("deals").update(base).eq("id", dealId);
+    } else await sb.from("deals").update({ ...base, [col]: (f.folderStatus || "sent").toLowerCase() }).eq("id", dealId);
   }
   return { dealId, kind, folderStatus: f.folderStatus, allSigned, signers, saved };
 }

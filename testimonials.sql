@@ -32,7 +32,7 @@ Your words help other landowners know they can trust us.
 God bless,
 Damien Dupee
 Dominion Land Group
-(980) 990-2356', now()
+(704) 387-3482', now()
 where not exists (select 1 from templates where kind='email' and name='Testimonial request');
 
 -- When a deal closes, put "ask for a testimonial" on the task list (nothing is sent automatically)

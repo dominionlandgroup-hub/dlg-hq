@@ -1,3 +1,5 @@
+-- SUPERSEDED (Nov 5, 2026): sql/bug_sweep_nov5.sql has the hardened submit_web_lead / web_offer_lookup (rate limits, code only
+-- links when the name/property matches, no overwriting contact fields). Do not re-run this file after it.
 -- Website form -> contact + Seller Inbox thread; offer code links it to the campaign record (response rate / KPIs)
 create or replace function submit_web_lead(
   p_name text, p_phone text, p_email text, p_address text, p_county text,

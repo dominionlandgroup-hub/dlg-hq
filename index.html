@@ -19,11 +19,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="listbuilder.js?v=27"></script>
+<script src="listbuilder.js?v=28"></script>
 <script src="owner-check.js?v=4"></script>
 <script src="followups.js?v=5"></script>
-<script src="split.js?v=27"></script>
-<script src="scorecard.js?v=11"></script>
+<script src="split.js?v=28"></script>
+<script src="scorecard.js?v=12"></script>
 <script src="checklist.js?v=1"></script>
 <script src="builderhub.js?v=1"></script>
 <style>
@@ -221,7 +221,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <div style="text-align:center;margin-bottom:12px"><svg style="width:64px;height:64px;display:block;margin:0 auto 8px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 207.27 203.63"><defs><style>.cls-1{fill:#d5a940;}.cls-2{fill:#5c2977;}</style></defs><g id="Capa_2" data-name="Capa 2"><g id="Capa_4" data-name="Capa 4"><path class="cls-1" d="M134.08,106l73.19,18.29-53.77-8q-11-2.23-22.73-3.49a28.62,28.62,0,1,0-54.26,0c-7.83.83-15.43,2-22.72,3.49L0,124.25l72.25-18L22.4,104l50.79-2.69L0,83,73.66,94,28.45,72.9l48,16.94L15.78,44.93,79.63,83.25,45.93,46.46l37.82,34L44.93,15.78,89.25,75.62l-17-46.89,21.93,45.9L83,0l18,72.25,2.19-49.85L106,73.2,124.25,0l-11,73.66,21.1-45.22-16.94,48,44.9-60.62L124,79.63l36.79-33.69-34,37.82,64.68-38.83L131.66,89.26l46.89-17.05-45.9,21.93L207.27,83,135,101.08l49.84,2.19Z"/><path class="cls-2" d="M141,185v0c-1.31-.3-2.62-.58-3.94-.83v0C138.34,184.45,139.66,184.72,141,185Z"/><path class="cls-2" d="M146.88,186.23q-2.94-.79-5.91-1.47V160.57a3.14,3.14,0,0,0-1.26-2.5l-16.23-11.92V118.43a3.11,3.11,0,0,0-1.06-2.33l-5-4.4-11.8-10.29a3.08,3.08,0,0,0-4.11,0L90.18,111.69l-4.89,4.44a3.05,3.05,0,0,0-1,2.29v9.06L67.47,140.85a3.07,3.07,0,0,0-1.16,2.41v41.5c-2,.45-4,.94-5.91,1.47a132.1,132.1,0,0,0-39.61,17.4,262.22,262.22,0,0,1,41.09-10.57c1.74-.28,3.46-.58,5.2-.79s3.45-.55,5.2-.74c3.46-.45,7-.8,10.43-1.06,7-.6,13.94-.94,20.92-.86,7-.08,14,.26,20.94.86q5.22.39,10.43,1.06c1.73.19,3.46.51,5.2.74s3.46.51,5.19.79a262.05,262.05,0,0,1,41.1,10.57A132.32,132.32,0,0,0,146.88,186.23Zm-62.6-4.45c-.82.08-1.64.16-2.46.26-1.09.15-2.17.32-3.26.48,0-.7-.09-1.4-.13-2.1q-.66-10.56-1.32-21.12l-.34,0c-.44,7.91-.89,15.81-1.28,23.72-1.48.25-3,.51-4.45.79l-.8.15V143.67l14-11.16Zm17.29-1.09h0c-1.78,0-3.55.08-5.33.17,0-1.87-.09-3.74-.16-5.6q-.63-19.55-1.28-39.06l-.33,0c-.47,15-1,29.9-1.35,44.86-1.64.1-3.28.21-4.91.35V118.79l8.09-7.34,5.27-4.78Zm18,.73h0c-1.86-.17-3.74-.31-5.6-.41,0-1.91-.09-3.83-.16-5.75q-.63-19.55-1.28-39.06l-.33,0c-.46,14.9-1,29.79-1.34,44.69h0c-1.77-.08-3.54-.14-5.3-.17V106.55l5.61,4.91,8.43,7.35ZM137,183.94h0l-.79-.15c-1.56-.3-3.12-.57-4.68-.83h0c0-.31-.07-.62-.11-.93q-.68-6.18-1.34-12.35h-.33c-.41,4.27-.82,8.54-1.18,12.81h0l-3.1-.44-2-.23V151L137,161Z"/></g></g></svg><h2 style="margin:0;color:var(--brand)">DLG HQ</h2><div class="small" style="color:var(--gold-d);font-weight:600;letter-spacing:.4px">KINGDOM FIRST</div><div class="verse" style="margin-top:10px" id="verse2"></div></div>
     <input id="email" type="email" placeholder="Email" style="margin-bottom:8px">
     <input id="pw" type="password" placeholder="Password" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')signIn()">
-    <div class="row"><button class="btn" onclick="signIn()">Sign in</button><button class="btn ghost" onclick="signUp()">Create login</button></div>
+    <div class="row"><button class="btn" onclick="signIn()">Sign in</button></div>
     <div id="loginErr" class="small" style="color:var(--red);margin-top:8px"></div>
   </div>
 </section>
@@ -257,7 +257,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <div class="foot"><div id="verse" class="verse" style="margin-bottom:12px"></div><span id="who"></span><br><button onclick="sb.auth.signOut().then(boot)">Sign out</button></div>
   </aside>
   <main>
-    <div class="gsearch"><div class="gwrap"><input id="gq" placeholder="Search offer codes, contacts, phones, APNs, addresses, deals" autocomplete="off"><button class="gbtn" onclick="go('search:'+encodeURIComponent($('gq').value.trim()))">⌕</button><div id="gres" class="gres"></div></div></div>
+    <div class="gsearch"><div class="gwrap"><input id="gq" placeholder="Search offer codes, contacts, phones, APNs, addresses, deals" autocomplete="off"><button class="gbtn" onclick="go('search:'+encQ($('gq').value.trim()))">⌕</button><div id="gres" class="gres"></div></div></div>
     <div class="topbar"><button class="btn ghost sm" id="mtoggle" onclick="$('side').classList.toggle('open')">☰</button><h1 id="title">Dashboard</h1><div id="actions"></div></div>
     <div id="view"></div>
   </main>
@@ -275,6 +275,9 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const localISO=(d=new Date())=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
 // for a value inside a quoted JS string in an onclick (names like O'Neal): escape for JS first, then for HTML
 const jsa=s=>esc(String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,'\\n'));
+// every row of a query, 1,000 at a time (the server returns at most 1,000 per request). mk() builds a fresh query that
+// must already have a stable order (ending in a unique column such as id).
+async function pageAll(mk,max=200000){const out=[];for(let f=0;f<max;f+=1000){const {data,error}=await mk().range(f,f+999);if(error)return {data:out,error};out.push(...(data||[]));if(!data||data.length<1000)break}return {data:out}}
 const money=n=>n==null||n===''?'—':(Number(n)<0?'$-':'$')+Math.abs(Number(n)).toLocaleString('en-US',{minimumFractionDigits:Number(n)%1?2:0,maximumFractionDigits:2});
 const ago=d=>{if(!d)return'';const s=(Date.now()-new Date(d))/1e3;if(s<3600)return Math.max(1,Math.round(s/60))+'m ago';if(s<86400)return Math.round(s/3600)+'h ago';if(s<86400*30)return Math.round(s/86400)+'d ago';return new Date(d).toLocaleDateString()};
 const toast=m=>{const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)};
@@ -320,7 +323,6 @@ async function boot(){
   go(location.hash.slice(1)||store.get('view')||'dashboard');refreshBadges();setInterval(refreshBadges,60000);setInterval(livePoll,15000);livePoll();setTimeout(rsSweep,8000);
 }
 async function signIn(){const {error}=await sb.auth.signInWithPassword({email:$('email').value,password:$('pw').value});if(error){$('loginErr').textContent=error.message;return}boot()}
-async function signUp(){const {error}=await sb.auth.signUp({email:$('email').value,password:$('pw').value});$('loginErr').textContent=error?error.message:'Login created. Confirm the email Supabase sent, then sign in.'}
 // live inbox: new texts/calls/emails show up without refreshing
 let _lastIn=null;
 async function livePoll(){if(document.hidden)return;
@@ -340,7 +342,7 @@ const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox
  followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit(),scorecard:()=>vScorecard(),checklist:()=>vChecklist(),targets:()=>vHubTargets(),match:()=>vHubMatch()};
 const TITLES={dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
-function go(v){try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch(decodeURIComponent(m[2]));return}
+function go(v){try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch((()=>{try{return decodeURIComponent(m[2])}catch(e){return m[2]}})());return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
   document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v===v));{const on=document.querySelector('details.navmore a.nav.on');if(on)on.closest('details').open=true;}
   $('title').textContent=TITLES[v];$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');VIEWS[v]()}
@@ -392,11 +394,13 @@ async function vDashboard(){
   $('dr').onchange=e=>{store.set('dashRange',e.target.value);vDashboard()};
   if($('dra')){const f=()=>{store.set('dashA',$('dra').value);store.set('dashB',$('drb').value);vDashboard()};$('dra').onchange=f;$('drb').onchange=f}
   const end=b+'T23:59:59';
+  // range ends in local time (a deal made at 9pm ET on the 31st belongs to the 31st, not the 1st)
+  const aUTC=new Date(a+'T00:00:00').toISOString(),bUTC=new Date(end).toISOString();
   const [{data:H},{data:tx},{data:camps},{data:dl0}]=await Promise.all([
     sb.from('pebble_history').select('*'),
-    sb.from('transactions').select('id,property_id,deal_id,kind,tx_date,price,costs,notes,properties(id,apn,address,city)').order('tx_date',{ascending:false}).limit(5000),
-    sb.from('campaigns').select('id,name,drop_date,records,cost,channel,mail_status').limit(2000),
-    sb.from('deals').select('id,board,created_at,source,campaign_id,lead_id,property_id,property_label').or('source.is.null,source.neq.pebble').gte('created_at',a).lte('created_at',end).limit(5000)]);
+    pageAll(()=>sb.from('transactions').select('id,property_id,deal_id,kind,tx_date,price,costs,notes,properties(id,apn,address,city)').order('tx_date',{ascending:false}).order('id',{ascending:false})),
+    pageAll(()=>sb.from('campaigns').select('id,name,drop_date,records,cost,channel,mail_status').order('id')),
+    pageAll(()=>sb.from('deals').select('id,board,created_at,source,campaign_id,lead_id,property_id,property_label').or('source.is.null,source.neq.pebble').gte('created_at',aUTC).lte('created_at',bUTC).order('id'))]);
   const inR=d=>d&&d>=a&&d<=b;
   const h=histSum(H||[],a,b);
   // Activity: Pebble's own report covers every day through its last day; DLG HQ messages count only after that
@@ -422,7 +426,7 @@ async function vDashboard(){
   const profit=rev-spent,avgDur=durs.length?Math.round(durs.reduce((s,x)=>s+x,0)/durs.length):0;
   // Pipeline status comes from the deals' Buyer Deals stages (not the transaction log).
   // Assigned = buyer-board stage named assign* or closed. Under contract = other buyer-board deals, excluding no-go/dead.
-  const {data:allDeals}=await sb.from('deals').select('id,board,stage_id,campaign_id,property_id,property_label,purchase_price,assignment_price,value,closing_date,as_meta,updated_at,properties(apn)').eq('board','buyer').limit(1000);
+  const {data:allDeals}=await pageAll(()=>sb.from('deals').select('id,board,stage_id,status,as_status,campaign_id,property_id,property_label,purchase_price,assignment_price,value,closing_date,as_meta,updated_at,properties(apn)').eq('board','buyer').order('id'));
   const stName=id=>(STAGES.find(s=>s.id===id)?.name||'');
   const isNoGo=n=>/no go|dead|lost|fell/i.test(n);
   const isAssignedD=d=>{const s=STAGES.find(x=>x.id===d.stage_id);return !!(s&&(s.closed||/^closed$/i.test(s.name)||/assign/i.test(s.name)))};
@@ -454,21 +458,26 @@ async function vDashboard(){
   const roi=contractTotal?feeTotal/contractTotal*100:0;
   const dRows=[...underD.map(d=>({d,st:'Under contract'})),...closedD.map(d=>({d,st:'Closed'}))];
   // CAMPAIGN REPORT ACCURACY (Nov 2026): mail campaigns only, not ones still waiting to send; spend and response rate count
-  // LETTERS (one per owner), not lots, at each campaign's own cost per piece; leads = seller responses only (buyers are not leads).
+  // LETTERS (one per owner), not lots; spend = letters x MAIL_PIECE; leads = seller responses only (buyers are not leads).
   const C=(camps||[]).filter(c=>inR(c.drop_date)&&(!c.channel||c.channel==='mail')&&c.mail_status!=='not_sent');
-  const _let={};if(C.length){const ids=C.map(c=>c.id);for(let i=0;i<ids.length;i+=20){for(let f=0;;f+=1000){const {data:pg}=await sb.from('campaign_records').select('id,campaign_id,lead_id,property_id,leads(mail_address,mail_zip)').in('campaign_id',ids.slice(i,i+20)).order('id').range(f,f+999);if(!pg||!pg.length)break;pg.forEach(r=>{(_let[r.campaign_id]=_let[r.campaign_id]||new Set()).add(ownKey(r))});if(pg.length<1000)break}}}
-  const lettersOf=c=>_let[c.id]?_let[c.id].size:(c.records||0);
-  const costOf=c=>{const lots=+c.records||0,l=lettersOf(c);return lots?(+c.cost||0)*Math.min(1,l/lots):(+c.cost||0)};
-  const cSpent=C.reduce((s,c)=>s+costOf(c),0),cRec=C.reduce((s,c)=>s+lettersOf(c),0);
-  const mailCampIds=new Set((camps||[]).filter(c=>!c.channel||c.channel==='mail').map(c=>c.id));
-  const sellerD=dl.filter(d=>d.board!=='buyer');const mailLeads=sellerD.filter(d=>(d.campaign_id&&mailCampIds.has(d.campaign_id))||/mail|letter/i.test(d.source||''));
-  const otherLeads=sellerD.length-mailLeads.length;
   // Mail goal: Mon-Sun weeks in local time; mail campaigns only
   const MAIL_GOAL=5000;const wkMon=(()=>{const t=new Date();const dow=(t.getDay()+6)%7;return new Date(t.getFullYear(),t.getMonth(),t.getDate()-dow)})();
   const wkRange=i=>{const s0=new Date(wkMon);s0.setDate(s0.getDate()+7*i);const e0=new Date(s0);e0.setDate(e0.getDate()+6);return [localISO(s0),localISO(e0)]};
   const isMailCamp=c=>!c.channel||c.channel==='mail';
   const inWeek=(c,i)=>{const [w0,w1]=wkRange(i);return isMailCamp(c)&&c.drop_date>=w0&&c.drop_date<=w1};
-  const mailedThisWeek=(camps||[]).filter(c=>inWeek(c,0)&&c.mail_status==='sent').reduce((s,c)=>s+(c.records||0),0);
+  const wk0Sent=(camps||[]).filter(c=>inWeek(c,0)&&c.mail_status==='sent');
+  const _let={};{const ids=[...new Set([...C,...wk0Sent].map(c=>c.id))];for(let i=0;i<ids.length;i+=20){for(let f=0;;f+=1000){const {data:pg}=await sb.from('campaign_records').select('id,campaign_id,lead_id,property_id,'+OWN_SEL).in('campaign_id',ids.slice(i,i+20)).order('id').range(f,f+999);if(!pg||!pg.length)break;pg.forEach(r=>{(_let[r.campaign_id]=_let[r.campaign_id]||[]).push(r)});if(pg.length<1000)break}}
+    for(const k in _let)_let[k]=new Set(ownIndex(_let[k]).map(ownKey))}
+  const lettersOf=c=>_let[c.id]?_let[c.id].size:(c.records||0);
+  // no rescaling: a counted campaign costs its letters x MAIL_PIECE; any other campaign uses its saved cost (letters x MAIL_PIECE)
+  const costOf=c=>_let[c.id]?_let[c.id].size*MAIL_PIECE:(+c.cost||0);
+  const cSpent=C.reduce((s,c)=>s+costOf(c),0),cRec=C.reduce((s,c)=>s+lettersOf(c),0);
+  const mailCampIds=new Set((camps||[]).filter(c=>!c.channel||c.channel==='mail').map(c=>c.id));
+  // a mail source ("mail", "direct mail", "letter"), never "email"/"e-mail"
+  const mailSrc=s=>!/e-?mail/i.test(s||'')&&/\b(direct )?mail\b|letter/i.test(s||'');
+  const sellerD=dl.filter(d=>d.board!=='buyer');const mailLeads=sellerD.filter(d=>(d.campaign_id&&mailCampIds.has(d.campaign_id))||mailSrc(d.source));
+  const otherLeads=sellerD.length-mailLeads.length;
+  const mailedThisWeek=wk0Sent.reduce((s,c)=>s+lettersOf(c),0);
   const queuedNext=(camps||[]).filter(c=>inWeek(c,1)).reduce((s,c)=>s+(c.records||0),0);
   const queuedAfter=(camps||[]).filter(c=>inWeek(c,2)).reduce((s,c)=>s+(c.records||0),0);
   const mailPct=Math.min(100,MAIL_GOAL?mailedThisWeek/MAIL_GOAL*100:0);
@@ -479,10 +488,12 @@ async function vDashboard(){
     const hit=new Set((crs||[]).filter(x=>cIds.has(x.campaign_id)).map(x=>x.property_id));rows.forEach(r=>{if(r.buy&&r.sell&&hit.has(r.p?.id))attrProfit+=(+r.sell.price)-(+r.buy.price)-(+r.buy.costs||0)-(+r.sell.costs||0)})}}
   // ROAS: assignment fees from this range's assigned/closed deals, over the cost of the campaigns those deals came from (whenever they dropped)
   // a closed deal with no campaign link is credited to the most recent mail campaign that mailed its property
-  const _noC=closedD.filter(d=>!d.campaign_id&&d.property_id);const _via={};
+  // (only mail campaigns get credit: a deal linked to a text/email campaign is credited through its property's mail campaign)
+  const mailCid=d=>d.campaign_id&&mailCampIds.has(d.campaign_id)?d.campaign_id:null;
+  const _noC=closedD.filter(d=>!mailCid(d)&&d.property_id);const _via={};
   if(_noC.length){const {data:cr2}=await sb.from('campaign_records').select('property_id,campaign_id,campaigns!inner(drop_date,channel)').in('property_id',_noC.map(d=>d.property_id));
     (cr2||[]).filter(x=>!x.campaigns.channel||x.campaigns.channel==='mail').forEach(x=>{const o=_via[x.property_id];if(!o||x.campaigns.drop_date>o.d)_via[x.property_id]={id:x.campaign_id,d:x.campaigns.drop_date}})}
-  const campOf=d=>d.campaign_id||_via[d.property_id]?.id||null;
+  const campOf=d=>mailCid(d)||_via[d.property_id]?.id||null;
   const campD=closedD.filter(d=>campOf(d));const campFee=campD.reduce((s,d)=>s+feeOf(d),0);
   const campCost=[...new Set(campD.map(campOf))].reduce((s,id)=>{const c=(camps||[]).find(x=>x.id===id);return s+(c?costOf(c):0)},0);
   const roas=campCost?campFee/campCost*100:0;
@@ -506,7 +517,7 @@ async function vDashboard(){
   // charts
   CHARTS.forEach(c=>c.destroy());CHARTS=[];if(!window.Chart)return;
   const bk=buckets(a,b),L=bk.map(x=>lbl(x[0]));
-  const per=bk.map(([x,y])=>{const hh=histSum(H||[],x,y);const dd=(dl||[]).filter(d=>d.created_at.slice(0,10)>=x&&d.created_at.slice(0,10)<=y);const mm=M.filter(m=>m.created_at.slice(0,10)>=x&&m.created_at.slice(0,10)<=y);
+  const per=bk.map(([x,y])=>{const hh=histSum(H||[],x,y);const dd=(dl||[]).filter(d=>{const t=localISO(d.created_at);return t>=x&&t<=y});const mm=M.filter(m=>{const t=localISO(m.created_at);return t>=x&&t<=y});
     return {seller:Math.round(hh.seller)+dd.filter(d=>d.board==='seller').length,buyer:Math.round(hh.buyer)+dd.filter(d=>d.board==='buyer').length,
       mail:(camps||[]).filter(c=>c.drop_date>=x&&c.drop_date<=y&&(!c.channel||c.channel==='mail')&&c.mail_status!=='not_sent').reduce((s,c)=>s+lettersOf(c),0),
       calls:Math.round(hh.calls)+mm.filter(m=>m.channel==='call').length,texts:Math.round(hh.texts)+mm.filter(m=>m.channel==='sms'&&m.direction==='out').length,emails:Math.round(hh.emails)+mm.filter(m=>m.channel==='email'&&m.direction==='out').length}});
@@ -613,12 +624,16 @@ async function rsSweep(){if(RS_CHECKED.has('sweep'))return;RS_CHECKED.add('sweep
   const {data}=await sb.from('deals').select('id,rs_folder_id,rs_status,as_folder_id,as_status').or('and(rs_folder_id.not.is.null,rs_status.neq.signed),and(as_folder_id.not.is.null,as_status.neq.signed)').limit(25);
   for(const d of data||[]){const jobs=[];if(d.rs_folder_id&&d.rs_status!=='signed')jobs.push('psa');if(d.as_folder_id&&d.as_status!=='signed')jobs.push('asg');
     for(const k of jobs){RS_CHECKED.add(d.id+':'+k);try{await sb.functions.invoke('rabbitsign/status',{body:{deal_id:d.id,remind:false,kind:k}})}catch(e){}}}}
+// every buyer (paged past the 1,000-row limit) for the buyer pickers
+async function loadBuyers(){return (await pageAll(()=>sb.from('buyers').select('id,name,company,email').order('name').order('id'))).data||[]}
 async function openDealForm(d){
   const xp=(d?.extra_property_ids||[]).length?((await sb.from('properties').select('id,apn,address,city,county,acres').in('id',d.extra_property_ids)).data||[]):[];
-  if(!BUYERS){const {data}=await sb.from('buyers').select('id,name,company,email').order('name');BUYERS=data||[]}
+  if(!BUYERS)BUYERS=await loadBuyers();
+  // a buyer no longer in the list (deleted / not loaded) stays selected instead of being blanked on save
+  if(d.buyer_id&&!BUYERS.some(b=>b.id===d.buyer_id))BUYERS.push({id:d.buyer_id,name:'Buyer #'+d.buyer_id});
   const none={data:[]};
   const [{data:camps},{data:tasks},{data:plans},{data:enr},{data:msgs}]=await Promise.all([
-    sb.from('campaigns').select('id,name,drop_date').order('created_at',{ascending:false}).limit(1000),
+    pageAll(()=>sb.from('campaigns').select('id,name,drop_date').order('created_at',{ascending:false}).order('id',{ascending:false})),
     d.id?sb.from('tasks').select('*').eq('deal_id',d.id).order('due_at'):none,
     sb.from('followup_plans').select('id,name').order('name'),
     d.lead_id?sb.from('followup_enrollments').select('*, followup_plans(name)').eq('lead_id',d.lead_id).eq('status','active'):none,
@@ -648,7 +663,7 @@ async function openDealForm(d){
      <div class="g3"><div><label class="f">Escalate up to</label><div class="moneyin"><span>$</span><input id="d_esc_max" type="number" step="any" value="${esc(d.as_meta?.esc_max??'')}"></div></div><div><label class="f">Escalation increments</label><div class="moneyin"><span>$</span><input id="d_esc_step" type="number" step="any" value="${esc(d.as_meta?.esc_step??'')}"></div></div><div class="small muted" style="align-self:end">${d.as_meta?.esc_max&&d.purchase_price?'Offer '+money(d.purchase_price)+' escalating by '+money(d.as_meta.esc_step||0)+' up to '+money(d.as_meta.esc_max):'Purchase price = starting offer'}</div></div>
      <div class="small muted" style="margin:-4px 0 8px">Value = your fee after the JV partner's cut. The dashboard counts Value.</div>
      <div class="g2">${tf('attorney','Closing attorney')}<div><label class="f">Buyer</label>${buyerSearch('d_buyer_id')}<select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>buyerOpt(b,b.id===d.buyer_id)).join('')}</select></div></div>
-     <div class="g2"><div style="grid-column:1/-1"><label class="f">Campaign</label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}</select></div></div>
+     <div class="g2"><div style="grid-column:1/-1"><label class="f">Campaign</label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}${d.campaign_id&&!(camps||[]).some(c=>c.id===d.campaign_id)?`<option value="${d.campaign_id}" selected>Campaign #${d.campaign_id}</option>`:''}</select></div></div>
      <div class="g2">${tf('source','Source')}${!d.id||!p?tf('property_label','Property address'):`<input id="d_property_label" type="hidden" value="${esc(d.property_label||'')}">`}</div>
      <div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="saveDeal(${d.id||0},'${board}')">Save deal</button>
      ${d.id?(board==='seller'?`<button class="btn" style="background:var(--accent)" onclick="moveToBuyer(${d.id})">Under contract → Buyer Deals</button>`:`<button class="btn ghost" onclick="moveToSeller(${d.id})">← Back to Seller Deals</button>`)+`<button class="btn danger" style="margin-left:auto" onclick="delDeal(${d.id},'${board}')">Delete deal</button>`:''}</div></div>
@@ -743,7 +758,8 @@ async function pickLead(dealId){const q=$('d_lq').value.trim();if(!q)return;cons
   $('d_lres').innerHTML=(data||[]).map(l=>`<div class="pitem" onclick="linkLead(${dealId},${l.id})">${esc(leadName(l))} <span class="small muted">${esc(l.phone||'')} ${esc(l.prop_address||'')}</span></div>`).join('')||'<div class="muted small">No match.</div>'}
 async function linkLead(dealId,leadId){await sb.from('deals').update({lead_id:leadId}).eq('id',dealId);openDeal(dealId)}
 async function addTask(dealId,leadId){const t=$('d_task').value.trim();if(!t)return;await sb.from('tasks').insert({deal_id:dealId,lead_id:leadId,title:t,due_at:$('d_taskdue').value?$('d_taskdue').value+'T12:00:00':null});openDeal(dealId)}
-async function toggleTask(id,done){await sb.from('tasks').update({status:done?'done':'todo'}).eq('id',id)}
+// done_at (bug_sweep_nov5.sql) sorts "Done recently"; falls back to status only if the column isn't there yet
+async function toggleTask(id,done){const {error}=await sb.from('tasks').update({status:done?'done':'todo',done_at:done?new Date().toISOString():null}).eq('id',id);if(error)await sb.from('tasks').update({status:done?'done':'todo'}).eq('id',id)}
 async function enroll(leadId,dealId){const p=$('d_plan').value;if(!p)return;
   const {data:l}=await sb.from('leads').select('status,tags,do_not_mail').eq('id',leadId).single();
   if(l&&(['dead','not_selling'].includes(l.status)||(l.tags||[]).some(t=>/opted out|dnc|not interested|not selling|sold|listed/i.test(t))))return toast('Not enrolled: this contact is marked '+(l.status==='dead'||l.status==='not_selling'?l.status.replace('_',' '):'do not contact'));
@@ -1070,7 +1086,7 @@ async function rsAsgDialog(id){const {deal}=kDeal();
   const {data:d}=await sb.from('deals').select('buyer_id,as_folder_id,as_status, buyers(id,name,company,represents,email)').eq('id',id).single();
   if(d?.as_folder_id&&d.as_status!=='signed'&&!confirm('An assignment for this deal was already sent through RabbitSign. Send a new one anyway?'))return;
   const psa=await rsSignedPsa(id);let me={name:'Damien Dupee',email:'dominionlandgroup@gmail.com'};try{me=JSON.parse(localStorage.getItem('rs_me'))||me}catch(e){}
-  const b=d?.buyers||{};if(!BUYERS)BUYERS=(await sb.from('buyers').select('id,name,company,email').order('name')).data||[];
+  const b=d?.buyers||{};if(!BUYERS)BUYERS=await loadBuyers();
   $('k_msg').innerHTML=`<div class="card" style="margin-top:10px"><h4 style="margin:0 0 6px">Send Assignment for e-signature</h4>
     <div class="small muted" style="margin-bottom:8px">One PDF goes out: the signed purchase agreement in front, the assignment behind it. You sign first, then the buyer. When both have signed, the signed copy is saved to this deal, the deal moves to <b>Buyer Deals › Assigned to Buyer - No EMD</b> with the fee on the card, and the assignment price is filled in.</div>
     <div class="small" style="margin-bottom:8px;padding:8px;border:1px solid var(--line);border-radius:8px">${psa?`📎 Front: <b>${esc(psa.name)}</b>`:`⚠️ No signed purchase agreement found on this deal. It will go out with the assignment only, unless you upload the signed copy first (name it starting with "SIGNED -").`}</div>
@@ -1103,7 +1119,7 @@ async function rsAsgSend(id){const {deal}=kDeal();const v=k=>($(k)?.value||'').t
     const asg_meta={..._jv,assignee:deal.assignment.assignee,fee:Number.isFinite(fee)?fee:null,buyer_id:bid,assignment_price:Number.isFinite(fee)&&deal.purchase_price?deal.purchase_price+fee:null,signed_psa_in_front:!!psa,close_date:(()=>{const t=new Date(deal.assignment.close_by||'');return isNaN(t)?null:t.toISOString().slice(0,10)})()};
     btn.textContent='Sending…';const {data,error}=await sb.functions.invoke('rabbitsign/send',{body:{deal_id:id,doc_kind:'asg',asg_meta,pdf_base64:btoa(bin),file_name:fname,title:v('rs_title'),summary:v('rs_msg'),signers}});
     if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}if(data?.error)throw new Error(data.error);
-    if(bid)await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);
+    if(bid){await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);BUYERS=null;if(window.BH)BH.buyers=null}
     const blob=new Blob([bytes],{type:'application/pdf'});const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
     if(!(await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/pdf'})).error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`Sent for signature - Assignment${psa?' (with signed purchase agreement)':''} - ${slug} (${new Date().toLocaleDateString()})`,storage_path:path,source:'rabbitsign'});
     $('rs_out').innerHTML=`✅ Sent. Check <b>${esc(me.email)}</b> — RabbitSign emails you first to sign, then <b>${esc(buyer.email)}</b>. When both sign, this deal moves to Assigned to Buyer automatically.`;toast('Assignment sent through RabbitSign')}
@@ -1140,7 +1156,7 @@ async function rsResaleSend(id,bid){const {deal}=kDeal();const v=k=>($(k)?.value
     const asg_meta={..._jv,resale:true,assignee:deal.resale.buyer,fee,buyer_id:bid,assignment_price:price,signed_psa_in_front:false,close_date:(()=>{const t=new Date(deal.close_date||'');return isNaN(t)?(_am?.as_meta?.close_date||null):t.toISOString().slice(0,10)})()};
     btn.textContent='Sending…';const {data,error}=await sb.functions.invoke('rabbitsign/send',{body:{deal_id:id,doc_kind:'asg',asg_meta,pdf_base64:btoa(bin),file_name:fname,title:v('rs_title'),summary:v('rs_msg'),signers}});
     if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}if(data?.error)throw new Error(data.error);
-    if(bid)await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);
+    if(bid){await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);BUYERS=null;if(window.BH)BH.buyers=null}
     const blob=new Blob([bytes],{type:'application/pdf'});const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
     if(!(await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/pdf'})).error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`Sent for signature - Resale Purchase Agreement - ${slug} (${new Date().toLocaleDateString()})`,storage_path:path,source:'rabbitsign'});
     $('rs_out').innerHTML=`✅ Sent. Check <b>${esc(me.email)}</b> — RabbitSign emails you first to sign, then <b>${esc(buyer.email)}</b>.`;toast('Resale agreement sent through RabbitSign')}
@@ -1583,30 +1599,52 @@ const MAIL_PIECE=0.55; // cost per letter at the mail house
 const MAIL_MIN=5000,MAIL_MAX=5200,MAIL_FILE_MAX=5000;
 // ONE LETTER PER OWNER (Nov 2026): an owner (same mailing address, or same lead) with several lots on a mailing gets ONE
 // letter that lists all their parcels. Sizes (5,000 minimum, 5,200 cap) and costs count letters, not lots.
-const ownKey=r=>{const l=r.leads||{};const a=String(l.mail_address||'').toLowerCase().replace(/[^a-z0-9]/g,''),z=String(l.mail_zip||'').slice(0,5);return a?('a'+a+'|'+z):('l'+(r.lead_id||r.id))};
-const letterCount=recs=>new Set(recs.map(ownKey)).size;
+// Owner = same mailing address + zip: everyone at one household (spouses, co-owners, name spellings) gets ONE letter.
+// The only split: when two or more clearly different COMPANIES (LLC, Inc, Corp, Trust, Church...) share the address
+// (e.g. a registered-agent address), each company gets its own letter; the individuals there still share one letter.
+// ownIndex(recs) works this out for a set of records (letterCount calls it); every query feeding it must select OWN_SEL.
+const ownName=l=>String(l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' ')).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().split(' ').filter(Boolean).sort().join(' ');
+const OWN_CO=/\b(llc|l l c|inc|incorporated|corp|corporation|co|company|companies|church|ministries|trust|trustees?|bank|association|assn|partners|partnership|lp|llp|ltd|limited|holdings|properties|investments|group|homes|builders|development|realty|enterprises|foundation)\b/;
+const ownAddr=r=>{const l=r.leads||{};const a=String(l.mail_address||'').toLowerCase().replace(/[^a-z0-9]/g,''),z=String(l.mail_zip||'').slice(0,5);return a?('a'+a+'|'+z):('l'+(r.lead_id||r.id))};
+const ownIndex=recs=>{const cos={};recs.forEach(r=>{const a=ownAddr(r),n=ownName(r.leads||{});if(a[0]==='a'&&OWN_CO.test(n))(cos[a]=cos[a]||new Set()).add(n)});
+  recs.forEach(r=>{const a=ownAddr(r),n=ownName(r.leads||{});r._ok=(cos[a]&&cos[a].size>1&&OWN_CO.test(n))?a+'|c:'+n:a});return recs};
+const ownKey=r=>r._ok||ownAddr(r);
+const OWN_SEL='leads(full_name,first_name,last_name,mail_address,mail_zip)';
+const letterCount=recs=>new Set(ownIndex(recs).map(ownKey)).size;
 const joinList=a=>a.length<=1?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
 const parcelsText=apns=>{const a=[...new Set(apns.filter(Boolean))];if(a.length<=1)return `lot (parcel ${a[0]||''})`;const shown=a.length>2?a.slice(0,2).concat([`${a.length-2} more`]):a;return `lots (parcels ${joinList(shown)})`};
-async function recountCampaign(cid){const ks=new Set();let n=0;for(let f=0;;f+=1000){const {data,error}=await sb.from('campaign_records').select('id,lead_id,leads(mail_address,mail_zip)').eq('campaign_id',cid).order('id').range(f,f+999);if(error||!data||!data.length)break;n+=data.length;data.forEach(r=>ks.add(ownKey(r)));if(data.length<1000)break}
+async function recountCampaign(cid,piece=MAIL_PIECE){const all=[];for(let f=0;;f+=1000){const {data,error}=await sb.from('campaign_records').select('id,lead_id,'+OWN_SEL).eq('campaign_id',cid).order('id').range(f,f+999);if(error)throw error;if(!data||!data.length)break;all.push(...data);if(data.length<1000)break}
   // records = lots; cost = letters (one per owner) x the cost per piece
-  await sb.from('campaigns').update({records:n,cost:+(ks.size*MAIL_PIECE).toFixed(2)}).eq('id',cid);return n}
+  await sb.from('campaigns').update({records:all.length,cost:+(letterCount(all)*piece).toFixed(2)}).eq('id',cid);return all.length}
+// Highest record number used with an offer code prefix ANYWHERE in DLG HQ (campaign records, contacts, old Pebble/GHL codes).
+// Paged in id order so no row is skipped or read twice.
+async function codeMax(pre){let max=0;const re=new RegExp('^'+pre.replace(/[^A-Za-z0-9]/g,'')+'-(\\d+)$','i');
+  for(const [t,col] of [['campaign_records','offer_code'],['leads','offer_code'],['legacy_codes','code']])for(let f=0;;f+=1000){const {data,error}=await sb.from(t).select('id,'+col).ilike(col,pre+'-%').order('id').range(f,f+999);if(error)throw error;
+    (data||[]).forEach(x=>{const m=re.exec(String(x[col]||'').trim());if(m)max=Math.max(max,+m[1])});if(!data||data.length<1000)break}
+  return max}
 // Moves records into another campaign and gives them new offer codes that continue that campaign's numbering
 // (or a brand-new prefix if it has none), so no code or prefix is shared between campaigns.
-async function moveRecords(recs,toCid){if(!recs.length)return 0;const ids=recs.map(r=>r.id),from=[...new Set(recs.map(r=>r.campaign_id))];
-  for(let i=0;i<ids.length;i+=200){const {error}=await sb.from('campaign_records').update({campaign_id:toCid,offer_code:null}).in('id',ids.slice(i,i+200));if(error)throw error}
-  const cnt={};for(let f=0;;f+=1000){const {data,error}=await sb.from('campaign_records').select('offer_code').eq('campaign_id',toCid).not('offer_code','is',null).range(f,f+999);if(error)throw error;(data||[]).forEach(x=>{const m=/^(\d+)-(\d+)$/.exec(x.offer_code||'');if(m){const c=cnt[m[1]]||(cnt[m[1]]={n:0,max:0});c.n++;c.max=Math.max(c.max,+m[2])}});if((data||[]).length<1000)break}
-  let pre=Object.entries(cnt).sort((a,b)=>b[1].n-a[1].n)[0],max=pre?pre[1].max:0;pre=pre?pre[0]:null;
-  if(!pre){const {data,error}=await sb.rpc('next_code_prefix');if(error)throw error;pre=String(data)}
-  if(max+recs.length>LB.MAX_CODED)throw new Error(LB.tooBigMsg(max+recs.length));
-  const jobs=recs.map(r=>({id:r.id,lead_id:r.lead_id,code:pre+'-'+String(++max).padStart(3,'0')}));
-  for(let i=0;i<jobs.length;i+=10)await Promise.all(jobs.slice(i,i+10).map(async j=>{const {error}=await sb.from('campaign_records').update({offer_code:j.code}).eq('id',j.id);if(error)throw error;if(j.lead_id)await sb.from('leads').update({offer_code:j.code}).eq('id',j.lead_id)}));
-  for(const c of [...from,toCid])await recountCampaign(c);return recs.length}
-// unsent campaigns with the same letter, mailing after this one (soonest first)
-async function laterCampaigns(ids,tpl,after){const {data}=await sb.from('campaigns').select('id,name,drop_date,template,mail_status').eq('channel','mail').gt('drop_date',after).not('id','in','('+ids.join(',')+')').order('drop_date');
-  return (data||[]).filter(x=>(!x.mail_status||x.mail_status==='not_sent')&&x.template===tpl)}
+// The code room is checked BEFORE anything moves; each record's campaign and new code are saved in one update, so a
+// record never sits without a code. Throws (after moving what it could) if any record fails.
+async function moveRecords(recs,toCid){if(!recs.length)return 0;const from=[...new Set(recs.map(r=>r.campaign_id))];
+  const cnt={};for(let f=0;;f+=1000){const {data,error}=await sb.from('campaign_records').select('id,offer_code').eq('campaign_id',toCid).not('offer_code','is',null).order('id').range(f,f+999);if(error)throw error;(data||[]).forEach(x=>{const m=/^([A-Za-z0-9]+)-(\d+)$/.exec(String(x.offer_code||'').trim());if(m)cnt[m[1]]=(cnt[m[1]]||0)+1});if(!data||data.length<1000)break}
+  let pre=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
+  if(!pre){const {data,error}=await sb.rpc('next_code_prefix');if(error)throw error;if(data==null||!/^[A-Za-z0-9]+$/.test(String(data).trim()))throw new Error('Could not get a new offer code prefix. Nothing was moved.');pre=String(data).trim()}
+  const max=await codeMax(pre);
+  if(max+recs.length>LB.MAX_CODED)throw new Error(`Can't move ${recs.length.toLocaleString()} records: codes ${pre}-… are already used up to ${pre}-${max}, and a prefix only goes to ${LB.MAX_CODED}. Nothing was moved.`);
+  let n=max;const jobs=recs.map(r=>({id:r.id,lead_id:r.lead_id,code:pre+'-'+String(++n).padStart(3,'0')}));const fail=[];let done=0;
+  for(let i=0;i<jobs.length;i+=10)await Promise.all(jobs.slice(i,i+10).map(async j=>{const {error}=await sb.from('campaign_records').update({campaign_id:toCid,offer_code:j.code}).eq('id',j.id);if(error){fail.push(error.message);return}done++;if(j.lead_id)await sb.from('leads').update({offer_code:j.code}).eq('id',j.lead_id)}));
+  for(const c of [...from,toCid])await recountCampaign(c);
+  if(fail.length)throw new Error(`${fail.length.toLocaleString()} of ${recs.length.toLocaleString()} records could not be moved (${fail[0]}); they are still in their old campaign with their old code. ${done.toLocaleString()} moved.`);
+  return done}
+// unsent campaigns with the same letter, mailing after this one (soonest first). Never a HOLD campaign.
+// opt.dest = a place to MOVE records to: never a 2099 pool/hold placeholder (a POOL is fine as a top-up source).
+const isHoldCamp=x=>/^HOLD\b/i.test(x.name||''),isPlaceholder=x=>String(x.drop_date||'')>='2099-01-01'||/^(POOL|HOLD)\b/i.test(x.name||'');
+async function laterCampaigns(ids,tpl,after,opt={}){const {data,error}=await sb.from('campaigns').select('id,name,drop_date,template,mail_status').eq('channel','mail').gt('drop_date',after).not('id','in','('+ids.join(',')+')').order('drop_date').order('id');if(error)throw error;
+  return (data||[]).filter(x=>(!x.mail_status||x.mail_status==='not_sent')&&x.template===tpl&&!isHoldCamp(x)&&(!opt.dest||!isPlaceholder(x)))}
 async function newLaterCampaign(src,tpl,date,label){const {data,error}=await sb.from('campaigns').insert({name:`${label} from "${src.name}" (mail on or after ${fmtDate(date)})`,channel:'mail',drop_date:date,template:tpl,source:'hq',mail_status:'not_sent'}).select().single();if(error)throw error;return data}
 async function buildMailList(idOrIds,opt={}){
-  const ids=[].concat(idOrIds).map(Number),id=ids[0];if(!opt.auto){window._tuPass=0;window._tuLog=[];window._ocCache={}}
+  const ids=[].concat(idOrIds).map(Number),id=ids[0];if(!opt.auto){window._tuPass=0;window._tuLog=[];window._ocCache={};window._mlDone=null}
   $('m_send').disabled=true;$('m_msg').textContent='Checking offer codes…';
   // OFFER CODE GATE: every code must be unique across all of DLG HQ (other campaigns, contacts, old Pebble/GHL codes)
   let _cx={codes:[],prefixes:[]};try{for(const i of ids){const x=await LB.offerCodeClashes(i);_cx.codes.push(...(x.codes||[]));_cx.prefixes.push(...(x.prefixes||[]))}}catch(e){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">Could not check offer codes: ${esc(e.message)}</b> Nothing was sent. Try again.`}
@@ -1614,22 +1652,24 @@ async function buildMailList(idOrIds,opt={}){
   $('m_msg').textContent='Building list…';const all=[];
   for(let from=0;;from+=1000){const {data,error}=await sb.from('campaign_records').select('id, campaign_id, offer_code, lead_id, property_id, leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip,do_not_mail,phone,phone2,phone3,status,tags,notes), properties(apn,address,city,state,zip,county,fips,acres,fields,tags)').in('campaign_id',ids).order('id').range(from,from+999);
     if(error){$('m_msg').textContent=error.message;return}all.push(...data);if(data.length<1000)break}
-  const sup=new Set(),on=$('m_sup').checked;if(on){const s=[];for(let f=0;;f+=1000){const r=await sb.from('suppression').select('phone,apn').order('apn').range(f,f+999);if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not load the opt-out list: '+esc(r.error.message)+'</b> Nothing was sent.'}s.push(...r.data);if(r.data.length<1000)break}(s||[]).forEach(x=>{if(p10(x.phone).length===10)sup.add(p10(x.phone));if(x.apn)sup.add('A'+LB.apnKey(x.apn))})}
+  const sup=new Set(),on=$('m_sup').checked;if(on){const s=[];for(let f=0;;f+=1000){const r=await sb.from('suppression').select('phone,apn').order('apn',{nullsFirst:true}).order('phone',{nullsFirst:true}).range(f,f+999);if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not load the opt-out list: '+esc(r.error.message)+'</b> Nothing was sent.'}s.push(...r.data);if(r.data.length<1000)break}(s||[]).forEach(x=>{if(p10(x.phone).length===10)sup.add(p10(x.phone));if(x.apn)sup.add('A'+LB.apnKey(x.apn))})}
   // open deals (any deal not closed, lost or cancelled) on the contact or the property: never mail them
   const dealL=new Set(),dealP=new Set();if(on){const lids=[...new Set(all.map(r=>r.lead_id).filter(Boolean))],pids=[...new Set(all.map(r=>r.property_id).filter(Boolean))];
     for(const [col,ids,set] of [['lead_id',lids,dealL],['property_id',pids,dealP]])for(let i=0;i<ids.length;i+=200){const r=await LB.openDeals(sb.from('deals').select(col).in(col,ids.slice(i,i+200)));if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not check open deals: '+esc(r.error.message)+'</b> Nothing was sent.'}(r.data||[]).forEach(d=>set.add(d[col]))}}
   const supPh=l=>[l?.phone,l?.phone2,l?.phone3].some(x=>sup.has(p10(x)));
   const kept0=all.filter(r=>!on||(!r.leads?.do_not_mail&&!noMailWhy(r.leads,r.properties)&&!dealL.has(r.lead_id)&&!dealP.has(r.property_id)&&!supPh(r.leads)&&!(r.properties?.apn&&sup.has('A'+LB.apnKey(r.properties.apn)))));
   // 90-DAY CHECK (Nov 2026): nobody gets two letters within 90 days. A record is held if the same property or the same
-  // owner is in another campaign whose mail date is within the 90 days before this campaign's mail date (sent or not).
+  // owner is in another campaign whose mail date is within the 90 days before this campaign's mail date (sent or not),
+  // or in a campaign that already went to the mail house with a mail date within 90 days AFTER this one.
   // Held records are left out of this list but stay in the campaign; the message shows the date each one can be mailed.
   const held=[];if(on){const {data:_d}=await sb.from('campaigns').select('drop_date').in('id',ids);const _md=(_d||[]).map(x=>x.drop_date).filter(Boolean).sort()[0]||localISO();
-    const _t=new Date(_md+'T12:00:00'),_lo=new Date(_t.getTime()-90*864e5).toISOString().slice(0,10),last={};
+    const _t=new Date(_md+'T12:00:00'),_lo=new Date(_t.getTime()-90*864e5).toISOString().slice(0,10),_hi=new Date(_t.getTime()+90*864e5).toISOString().slice(0,10),last={};
+    const _went=c=>c.drop_date<=_md||(c.mail_status&&c.mail_status!=='not_sent');
     const lids=[...new Set(kept0.map(r=>r.lead_id).filter(Boolean))],pids=[...new Set(kept0.map(r=>r.property_id).filter(Boolean))];
     for(const [col,list] of [['lead_id',lids],['property_id',pids]])for(let i=0;i<list.length;i+=200){$('m_msg').textContent=`Checking who was mailed in the last 90 days (${col==='lead_id'?'owners':'properties'} ${Math.min(i+200,list.length).toLocaleString()} of ${list.length.toLocaleString()})…`;
-      for(let f=0;;f+=1000){const r=await sb.from('campaign_records').select(col+',campaign_id,campaigns!inner(name,drop_date)').in(col,list.slice(i,i+200)).not('campaign_id','in','('+ids.join(',')+')').gt('campaigns.drop_date',_lo).lte('campaigns.drop_date',_md).range(f,f+999);
+      for(let f=0;;f+=1000){const r=await sb.from('campaign_records').select('id,'+col+',campaign_id,campaigns!inner(name,drop_date,mail_status)').in(col,list.slice(i,i+200)).not('campaign_id','in','('+ids.join(',')+')').gt('campaigns.drop_date',_lo).lt('campaigns.drop_date',_hi).order('id').range(f,f+999);
         if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not run the 90-day check: '+esc(r.error.message)+'</b> Nothing was sent.'}
-        (r.data||[]).forEach(x=>{const k=col[0]+x[col],o=last[k];if(!o||x.campaigns.drop_date>o.d)last[k]={d:x.campaigns.drop_date,n:x.campaigns.name}});if((r.data||[]).length<1000)break}}
+        (r.data||[]).forEach(x=>{if(!_went(x.campaigns))return;const k=col[0]+x[col],o=last[k];if(!o||x.campaigns.drop_date>o.d)last[k]={d:x.campaigns.drop_date,n:x.campaigns.name}});if((r.data||[]).length<1000)break}}
     for(let i=kept0.length-1;i>=0;i--){const r=kept0[i],h=[last['l'+r.lead_id],last['p'+r.property_id]].filter(Boolean).sort((a,b)=>b.d.localeCompare(a.d))[0];
       if(h){const ok=new Date(new Date(h.d+'T12:00:00').getTime()+90*864e5).toISOString().slice(0,10);r._held={...h,ok};held.push(r);kept0.splice(i,1)}}}
   window._held=held;
@@ -1662,17 +1702,21 @@ async function buildMailList(idOrIds,opt={}){
     await sb.from('leads').update({status:'dead',do_not_mail:true,tags,notes:`[${today}] Owner check before mailing: ${r._chk.reason}. Removed from campaign "${_cname[r.campaign_id]||_cn.name}". Do not mail.`+(l.notes?'\n'+l.notes:'')}).eq('id',r.lead_id);
     await sb.from('campaign_records').delete().eq('id',r.id)}
   window._ml={id,ids,all,kept,unv:new Set(unv)};$('m_send').style.display='none';
-  if(gone.length)for(const i of ids){const n=all.filter(r=>r.campaign_id===i).length-gone.filter(r=>r.campaign_id===i).length;await sb.from('campaigns').update({records:n,cost:+(n*MAIL_PIECE).toFixed(2)}).eq('id',i)}
+  if(gone.length||notTd.length)for(const i of ids){try{await recountCampaign(i)}catch(e){}} // records = lots, cost = letters x MAIL_PIECE
   const line=r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: ${esc(r._chk.reason)}</li>`;
   const ok=kept.length-unv.length;
   $('m_msg').innerHTML=`<b>Owner check done.</b> ${ok.toLocaleString()} confirmed with the county${kept.filter(r=>r._chk.status==='heir').length?` (${kept.filter(r=>r._chk.status==='heir').length} addressed to an heir / PR)`:''}.`
    +((window._notTd||[]).length?`<br><b style="color:var(--red)">${window._notTd.length} removed: house too new or recently renovated for a teardown.</b><details><summary class="small">See which</summary><ul class="small">${window._notTd.map(line).join('')}</ul></details>`:'')+(gone.length?`<br><b style="color:var(--red)">${gone.length} removed: sold or a different owner now.</b> Marked Sold and do-not-mail.<details><summary class="small">See who</summary><ul class="small">${gone.map(line).join('')}</ul></details>`:'<br>Nobody on this list has sold.')
    +(held.length?`<br><b style="color:#b26a00">${held.length} held: mailed in the last 90 days.</b> They stay in the campaign but are not on this list. Mail them on or after the date shown.<details><summary class="small">See who</summary><ul class="small">${held.slice(0,500).map(r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: in "${esc(r._held.n)}" (${fmtDate(r._held.d)}), OK after ${fmtDate(r._held.ok)}</li>`).join('')}</ul></details>`:'')
    +(unv.length?`<br><b style="color:#b26a00">${unv.length} couldn't be checked.</b><details><summary class="small">See why</summary><ul class="small">${unv.slice(0,300).map(line).join('')}</ul></details><label class="small"><input type="checkbox" id="m_unv" style="width:auto" ${(opt.auto&&window._tuUnv!=null?window._tuUnv:unv.every(r=>/connected to the owner check|only publishes qualified sales/.test(r._chk?.reason||'')))?'checked':''}> Mail these ${unv.length} anyway</label>`:'')
-   +(letterCount(kept)<kept.length?`<br><b>${kept.length.toLocaleString()} lots go out as ${letterCount(kept).toLocaleString()} letters</b> (owners with more than one lot get one letter listing all their parcels).`:'')+`<br><br><button class="btn" onclick='finishMailList(${JSON.stringify(ids)})'>Draft email with the checked list</button>`;
-  if(opt.auto)return finishMailList(ids);
+   +(letterCount(kept)<kept.length?`<br><b>${kept.length.toLocaleString()} lots go out as ${letterCount(kept).toLocaleString()} letters</b> (owners with more than one lot get one letter listing all their parcels).`:'')+`<br><br><button class="btn" onclick='finishMailList(${JSON.stringify(ids)},this)'>Draft email with the checked list</button>`;
+  if(opt.auto)return _finishMailList(ids);
 }
-async function finishMailList(idOrIds){
+// One run at a time: the button is disabled while it runs, and a list already sent to the mail house is not sent again.
+async function finishMailList(idOrIds,btn){const k=String([].concat(idOrIds).map(Number));
+  if(window._mlBusy)return toast('Still working on this list…');if(window._mlDone===k)return toast('This list was already sent to the mail house. Start Mailing again to make a new one.');
+  window._mlBusy=true;if(btn)btn.disabled=true;try{return await _finishMailList(idOrIds)}finally{window._mlBusy=false;if(btn&&btn.isConnected&&window._mlDone!==k)btn.disabled=false}}
+async function _finishMailList(idOrIds){
   const ids=[].concat(idOrIds).map(Number),id=ids[0];
   const st=window._ml;if(!st||st.id!==id||String(st.ids)!==String(ids))return buildMailList(ids);
   const all=st.all;let kept=st.kept.filter(r=>!st.unv.has(r)||$('m_unv')?.checked);
@@ -1683,7 +1727,7 @@ async function finishMailList(idOrIds){
     try{
     // a) held (mailed in the last 90 days): move each to the first later campaign that mails on or after its OK date
     const held=(window._held||[]).filter(r=>ids.includes(r.campaign_id));
-    if(held.length){$('m_msg').innerHTML+='<br>Moving held records to a later campaign…';let later=await laterCampaigns(ids,tpl,md);const by={};
+    if(held.length){$('m_msg').innerHTML+='<br>Moving held records to a later campaign…';let later=await laterCampaigns(ids,tpl,md,{dest:true});const by={};
       for(const r of held){let t=later.find(c=>c.drop_date>=r._held.ok);if(!t){t=await newLaterCampaign(me,tpl,held.map(x=>x._held.ok).sort().pop(),'Held');later.push(t);later.sort((a,b)=>a.drop_date.localeCompare(b.drop_date))}(by[t.id]=by[t.id]||{c:t,r:[]}).r.push(r)}
       for(const g of Object.values(by)){await moveRecords(g.r,g.c.id);log.push(`${g.r.length.toLocaleString()} held (mailed in the last 90 days) moved to "${g.c.name}"`)}
       window._held=[]}
@@ -1698,10 +1742,14 @@ async function finishMailList(idOrIds){
         const {data:sn}=await sb.from('campaigns').select('id,name').in('id',Object.keys(src).map(Number));(sn||[]).forEach(x=>log.push(`${src[x.id].toLocaleString()} topped up from "${x.name}"`));
         window._tuPass=(window._tuPass||0)+1;window._ml=null;return buildMailList(ids,{auto:true})}
       log.push(`<b style="color:var(--red)">Only ${letterCount(kept).toLocaleString()} letters and no later campaign with this letter to top up from.</b> Import more records into a later campaign, or send anyway.`)}
-    // c) over the budget cap: move the extras to the next campaign (or a new one a week later)
-    if(letterCount(kept)>MAIL_MAX){const _ok=new Set();kept.forEach(r=>{const k=ownKey(r);if(_ok.size<MAIL_MAX)_ok.add(k)});const extra=kept.filter(r=>!_ok.has(ownKey(r))&&r.campaign_id===id),later=await laterCampaigns(ids,tpl,md);
+    // c) over the budget cap: whole owners (all their lots, from any of these campaigns) move to the next dated campaign
+    // (or a new one a week later). Owners in the latest-mailing campaign move first; nobody's lots are split up.
+    if(letterCount(kept)>MAIL_MAX){const pos={};[...(_dd||[])].sort((a,b)=>String(a.drop_date||'').localeCompare(String(b.drop_date||''))||ids.indexOf(a.id)-ids.indexOf(b.id)).forEach((x,i)=>pos[x.id]=i);
+      ownIndex(kept);const grp=new Map();kept.forEach(r=>{const k=ownKey(r);if(!grp.has(k))grp.set(k,[]);grp.get(k).push(r)});
+      const G=[...grp.values()].map((g,i)=>({g,i,p:Math.min(...g.map(r=>pos[r.campaign_id]??0))})).sort((a,b)=>a.p-b.p||a.i-b.i);
+      const extra=G.slice(MAIL_MAX).flatMap(x=>x.g),later=await laterCampaigns(ids,tpl,md,{dest:true});
       const nd=new Date(new Date(md+'T12:00:00').getTime()+7*864e5).toISOString().slice(0,10);const t=later[0]||await newLaterCampaign(me,tpl,nd,'Extras');
-      await moveRecords(extra,t.id);const gone=new Set(extra);kept=kept.filter(r=>!gone.has(r));log.push(`${extra.length.toLocaleString()} lots over the ${MAIL_MAX.toLocaleString()}-letter cap moved to "${t.name}"`)}
+      await moveRecords(extra,t.id);const gone=new Set(extra);kept=kept.filter(r=>!gone.has(r));log.push(`${(G.length-MAIL_MAX).toLocaleString()} owners (${extra.length.toLocaleString()} lots) over the ${MAIL_MAX.toLocaleString()}-letter cap moved to "${esc(t.name)}"`)}
     }catch(e){return $('m_msg').innerHTML+=`<br><b style="color:var(--red)">Top-up failed: ${esc(e.message)}</b> Nothing was sent. Try again.`}
     if(log.length)$('m_msg').innerHTML+=`<br><b>Top-up:</b><ul class="small">${log.map(x=>'<li>'+x+'</li>').join('')}</ul>`;window._tuLog=[];window._tuPass=0}
   const {data:_c0s}=await sb.from('campaigns').select('drop_date').in('id',ids);const _c0={drop_date:(_c0s||[]).map(x=>x.drop_date).filter(Boolean).sort()[0]};const _mdate=new Date(((_c0&&_c0.drop_date)||localISO())+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
@@ -1709,7 +1757,7 @@ async function finishMailList(idOrIds){
   const tplName=($('m_tpl')?.value||'');const perOwner=/teardown/i.test(tplName);
   const tc=x=>String(x||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
   const paddr=p=>[p.address?tc(p.address):'',/^\d{5}$/.test(p.city||'')?'':tc(p.city||'')].filter(Boolean).join(', ');
-  const byOwner={};kept.forEach(r=>{const k=ownKey(r);(byOwner[k]=byOwner[k]||[]).push(r)});
+  ownIndex(kept);const byOwner={};kept.forEach(r=>{const k=ownKey(r);(byOwner[k]=byOwner[k]||[]).push(r)});
   const otherLine=(r)=>{const f=r.properties?.fields||{};if(f.Other_Property_Line)return f.Other_Property_Line;const o=(byOwner[ownKey(r)]||[]).filter(x=>x!==r&&x.properties?.address).map(x=>paddr(x.properties));if(!o.length)return '';
     return `I also see that you own ${o.length===1?o[0]:o.slice(0,-1).join(', ')+' and '+o[o.length-1]}. I would be glad to make you an offer on ${o.length===1?'that property':'those properties'} as well.`};
   const src=Object.values(byOwner).map(g=>g[0]);
@@ -1736,13 +1784,15 @@ async function finishMailList(idOrIds){
   // the 90-day check all match the letters actually mailed.
   {const md=_c0.drop_date||localISO(),tpl=$('m_tpl').value,inFile=new Set(kept.map(r=>r.id)),left=[];
     for(const i of ids)for(let f=0;;f+=1000){const {data}=await sb.from('campaign_records').select('id,campaign_id,lead_id,property_id').eq('campaign_id',i).order('id').range(f,f+999);(data||[]).forEach(r=>{if(!inFile.has(r.id))left.push(r)});if(!data||data.length<1000)break}
-    if(left.length){try{const later=await laterCampaigns(ids,tpl,md);const nd=new Date(new Date(md+'T12:00:00').getTime()+7*864e5).toISOString().slice(0,10);
+    if(left.length){try{const later=await laterCampaigns(ids,tpl,md,{dest:true});const nd=new Date(new Date(md+'T12:00:00').getTime()+7*864e5).toISOString().slice(0,10);
         const t=later[0]||await newLaterCampaign({name:c.name},tpl,nd,'Not mailed');await moveRecords(left,t.id);
         $('m_msg').innerHTML+=`<br>${left.length.toLocaleString()} record${left.length===1?'':'s'} not in the file moved to "${esc(t.name)}", so this campaign only counts what was mailed.`}
       catch(e){$('m_msg').innerHTML+=`<br><b style="color:var(--red)">${left.length} records not in the file could not be moved: ${esc(e.message)}</b> The campaign count below still only counts the file.`}}
     const sentIds=[...inFile];for(let i=0;i<sentIds.length;i+=200)await sb.from('campaign_records').update({sent_at:md}).in('id',sentIds.slice(i,i+200))}
-  const _byC={};src.forEach(r=>{_byC[r.campaign_id]=(_byC[r.campaign_id]||0)+1});
-  for(const i of ids){const n=ids.length>1?(_byC[i]||0):rows.length;await sb.from('campaigns').update({template:$('m_tpl').value,mail_status:'to_house',mail_to_house_at:new Date().toISOString(),records:n,cost:+(n*MAIL_PIECE).toFixed(2)}).eq('id',i)}
+  // records = lots in the file; cost = letters (one per owner, counted on the campaign of the owner's first lot) x MAIL_PIECE
+  const _byC={},_lotC={};src.forEach(r=>{_byC[r.campaign_id]=(_byC[r.campaign_id]||0)+1});kept.forEach(r=>{_lotC[r.campaign_id]=(_lotC[r.campaign_id]||0)+1});
+  for(const i of ids){const n=ids.length>1?(_byC[i]||0):rows.length,lots=ids.length>1?(_lotC[i]||0):kept.length;await sb.from('campaigns').update({template:$('m_tpl').value,mail_status:'to_house',mail_to_house_at:new Date().toISOString(),records:lots,cost:+(n*MAIL_PIECE).toFixed(2)}).eq('id',i)}
+  window._ml=null;window._mlDone=String(ids);
   $('m_msg').innerHTML=`${rows.length.toLocaleString()} letters (${kept.length.toLocaleString()} lots; ${all.length-kept.length} removed).${missing?` <b style="color:var(--red)">${missing} have no offer code.</b> Add codes before sending; Brandon flags lists without them.`:''}`;
   const body=`Hello,\n\n${CS.length>1?`Here is ONE list (${rows.length} records) that covers ${CS.length} campaigns: ${CS.map(x=>x.name).join(', ')}. Please run it as a single job with one letter.`:`Here is a new list for "${c.name}" (${rows.length} records).`}${links.length>1?` It comes in ${links.length} files (${MAIL_FILE_MAX.toLocaleString()} max per file); please run them together as one job.`:''} Download ${links.length>1?'them':'it'} here (link${links.length>1?'s':''} valid 7 days):\n${sl.signedUrl}\n\nLetter template (Word merge file):
 ${location.origin}/mail-templates/${encodeURIComponent($('m_tpl').value)}
@@ -1769,6 +1819,8 @@ async function saveCampaign(id){const v=k=>$('c_'+k).value||null;const r={name:v
 function openCampaign(id){closeDrawer();go('campaign:'+id)}
 
 // ---------- global search (like Pebble's top search) ----------
+// the query inside onclick='...' strings: also encode ' ( ) ! * ~ so a #search: link can't break out of the string
+const encQ=s=>encodeURIComponent(String(s??'')).replace(/[!'()*~]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());
 const hl=(t,q)=>{t=esc(t||'');if(!q)return t;const i=t.toLowerCase().indexOf(q.toLowerCase());return i<0?t:t.slice(0,i)+'<mark>'+t.slice(i,i+q.length)+'</mark>'+t.slice(i+q.length)};
 async function gsearch(q,lim){const {data,error}=await sb.rpc('global_search',{q,lim});if(error){toast(error.message);return null}return data}
 function gsHTML(r,q,full){if(!r)return '';const sec=(title,items,fn,key)=>items&&items.length?`<div class="gh"><span>${title}</span><span>${full?'':items.length}</span></div>`+items.map(fn).join(''):'';
@@ -1779,15 +1831,15 @@ function gsHTML(r,q,full){if(!r)return '';const sec=(title,items,fn,key)=>items&
    ||'<div class="muted small" style="padding:12px">No results.</div>'}
 function gsGo(view,fn){$('gres').style.display='none';if(view)go(view);if(fn)fn()}
 (function(){let t;const inp=()=>$('gq');document.addEventListener('input',e=>{if(e.target.id!=='gq')return;clearTimeout(t);const q=e.target.value.trim();if(q.length<2){$('gres').style.display='none';return}
-  t=setTimeout(async()=>{const r=await gsearch(q,5);if(inp().value.trim()!==q)return;$('gres').innerHTML=gsHTML(r,q)+`<a href="#" onclick="gsGo('search:${encodeURIComponent(q)}');return false" class="sm" style="text-align:center">See all results</a>`;$('gres').style.display='block'},250)});
- document.addEventListener('keydown',e=>{if(e.target.id==='gq'&&e.key==='Enter'){gsGo('search:'+encodeURIComponent(e.target.value.trim()))}});
+  t=setTimeout(async()=>{const r=await gsearch(q,5);if(inp().value.trim()!==q)return;$('gres').innerHTML=gsHTML(r,q)+`<a href="#" onclick="gsGo('search:${encQ(q)}');return false" class="sm" style="text-align:center">See all results</a>`;$('gres').style.display='block'},250)});
+ document.addEventListener('keydown',e=>{if(e.target.id==='gq'&&e.key==='Enter'){gsGo('search:'+encQ(e.target.value.trim()))}});
  document.addEventListener('click',e=>{if(!e.target.closest('.gwrap'))$('gres').style.display='none'})})();
 let GSTAB='all';
 async function vSearch(q){$('title').textContent='Global Search';$('gq').value=q;const r=await gsearch(q,50);if(!r)return;
   const n={records:r.records?.length||0,contacts:r.contacts?.length||0,properties:r.properties?.length||0,deals:r.deals?.length||0};
   const tabs=[['all','All'],['contacts',`Contacts (${n.contacts})`],['properties',`Properties (${n.properties})`],['deals',`Deals (${n.deals})`],['records',`Campaign records (${n.records})`]];
   const pick=GSTAB==='all'?r:{[GSTAB]:r[GSTAB]};
-  $('view').innerHTML=`<div class="card"><div class="tabs">${tabs.map(([k,l])=>`<button class="${GSTAB===k?'on':''}" onclick="GSTAB='${k}';vSearch(decodeURIComponent('${encodeURIComponent(q)}'))">${l}</button>`).join('')}</div></div><div class="card gres" style="display:block;position:static;box-shadow:none;max-height:none">${gsHTML(pick,q,true)}</div>`}
+  $('view').innerHTML=`<div class="card"><div class="tabs">${tabs.map(([k,l])=>`<button class="${GSTAB===k?'on':''}" onclick="GSTAB='${k}';vSearch(decodeURIComponent('${encQ(q)}'))">${l}</button>`).join('')}</div></div><div class="card gres" style="display:block;position:static;box-shadow:none;max-height:none">${gsHTML(pick,q,true)}</div>`}
 
 // ---------- campaign record page (Pebble: Campaign Record + Add Deal) ----------
 async function vRecord(id){const {data:r,error}=await sb.from('campaign_records').select('*, campaigns(id,name,drop_date,mail_status,mail_sent_at,template), leads(*), properties(*)').eq('id',id).single();
@@ -1811,10 +1863,12 @@ async function vRecord(id){const {data:r,error}=await sb.from('campaign_records'
      <div class="card"><h3 class="sec" style="margin-top:0">Deals</h3>${(deals||[]).map(d=>`<div style="padding:6px 0;border-top:1px solid var(--line)"><a href="#" onclick="openDeal(${d.id});return false">${esc(d.property_label||'Deal')}</a> <span class="small muted">· ${d.board==='buyer'?'Buyer Deals':'Seller Deals'} · ${esc(STAGES.find(s=>s.id===d.stage_id)?.name||'')}${d.value?' · '+money(d.value):''}</span></div>`).join('')||'<div class="muted small">No deal yet. Use <b>+ Add Deal</b> when this owner responds.</div>'}</div>
      <div class="card"><h3 class="sec" style="margin-top:0">Other mailings to this owner</h3>${(others||[]).map(o=>`<div class="small" style="padding:4px 0"><a href="#" onclick="go('record:${o.id}');return false"><b>${esc(o.offer_code||'')}</b></a> · ${esc(o.campaigns?.name||'')} · ${fmtDate(o.campaigns?.drop_date)}</div>`).join('')||'<div class="muted small">None.</div>'}</div>
    </div></div>`}
+// stage options for the Add Deal drawer's board picker (a named function: an inlined function's quotes broke the onchange)
+function adStages(b){return STAGES.filter(s=>s.board===b).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}
 async function addDealFromRecord(id){const {data:r}=await sb.from('campaign_records').select('*, campaigns(id,name), leads(id,full_name), properties(id,apn,address,city,county,county_state)').eq('id',id).single();
-  const p=r.properties,l=r.leads;const st=b=>STAGES.filter(s=>s.board===b).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  const p=r.properties,l=r.leads;const st=adStages;
   openDrawer(head('Add Deal')+`<div class="card"><label class="f">Deal Title</label><input id="ad_t" value="${esc(l?.full_name||p?.address||'')}">
-   <label class="f">Board</label><select id="ad_b" onchange="$('ad_s').innerHTML=(${st.toString()})(this.value)"><option value="seller">Seller Deals</option><option value="buyer">Buyer Deals</option></select>
+   <label class="f">Board</label><select id="ad_b" onchange="$('ad_s').innerHTML=adStages(this.value)"><option value="seller">Seller Deals</option><option value="buyer">Buyer Deals</option></select>
    <label class="f">Stage</label><select id="ad_s">${st('seller')}</select>
    <label class="f">Priority</label><select id="ad_p"><option value="">None</option><option>hot</option><option>warm</option><option>cold</option></select>
    <label class="f">Estimated Deal Value (optional)</label><input id="ad_v" type="number" placeholder="10,000">
@@ -2104,7 +2158,7 @@ async function editBuyer(id){const [{data:b},{data:dl}]=await Promise.all([id?sb
      :`<div class="card"><b>Buy box</b><div class="small muted" style="margin-top:6px">Not filled out yet${b.bb_status&&b.bb_status!=='not sent'?' · emails: '+esc(b.bb_status):''}.</div>${b.bb_token?`<div class="row" style="margin-top:8px"><button class="btn ghost" onclick="navigator.clipboard.writeText(BB_LINK+'${b.bb_code||b.bb_token}');toast('Their personal form link is copied')">Copy their form link</button>${b.bb_group?`<button class="btn ghost" onclick="bbPreview(${b.id})">Preview their emails</button>`:''}</div>`:''}</div>`}
    <div class="card"><b>Deals with this buyer</b>${(dl||[]).map(x=>`<div style="margin-top:6px"><a href="#" onclick="openDeal(${x.id});return false">${esc(x.leads?.full_name||x.property_label||'Deal')}</a> <span class="small muted">${esc([x.properties?.city,x.properties?.county].filter(Boolean).join(', '))} · ${x.status==='won'?'closed':x.status}</span></div>`).join('')||'<div class="muted small" style="margin-top:6px">None linked yet. Pick this buyer on a deal (Deal terms → Buyer) and it shows here.</div>'}</div>`)}
 async function saveBuyer(id){const v=k=>$('b_'+k).value.trim()||null;const r={name:v('name'),company:v('company'),phone:v('phone'),email:v('email'),buy_box:v('buy_box'),kind:v('kind')||'buyer',counties:(v('counties')||'').split(',').map(x=>x.trim()).filter(Boolean)};
-  if(!r.name)return toast('Name is required');const {error}=id?await sb.from('buyers').update(r).eq('id',id):await sb.from('buyers').insert(r);if(error)return toast(error.message);BUYERS=null;toast('Saved');closeDrawer();vBuyers()}
+  if(!r.name)return toast('Name is required');const {error}=id?await sb.from('buyers').update(r).eq('id',id):await sb.from('buyers').insert(r);if(error)return toast(error.message);BUYERS=null;if(window.BH)BH.buyers=null;toast('Saved');closeDrawer();vBuyers()}
 
 // ---------- auto followup ----------
 async function vFollowup(){
@@ -2170,8 +2224,11 @@ async function saveTpl(id,kind){const r={kind,name:$('t_name').value||'Untitled'
 async function delTpl(id){if(!confirm('Delete template?'))return;await sb.from('templates').delete().eq('id',id);closeDrawer();vTemplates()}
 
 // ---------- tasks ----------
-async function vTasks(){const {data}=await sb.from('tasks').select('*, deals(id,property_label), leads(full_name)').not('title','like','CL|%').order('due_at',{nullsFirst:false}).limit(500);
-  const open=(data||[]).filter(t=>t.status==='todo'),done=(data||[]).filter(t=>t.status==='done').slice(0,30);
+async function vTasks(){const T=()=>sb.from('tasks').select('*, deals(id,property_label), leads(full_name)').not('title','like','CL|%');
+  // every open task (paged), and the 30 most recently finished
+  const {data:open0}=await pageAll(()=>T().eq('status','todo').order('due_at',{nullsFirst:false}).order('id'));
+  let {data:done0,error:de}=await T().eq('status','done').order('done_at',{ascending:false,nullsFirst:false}).order('id',{ascending:false}).limit(30);if(de)({data:done0}=await T().eq('status','done').order('id',{ascending:false}).limit(30));
+  const open=open0||[],done=done0||[];
   const row=t=>`<tr><td style="width:30px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked).then(vTasks)"></td><td>${esc(t.title)}<div class="small muted">${t.deals?`<a href="#" onclick="openDeal(${t.deals.id});return false">${esc(t.deals.property_label||'deal')}</a>`:''} ${esc(t.leads?.full_name||'')}</div></td><td class="small" style="color:${t.due_at&&String(t.due_at).slice(0,10)<new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date())&&t.status==='todo'?'var(--red)':'inherit'}">${t.due_at?fmtDate(t.due_at):''}</td></tr>`;
   $('view').innerHTML=`<div class="card" style="padding:0"><table><tr><th></th><th>To do (${open.length})</th><th>Due</th></tr>${open.map(row).join('')||'<tr><td colspan="3" class="muted">All clear.</td></tr>'}</table></div><div class="card" style="padding:0"><table><tr><th></th><th>Done recently</th><th></th></tr>${done.map(row).join('')}</table></div>`}
 
@@ -2309,12 +2366,13 @@ async function impSave(){const msg=t=>$('impMsg').innerHTML=t,M=IMP.map,name=$('
   for(let i=0;i<rows.length;i+=500){const {data,error}=await sb.rpc('import_campaign_list',{cid:camp.id,rows:rows.slice(i,i+500),src:'hq',tag:null,...skip});
     if(error){$('impSave').disabled=false;return msg('Stopped: '+esc(error.message))}for(const k in tot)tot[k]+=data[k];msg(`Saved ${tot.records.toLocaleString()} of ${rows.length.toLocaleString()} records…`)}
   const {data:fin,error:finErr}=await sb.rpc('finish_campaign_import',{cid:camp.id});if(finErr){$('impSave').disabled=false;return msg(`<b style="color:var(--red)">Records saved, but offer codes were not assigned: ${esc(finErr.message)}</b> Do not mail this campaign until it has codes.`)}const piece=Number($('icPiece').value)||0.55;
-  await sb.from('campaigns').update({records:tot.records,cost:+(tot.records*piece).toFixed(2)}).eq('id',camp.id);
-  if(Object.keys(fipsMap).length){msg('Saving FIPS codes…');for(let o=0;;o+=1000){const {data}=await sb.from('campaign_records').select('properties(id,apn,county,fips)').eq('campaign_id',camp.id).range(o,o+999);if(!data||!data.length)break;
+  // records = lots; cost = letters (one per owner) x the cost per piece
+  let _cost=tot.records*piece;try{await recountCampaign(camp.id,piece);const {data:_cc}=await sb.from('campaigns').select('cost').eq('id',camp.id).single();if(_cc)_cost=+_cc.cost||0}catch(e){await sb.from('campaigns').update({records:tot.records,cost:+(tot.records*piece).toFixed(2)}).eq('id',camp.id)}
+  if(Object.keys(fipsMap).length){msg('Saving FIPS codes…');for(let o=0;;o+=1000){const {data}=await sb.from('campaign_records').select('id,properties(id,apn,county,fips)').eq('campaign_id',camp.id).order('id').range(o,o+999);if(!data||!data.length)break;
     const ups=data.map(x=>x.properties).filter(p=>p&&!p.fips&&fipsMap[p.apn+'|'+String(p.county||'').toLowerCase()]);for(let i=0;i<ups.length;i+=25)await Promise.all(ups.slice(i,i+25).map(p=>sb.from('properties').update({fips:fipsMap[p.apn+'|'+String(p.county||'').toLowerCase()]}).eq('id',p.id)));if(data.length<1000)break}}
   document.querySelectorAll('.impsteps span').forEach(e=>e.classList.add('done'));
   const clash=await LB.blockOnCodeClash(camp.id);if(clash&&!clash.soft){$('impSave').disabled=false;return msg(`<b style="color:var(--red)">${esc(clash.msg)}</b>`)}
-  msg((clash?`<b style="color:#b26a00">${esc(clash.msg)}</b><br>`:'')+`<b>Saved.</b> ${tot.records.toLocaleString()} records · cost ${money(tot.records*piece)} · ${(fin?.coded||0).toLocaleString()} offer codes${fin?.first_code?' starting '+esc(fin.first_code):''}.${tot.skipped_dnm+tot.skipped_not_interested+tot.skipped_recent?`<br>Left off: ${tot.skipped_dnm} do-not-mail · ${tot.skipped_not_interested} said no · ${tot.skipped_recent} mailed recently.`:''} <a href="#" onclick="go('campaign:${camp.id}');return false">Open campaign →</a>`)}
+  msg((clash?`<b style="color:#b26a00">${esc(clash.msg)}</b><br>`:'')+`<b>Saved.</b> ${tot.records.toLocaleString()} records · cost ${money(_cost)} · ${(fin?.coded||0).toLocaleString()} offer codes${fin?.first_code?' starting '+esc(fin.first_code):''}.${tot.skipped_dnm+tot.skipped_not_interested+tot.skipped_recent?`<br>Left off: ${tot.skipped_dnm} do-not-mail · ${tot.skipped_not_interested} said no · ${tot.skipped_recent} mailed recently.`:''} <a href="#" onclick="go('campaign:${camp.id}');return false">Open campaign →</a>`)}
 // ---- move Pebble call recordings (Desktop / DLG Recordings) into storage ----
 function recToolCard(){return `<div class="card"><h3 style="margin-top:0">Move call recordings off Pebble</h3><p class="muted small">Pick the <b>DLG Recordings</b> folder on your Desktop. Each recording is uploaded to DLG HQ and the inbox switches to playing it from here, so nothing is lost when Pebble is cancelled. Safe to run again; it skips files already moved.</p>
   <input type="file" id="recDir" webkitdirectory multiple><br><br><button class="btn" onclick="moveRecordings()">Upload recordings</button><div id="recMsg" class="small" style="margin-top:10px"></div></div>`}

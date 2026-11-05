@@ -145,7 +145,7 @@ async function vSplit() {
     return;
   }
   SP.rows = t.data || [];
-  try { const b = await sb.from('buyers').select('name,company,counties,cities,zips,lot_sizes,utilities,deal_breakers,price_ranges').range(0, 4999); const seen = new Set(); SP.buyers = (b.data || []).filter(x => (x.price_ranges || (x.lot_sizes && x.lot_sizes.length) || x.utilities) && !/^test/i.test(x.company || x.name || '')).filter(x => { const k = String(x.company || x.name).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }); } catch (e) { SP.buyers = []; }
+  try { const b = { data: [] }; for (let o = 0; ; o += 1000) { const pg = await sb.from('buyers').select('id,name,company,counties,cities,zips,lot_sizes,utilities,deal_breakers,price_ranges').order('id').range(o, o + 999); if (pg.error) throw pg.error; b.data.push(...(pg.data || [])); if (!pg.data || pg.data.length < 1000) break; } const seen = new Set(); SP.buyers = (b.data || []).filter(x => (x.price_ranges || (x.lot_sizes && x.lot_sizes.length) || x.utilities) && !/^test/i.test(x.company || x.name || '')).filter(x => { const k = String(x.company || x.name).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }); } catch (e) { SP.buyers = []; }
   $('actions').innerHTML = `<input type="file" id="spFile" accept=".xlsx" style="display:none" onchange="spImport(this.files[0])"><button class="btn ghost" onclick="$('spFile').click()">Import split list (.xlsx)</button>`;
   const counties = [...new Set(SP.rows.map(r => r.county).filter(Boolean))].sort();
   const owners = [...new Set(SP.rows.map(r => r.owner_type).filter(Boolean))].sort();
@@ -254,7 +254,9 @@ function vSplitDraw() {
   const c = $('spCount'); if (c) c.textContent = `${rows.length} clean deals in ${SP.county ? spCountyName({ county: SP.county }) : 'all counties'}`;
   const head = `<tr><th>Site</th><th>Parcel</th><th>Owner</th><th class="right">Lots</th><th class="right">Frontage</th><th class="right">Most I can pay</th><th class="right">Tax land value</th><th>Buyers who fit</th><th>My status</th><th></th></tr>`;
   if (!rows.length) { t.innerHTML = head + `<tr><td colspan="10" class="muted">${SP.rows.length ? 'Nothing matches. Try turning off "Profit or free lot only" or raising the pad price.' : 'No parcels yet. Claude loads them, or click "Import split list (.xlsx)".'}</td></tr>`; return; }
-  t.innerHTML = head + rows.slice(0, 1500).map(({ r, m }) => `<tr>
+  // never drop parcels: big lists draw in pages of 1,500 with a Load more / Show all control under the table
+  const lim = Math.max(1500, SP.limit || 1500), shown = rows.slice(0, lim);
+  t.innerHTML = head + shown.map(({ r, m }) => `<tr>
       <td>${spPill(m.grade === 'No comp' ? 'No price yet' : m.grade === 'No' ? 'Price: check' : m.grade, m.grade === 'Profit' ? 'good' : m.grade === 'Free lot' ? 'warn' : '')} ${spSewerPill(r)}<div style="margin-top:3px">${spSite(r).map(x => spPill(x[0], x[1])).join(' ')}</div></td>
       <td><b>${esc(r.address || '(no site address)')}</b><div class="small muted">${esc(r.jurisdiction || r.county || '')} · ${esc(r.zoning || '')} · ${esc(r.parcel || '')} · ${r.acres ?? ''} ac</div></td>
       <td>${esc(r.owner_name || '')}<div class="small muted">${esc(r.owner_type || '')}${r.years_held != null ? ' · ' + Math.round(r.years_held) + ' yrs' : ''}${r.out_of_state ? ' · out of state' : ''}</div></td>
@@ -264,7 +266,8 @@ function vSplitDraw() {
       <td class="right num">${r.tax_land_value != null ? money(r.tax_land_value) : '—'}</td>
       <td class="small">${(() => { const b = spBuyers(r); return b.length ? `<b>${b.length}</b> <span class="muted">${esc(b.slice(0, 2).join(', '))}${b.length > 2 ? '…' : ''}</span>` : '<span class="muted">none</span>'; })()}</td>
       <td><select style="width:auto" onchange="spSetStatus(${r.id},this.value)">${SP_STATUSES.map(([k, l]) => `<option value="${k}" ${(r.my_status || 'new') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>${r.my_notes ? '<div class="small muted" style="margin-top:3px">📝 has notes</div>' : ''}</td>
-      <td><button class="btn ghost sm" onclick="spOpen(${r.id})">Details</button></td></tr>`).join('');
+      <td><button class="btn ghost sm" onclick="spOpen(${r.id})">Details</button></td></tr>`).join('')
+    + (rows.length > shown.length ? `<tr><td colspan="10" style="text-align:center"><b>Showing the first ${shown.length.toLocaleString()} of ${rows.length.toLocaleString()} parcels.</b> <button class="btn ghost sm" onclick="SP.limit=${lim + 1500};vSplitDraw()">Load 1,500 more</button> <button class="btn ghost sm" onclick="SP.limit=${rows.length};vSplitDraw()">Show all</button></td></tr>` : '');
 }
 
 async function spSetStatus(id, v) {

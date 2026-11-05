@@ -18,7 +18,9 @@ const e164 = (p: string) => "+1" + d10(p);
 
 async function verify(raw: string, header: string | null): Promise<boolean> {
   const secret = Deno.env.get("QUO_WEBHOOK_SECRET");
-  if (!secret) return true; // not configured yet: accept (set the secret to enforce)
+  // no secret: still accepted so inbound texts never stop, but flagged loudly (see UNVERIFIED below). With a secret set,
+  // a valid signature is required.
+  if (!secret) { console.error("WARNING quo webhook accepted WITHOUT signature check: QUO_WEBHOOK_SECRET is not set. Set it in Supabase > Edge Functions > Secrets."); return true; }
   if (!header) return false;
   for (const part of header.split(",")) {
     const [scheme, ver, ts, sig] = part.trim().split(";");
@@ -208,7 +210,11 @@ Deno.serve(async (req) => {
   if (!(await verify(raw, req.headers.get("openphone-signature")))) return json({ error: "bad signature" }, 401);
   let ev: any; try { ev = JSON.parse(raw); } catch { return json({ error: "bad json" }, 400); }
   const id = ev.id || crypto.randomUUID();
-  try { await handle(ev); await sb.from("quo_events").upsert({ id, type: ev.type, payload: ev }); }
-  catch (e) { await sb.from("quo_events").upsert({ id, type: ev.type, payload: ev, error: String((e as Error)?.message || e) }); }
+  // unsigned (no secret set): flag it in the stored event and in the response so it's visible
+  const unverified = !Deno.env.get("QUO_WEBHOOK_SECRET");
+  const payload = unverified ? { ...ev, _unverified: "QUO_WEBHOOK_SECRET not set - signature not checked" } : ev;
+  try { await handle(ev); await sb.from("quo_events").upsert({ id, type: ev.type, payload }); }
+  catch (e) { await sb.from("quo_events").upsert({ id, type: ev.type, payload, error: String((e as Error)?.message || e) }); }
+  if (unverified) return new Response(JSON.stringify({ ok: true, unverified: true, warning: "QUO_WEBHOOK_SECRET not set - signature not checked" }), { status: 200, headers: { ...CORS, "content-type": "application/json", "x-dlg-webhook-unverified": "1" } });
   return json({ ok: true });
 });

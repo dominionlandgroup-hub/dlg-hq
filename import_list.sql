@@ -39,7 +39,8 @@ begin
     end if;
     if lid is not null and pid is not null then insert into property_owners values (pid,lid) on conflict do nothing; end if;
     code := nullif(trim(x.offer_code),'');
-    if code is not null and exists (select 1 from campaign_records where offer_code=upper(code)) then dup:=dup+1; code:=null; end if;
+    -- taken anywhere in DLG HQ, any case (offer_code_taken is defined in sql/bug_sweep_nov5.sql)
+    if code is not null and offer_code_taken(code) then dup:=dup+1; code:=null; end if;
     insert into campaign_records (campaign_id,lead_id,property_id,offer_price,offer_code) values (cid,lid,pid,x.offer_price,code);
     nr:=nr+1;
   end loop;

@@ -46,5 +46,6 @@ begin
   end if;
   return json_build_object('thread_id',tid,'lead_id',lid,'inbox',bx);
 end $$;
-revoke all on function quo_thread(text,text) from anon, authenticated;
+revoke all on function quo_thread(text,text) from public, anon;
+grant execute on function quo_thread(text,text) to authenticated, service_role;
 select count(*) from phone_numbers;
