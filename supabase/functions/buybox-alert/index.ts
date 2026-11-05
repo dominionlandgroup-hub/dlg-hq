@@ -1,12 +1,12 @@
 // DLG HQ - buy box alert (Nov 2026)
 // When someone submits the buy box form, submit_buybox() creates a task "New buy box: <name> (<company>)".
-// A database trigger on that task calls this function, which texts Damien's cell from the builders line.
+// A database trigger on that task calls this function, which texts Damien's buyer Quo line (980) 217-8806 from (704) 275-5457.
 // Safe to leave open (no JWT): it only sends for a "New buy box" task created in the last 10 minutes, once per task.
 // Secrets used: QUO_API_KEY (already set for the quo function).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
-const ALERT_TO = "+12023215846";      // Damien's cell
-const ALERT_FROM = "+19802178806";    // Quo builders / buyers line
+const ALERT_TO = "+19802178806";      // Damien's buyer Quo line
+const ALERT_FROM = "+17042755457";    // spare Quo line (a number cannot text itself)
 
 function serviceKey() {
   const legacy = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
