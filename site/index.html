@@ -170,7 +170,7 @@ footer .legal{width:100%;border-top:1px solid rgba(255,255,255,.12);padding-top:
       <div><b>Dominion Land Group</b><span>Land buyers since 2016</span></div>
     </a>
     <nav class="nav" aria-label="Main"><a href="#how">How it works</a><a href="#land">Land we buy</a><a href="#about">About</a><a href="#faq">Questions</a></nav>
-    <a class="call" href="tel:+19809902356">(980) 990-2356</a>
+    <a class="call" href="tel:+17043873482">(704) 387-3482</a>
   </div>
 </header>
 
@@ -189,7 +189,7 @@ footer .legal{width:100%;border-top:1px solid rgba(255,255,255,.12);padding-top:
     <div>
       <h1>We buy land directly from the owner.</h1>
       <p class="lede">A fair cash offer in 24 to 48 hours. No agents, no fees, and we pay the closing costs. You pick the closing date.</p>
-      <div class="ctas"><a class="btn btn-gold" href="#get">Get my cash offer</a><a class="btn btn-line" href="tel:+19809902356">Call (980) 990-2356</a></div>
+      <div class="ctas"><a class="btn btn-gold" href="#get">Get my cash offer</a><a class="btn btn-line" href="tel:+17043873482">Call (704) 387-3482</a></div>
       <ul class="promise"><li>Any condition</li><li>Inherited or heirs' land</li><li>Back taxes are OK</li><li>Closed by a licensed attorney</li></ul>
     </div>
     <div class="letter" id="letter">
@@ -278,7 +278,7 @@ footer .legal{width:100%;border-top:1px solid rgba(255,255,255,.12);padding-top:
     <h2 style="margin-bottom:28px">Questions sellers ask us</h2>
     <details><summary>Is there any cost to me?</summary><p>No. There are no commissions or fees, and we pay the normal closing costs. The offer we agree on is what you receive.</p></details>
     <details><summary>How fast will I get an offer?</summary><p>Usually within 24 to 48 hours. If we need a detail like the parcel number, we'll call you.</p></details>
-    <details><summary>Can I just call instead?</summary><p>Of course. Call or text (980) 990-2356 and you'll reach Damien.</p></details>
+    <details><summary>Can I just call instead?</summary><p>Of course. Call or text (704) 387-3482 and you'll reach Damien.</p></details>
     <details><summary>The land has back taxes, liens or several heirs. Can you still buy it?</summary><p>Very often, yes. We work through these with the closing attorney all the time and will tell you honestly what it takes.</p></details>
     <details><summary>How do I get paid?</summary><p>The closing attorney pays you by wire or check once everything is signed and recorded.</p></details>
     <details><summary>What do you do with the land after?</summary><p>We may hold it, resell it to a builder or a family, or help get something built on it.</p></details>
@@ -290,7 +290,7 @@ footer .legal{width:100%;border-top:1px solid rgba(255,255,255,.12);padding-top:
     <div>
       <h2>Get your cash offer.</h2>
       <p class="intro">Send what you know. A parcel number or address is perfect, but a county and your name is enough to start.</p>
-      <div class="direct">Prefer to talk?<a href="tel:+19809902356">(980) 990-2356</a>Email<a href="mailto:damien@dominionlandgroup.land" style="font-size:18px">damien@dominionlandgroup.land</a></div>
+      <div class="direct">Prefer to talk?<a href="tel:+17043873482">(704) 387-3482</a>Email<a href="mailto:damien@dominionlandgroup.land" style="font-size:18px">damien@dominionlandgroup.land</a></div>
     </div>
     <form class="form" id="leadForm" novalidate>
       <div class="grid2">
@@ -315,7 +315,7 @@ footer .legal{width:100%;border-top:1px solid rgba(255,255,255,.12);padding-top:
 <footer>
   <div class="wrap">
     <div><b style="color:#fff;font-size:16px">Dominion Land Group</b><br>Buying land in NC, SC, GA, TN and FL since 2016.</div>
-    <div><a href="tel:+19809902356">(980) 990-2356</a><br><a href="mailto:damien@dominionlandgroup.land">damien@dominionlandgroup.land</a></div>
+    <div><a href="tel:+17043873482">(704) 387-3482</a><br><a href="mailto:damien@dominionlandgroup.land">damien@dominionlandgroup.land</a></div>
     <div><a href="#how">How it works</a><br><a href="#faq">Questions</a><br><a href="#get">Get my offer</a></div>
     <div class="legal">© <span id="yr"></span> Dominion Land Group. All rights reserved. · <a href="https://dominionlandgroup.land/terms-and-conditions">Terms</a> · <a href="https://dominionlandgroup.land/privacy-policy">Privacy</a></div>
   </div>
@@ -337,7 +337,7 @@ document.getElementById('leadForm').addEventListener('submit',async e=>{e.preven
   const b=f.querySelector('button');b.disabled=true;b.textContent='Sending…';m.textContent='';
   const {error}=await sb.rpc('submit_web_lead',{p_name:d.name,p_phone:d.phone,p_email:d.email,p_address:d.address,p_county:d.county,p_apn:null,p_offer_code:d.offer_code,p_message:d.message});
   b.disabled=false;b.textContent='Send my information';
-  if(error){m.style.color='#b23b3b';m.textContent='That didn\'t go through. Please call (980) 990-2356 and we\'ll take it by phone.';return}
+  if(error){m.style.color='#b23b3b';m.textContent='That didn\'t go through. Please call (704) 387-3482 and we\'ll take it by phone.';return}
   f.reset();m.style.color='#1a7a48';m.textContent='Got it. Damien will reach out within one business day.'});
 // approved testimonials from DLG HQ appear here automatically
 sb.rpc('public_testimonials').then(({data})=>{if(!data||!data.length)return;const el=document.getElementById('wordsList');const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
