@@ -1,5 +1,5 @@
 // DLG HQ <-> Quo (OpenPhone) bridge
-// NOTE: the deployed copy also logs rejected webhook signatures to quo_events (added in the dashboard); keep that when redeploying.
+// Rejected webhook signatures are logged to quo_events (type 'rejected').
 //  POST /quo            Quo webhook (texts, calls, recordings, transcripts, summaries) -> inbox
 //  POST /quo/send       Send a text from the DLG HQ inbox (signed-in user only)
 // Secrets (set in Supabase > Edge Functions > Secrets): QUO_API_KEY, QUO_WEBHOOK_SECRET
@@ -207,7 +207,10 @@ Deno.serve(async (req) => {
   if (url.pathname.endsWith("/contact")) return contact(req);
   if (req.method !== "POST") return json({ ok: true, service: "dlg-quo" });
   const raw = await req.text();
-  if (!(await verify(raw, req.headers.get("openphone-signature")))) return json({ error: "bad signature" }, 401);
+  if (!(await verify(raw, req.headers.get("openphone-signature")))) {
+    await sb.from("quo_events").upsert({ id: "rejected-" + crypto.randomUUID(), type: "rejected", payload: { sig: (req.headers.get("openphone-signature") || "").slice(0, 40), body: raw.slice(0, 2000) }, error: "bad signature" });
+    return json({ error: "bad signature" }, 401);
+  }
   let ev: any; try { ev = JSON.parse(raw); } catch { return json({ error: "bad json" }, 400); }
   const id = ev.id || crypto.randomUUID();
   // unsigned (no secret set): flag it in the stored event and in the response so it's visible
