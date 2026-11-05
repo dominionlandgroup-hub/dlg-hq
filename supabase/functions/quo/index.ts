@@ -18,7 +18,8 @@ const e164 = (p: string) => "+1" + d10(p);
 
 async function verify(raw: string, header: string | null): Promise<boolean> {
   const secret = Deno.env.get("QUO_WEBHOOK_SECRET");
-  if (!secret) return true; // not configured yet: accept (set the secret to enforce)
+  // fail closed: without the secret nothing can be verified, so every webhook is rejected (set QUO_WEBHOOK_SECRET)
+  if (!secret) { console.error("quo webhook rejected: QUO_WEBHOOK_SECRET is not set"); return false; }
   if (!header) return false;
   for (const part of header.split(",")) {
     const [scheme, ver, ts, sig] = part.trim().split(";");
