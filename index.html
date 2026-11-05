@@ -453,7 +453,16 @@ async function vDashboard(){
   const underContract=underD.length;
   const roi=contractTotal?feeTotal/contractTotal*100:0;
   const dRows=[...underD.map(d=>({d,st:'Under contract'})),...closedD.map(d=>({d,st:'Closed'}))];
-  const C=(camps||[]).filter(c=>inR(c.drop_date));const cSpent=C.reduce((s,c)=>s+(+c.cost||0),0),cRec=C.reduce((s,c)=>s+(c.records||0),0);
+  // CAMPAIGN REPORT ACCURACY (Nov 2026): mail campaigns only, not ones still waiting to send; spend and response rate count
+  // LETTERS (one per owner), not lots, at each campaign's own cost per piece; leads = seller responses only (buyers are not leads).
+  const C=(camps||[]).filter(c=>inR(c.drop_date)&&(!c.channel||c.channel==='mail')&&c.mail_status!=='not_sent');
+  const _let={};if(C.length){const ids=C.map(c=>c.id);for(let i=0;i<ids.length;i+=20){for(let f=0;;f+=1000){const {data:pg}=await sb.from('campaign_records').select('id,campaign_id,lead_id,property_id,leads(mail_address,mail_zip)').in('campaign_id',ids.slice(i,i+20)).order('id').range(f,f+999);if(!pg||!pg.length)break;pg.forEach(r=>{(_let[r.campaign_id]=_let[r.campaign_id]||new Set()).add(ownKey(r))});if(pg.length<1000)break}}}
+  const lettersOf=c=>_let[c.id]?_let[c.id].size:(c.records||0);
+  const costOf=c=>{const lots=+c.records||0,l=lettersOf(c);return lots?(+c.cost||0)*Math.min(1,l/lots):(+c.cost||0)};
+  const cSpent=C.reduce((s,c)=>s+costOf(c),0),cRec=C.reduce((s,c)=>s+lettersOf(c),0);
+  const mailCampIds=new Set((camps||[]).filter(c=>!c.channel||c.channel==='mail').map(c=>c.id));
+  const sellerD=dl.filter(d=>d.board!=='buyer');const mailLeads=sellerD.filter(d=>(d.campaign_id&&mailCampIds.has(d.campaign_id))||/mail|letter/i.test(d.source||''));
+  const otherLeads=sellerD.length-mailLeads.length;
   // Mail goal: Mon-Sun weeks in local time; mail campaigns only
   const MAIL_GOAL=5000;const wkMon=(()=>{const t=new Date();const dow=(t.getDay()+6)%7;return new Date(t.getFullYear(),t.getMonth(),t.getDate()-dow)})();
   const wkRange=i=>{const s0=new Date(wkMon);s0.setDate(s0.getDate()+7*i);const e0=new Date(s0);e0.setDate(e0.getDate()+6);return [localISO(s0),localISO(e0)]};
@@ -469,10 +478,15 @@ async function vDashboard(){
   if(cIds.size){const pids=rows.filter(r=>r.buy&&r.sell&&r.p?.id).map(r=>r.p.id);if(pids.length){const {data:crs}=await sb.from('campaign_records').select('property_id,campaign_id').in('property_id',pids);
     const hit=new Set((crs||[]).filter(x=>cIds.has(x.campaign_id)).map(x=>x.property_id));rows.forEach(r=>{if(r.buy&&r.sell&&hit.has(r.p?.id))attrProfit+=(+r.sell.price)-(+r.buy.price)-(+r.buy.costs||0)-(+r.sell.costs||0)})}}
   // ROAS: assignment fees from this range's assigned/closed deals, over the cost of the campaigns those deals came from (whenever they dropped)
-  const campD=closedD.filter(d=>d.campaign_id);const campFee=campD.reduce((s,d)=>s+feeOf(d),0);
-  const campCost=[...new Set(campD.map(d=>d.campaign_id))].reduce((s,id)=>s+(+((camps||[]).find(c=>c.id===id)?.cost)||0),0);
+  // a closed deal with no campaign link is credited to the most recent mail campaign that mailed its property
+  const _noC=closedD.filter(d=>!d.campaign_id&&d.property_id);const _via={};
+  if(_noC.length){const {data:cr2}=await sb.from('campaign_records').select('property_id,campaign_id,campaigns!inner(drop_date,channel)').in('property_id',_noC.map(d=>d.property_id));
+    (cr2||[]).filter(x=>!x.campaigns.channel||x.campaigns.channel==='mail').forEach(x=>{const o=_via[x.property_id];if(!o||x.campaigns.drop_date>o.d)_via[x.property_id]={id:x.campaign_id,d:x.campaigns.drop_date}})}
+  const campOf=d=>d.campaign_id||_via[d.property_id]?.id||null;
+  const campD=closedD.filter(d=>campOf(d));const campFee=campD.reduce((s,d)=>s+feeOf(d),0);
+  const campCost=[...new Set(campD.map(campOf))].reduce((s,id)=>{const c=(camps||[]).find(x=>x.id===id);return s+(c?costOf(c):0)},0);
   const roas=campCost?campFee/campCost*100:0;
-  const conv=deals?assignedD.length/deals*100:0;
+  const conv=mailLeads.length?campD.length/mailLeads.length*100:0;
   const S={conv:Math.round(h.conv)+live.conv,calls:Math.round(h.calls)+live.calls,missed:Math.round(h.missed)+live.missed,talk:h.talk+live.talk,texts:Math.round(h.texts)+live.texts,emails:Math.round(h.emails)+live.emails};
   const pc=v=>`<span style="color:${v>0?'#1a9e5a':v<0?'var(--red)':'#5C2977'}">${v.toFixed(2)}%</span>`;
   const stat=(l,v)=>`<div class="pst"><div class="l">${l}</div><div class="v">${v}</div></div>`;
@@ -482,7 +496,7 @@ async function vDashboard(){
    <div class="card"><h3 class="sec">Responses added</h3><div style="height:150px"><canvas id="chDeals"></canvas></div></div>
   </div>
   <div class="card" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="sec" style="margin:0">Campaign report</h3><button class="btn ghost sm" onclick="go('campaigns')">See campaigns</button></div>
-     <div class="pstats" style="margin-top:14px">${stat('Campaigns<br>mailed',C.length)}${stat('Amount<br>spent','$'+kfmt(cSpent))}${stat('Total<br>records',kfmt(cRec))}${stat('Total<br>leads',deals.toLocaleString())}${stat('Cost per<br>lead',deals?money(cSpent/deals):'—')}${stat('Response<br>rate',cRec?(deals/cRec*100).toFixed(2)+'%':'0.00%')}${stat('Conversion<br>rate',conv.toFixed(2)+'%')}${stat('Leads per<br>deal',assignedD.length&&deals?(deals/assignedD.length).toFixed(1):'—')}<div class="pst"><div class="l big">ROAS</div><div class="v">${pc(roas)}</div></div></div>
+     <div class="pstats" style="margin-top:14px">${stat('Campaigns<br>mailed',C.length)}${stat('Amount<br>spent','$'+kfmt(cSpent))}${stat('Letters<br>mailed',kfmt(cRec))}${stat('Mail<br>leads',mailLeads.length.toLocaleString())}${stat('Other leads<br>(text, MLS, referral)',otherLeads.toLocaleString())}${stat('Cost per<br>mail lead',mailLeads.length?money(cSpent/mailLeads.length):'—')}${stat('Mail response<br>rate',cRec?(mailLeads.length/cRec*100).toFixed(2)+'%':'0.00%')}${stat('Mail leads<br>to closed deal',conv.toFixed(2)+'%')}${stat('Mail leads<br>per closed deal',campD.length&&mailLeads.length?(mailLeads.length/campD.length).toFixed(1):'—')}<div class="pst"><div class="l big">ROAS</div><div class="v">${pc(roas)}</div></div></div>
      <h3 class="sec" style="margin-top:18px">Mailings</h3><div style="height:170px"><canvas id="chMail"></canvas></div></div>
   <div class="card" style="margin-top:14px;overflow-x:auto"><h3 class="sec" style="display:flex;justify-content:space-between;align-items:center"><span>Assignments</span><span class="small">Fee % of price ${pc(roi)}</span></h3>
    <table class="roi"><tr><th>Property</th><th>Status</th><th class="right">Contract price</th><th class="right">Assigned for</th><th class="right">Assignment fee</th><th class="right">Days to close</th></tr>
@@ -494,7 +508,7 @@ async function vDashboard(){
   const bk=buckets(a,b),L=bk.map(x=>lbl(x[0]));
   const per=bk.map(([x,y])=>{const hh=histSum(H||[],x,y);const dd=(dl||[]).filter(d=>d.created_at.slice(0,10)>=x&&d.created_at.slice(0,10)<=y);const mm=M.filter(m=>m.created_at.slice(0,10)>=x&&m.created_at.slice(0,10)<=y);
     return {seller:Math.round(hh.seller)+dd.filter(d=>d.board==='seller').length,buyer:Math.round(hh.buyer)+dd.filter(d=>d.board==='buyer').length,
-      mail:(camps||[]).filter(c=>c.drop_date>=x&&c.drop_date<=y).reduce((s,c)=>s+(c.records||0),0),
+      mail:(camps||[]).filter(c=>c.drop_date>=x&&c.drop_date<=y&&(!c.channel||c.channel==='mail')&&c.mail_status!=='not_sent').reduce((s,c)=>s+lettersOf(c),0),
       calls:Math.round(hh.calls)+mm.filter(m=>m.channel==='call').length,texts:Math.round(hh.texts)+mm.filter(m=>m.channel==='sms'&&m.direction==='out').length,emails:Math.round(hh.emails)+mm.filter(m=>m.channel==='email'&&m.direction==='out').length}});
   const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,boxWidth:6,boxHeight:6},align:'end'}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{precision:0}}}};
   CHARTS.push(new Chart($('chDeals'),{type:'bar',data:{labels:L,datasets:[{label:'Seller',data:per.map(p=>p.seller),backgroundColor:'#5C2977'},{label:'Buyer',data:per.map(p=>p.buyer),backgroundColor:'#D5A940'}]},options:base}));
@@ -1573,7 +1587,9 @@ const ownKey=r=>{const l=r.leads||{};const a=String(l.mail_address||'').toLowerC
 const letterCount=recs=>new Set(recs.map(ownKey)).size;
 const joinList=a=>a.length<=1?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
 const parcelsText=apns=>{const a=[...new Set(apns.filter(Boolean))];if(a.length<=1)return `lot (parcel ${a[0]||''})`;const shown=a.length>2?a.slice(0,2).concat([`${a.length-2} more`]):a;return `lots (parcels ${joinList(shown)})`};
-async function recountCampaign(cid){const {count}=await sb.from('campaign_records').select('id',{count:'exact',head:true}).eq('campaign_id',cid);await sb.from('campaigns').update({records:count||0,cost:+((count||0)*MAIL_PIECE).toFixed(2)}).eq('id',cid);return count||0}
+async function recountCampaign(cid){const ks=new Set();let n=0;for(let f=0;;f+=1000){const {data,error}=await sb.from('campaign_records').select('id,lead_id,leads(mail_address,mail_zip)').eq('campaign_id',cid).order('id').range(f,f+999);if(error||!data||!data.length)break;n+=data.length;data.forEach(r=>ks.add(ownKey(r)));if(data.length<1000)break}
+  // records = lots; cost = letters (one per owner) x the cost per piece
+  await sb.from('campaigns').update({records:n,cost:+(ks.size*MAIL_PIECE).toFixed(2)}).eq('id',cid);return n}
 // Moves records into another campaign and gives them new offer codes that continue that campaign's numbering
 // (or a brand-new prefix if it has none), so no code or prefix is shared between campaigns.
 async function moveRecords(recs,toCid){if(!recs.length)return 0;const ids=recs.map(r=>r.id),from=[...new Set(recs.map(r=>r.campaign_id))];
