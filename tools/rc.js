@@ -9,13 +9,24 @@ const SRV={Gaston:['https://gis.gastoncountync.gov/publicgis/rest/services/Publi
  Union:['https://atlas.unioncountync.gov/server/rest/services/OperationalLayers/MapServer/215/query',a=>`PID='${a.replace(/\D/g,'')}'`],
  York:['https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0/query',a=>`TAXMAPID='${a.replace(/\D/g,'')}'`],
  Chester:['https://services8.arcgis.com/h9JHFVWvWofKfQhH/arcgis/rest/services/Scenario_Basemap_Parcels/FeatureServer/0/query',a=>`TAXMAP_NO='${esc(a)}'`],
- Lancaster:['https://services3.arcgis.com/rJcpRneDUBgTeCT3/arcgis/rest/services/LC_Parcels/FeatureServer/0/query',a=>`PIN='${esc(a)}'`]};
+ Lancaster:['https://services3.arcgis.com/rJcpRneDUBgTeCT3/arcgis/rest/services/LC_Parcels/FeatureServer/0/query',a=>`PIN='${esc(a)}'`],
+ // Duplin: PropStream's APN (e.g. '02-1029-  -  -', spaces and all) equals CYPAR exactly, so it is not trimmed or stripped
+ Duplin:['https://gis.duplinnc.gov/server/rest/services/TaxMapping/Parcels/FeatureServer/0/query',a=>`CYPAR='${esc(a)}'`],
+ Greenville:['https://services.arcgis.com/zTM0LZtJeE1HzO09/arcgis/rest/services/kx_greenville_county_sc_tax_parcel_SHP/FeatureServer/0/query',a=>`PIN='${a.replace(/\D/g,'')}'`]};
+// counties only in SC (Cherokee and Union are also NC counties, so those need State = SC): never looked up on the NC statewide map
+const SC_ONLY=/^(York|Chester|Lancaster|Greenville|Spartanburg|Anderson|Pickens|Oconee|Horry)$/i;
+// Brunswick NC private-road communities: lots here pass even without public road frontage (Brunswick GIS LegalDescription)
+const BRUNS='https://bcgis.brunswickcountync.gov/arcgis/rest/services/Layers/TaxParcels/MapServer/0/query';
+const BRUNS_OK=/RIVERS?'?\s*EDGE|OCEAN\s*RIDGE|SEA\s*SCAPE|SEA\s*WATCH/i;
+const brunsPrivate=async a=>{const vs=[...new Set([a.trim().toUpperCase(),a.replace(/[^0-9A-Za-z]/g,'').toUpperCase()])].filter(Boolean).map(v=>`'${esc(v)}'`).join(',');
+ const j=await P(BRUNS,{where:`ParcelNumber IN (${vs})`,outFields:'ParcelNumber,LegalDescription',returnGeometry:false,f:'json',resultRecordCount:5});
+ const d=(j.features||[]).map(f=>String(f.attributes.LegalDescription||'')).find(x=>BRUNS_OK.test(x));return d?d.match(BRUNS_OK)[0].toUpperCase():null};
 const ST='https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query';
 // APN spellings to try on NC OneMap; also the first 10 digits (Forsyth 6882-46-0712.000 is altparno 6882460712 there)
 const vars=a=>{a=a.trim();const s=a.replace(/[^0-9A-Za-z.]/g,''),s2=a.replace(/[^0-9A-Za-z]/g,''),d=a.replace(/\D/g,'');return [...new Set([a,s,s2,d.length>10?d.slice(0,10):''])].filter(Boolean)};
 const SC_CO=/^(york|chester|lancaster|spartanburg|greenville|anderson|pickens|oconee|union|laurens|newberry|fairfield|kershaw|richland|lexington|charleston|berkeley|dorchester|horry|aiken|sumter|florence)$/i;
-const getGeom=async(c,a,sc)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const wh=w(a);if(!wh)throw 0;const j=await P(u,{where:wh,outFields:'OBJECTID',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
- if(!g&&!/York|Chester|Lancaster/.test(c)&&!(sc)){const vs=vars(a).map(v=>`'${esc(v)}'`).join(',');const j=await P(ST,{where:`cntyname='${c}' AND (parno IN (${vs}) OR altparno IN (${vs}))`,outFields:'objectid',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}
+const getGeom=async(c,a,sc)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const wh=w(a);if(!wh)throw 0;const j=await P(u,{where:wh,outFields:c==='Greenville'?'FID':'OBJECTID',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
+ if(!g&&!SC_ONLY.test(c||'')&&!sc){const vs=vars(a).map(v=>`'${esc(v)}'`).join(',');const j=await P(ST,{where:`cntyname='${c}' AND (parno IN (${vs}) OR altparno IN (${vs}))`,outFields:'objectid',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}
  return g};
 const inPoly=(pt,rs)=>{let c=false;for(const r of rs)for(let i=0,j=r.length-1;i<r.length;j=i++){const [xi,yi]=r[i],[xj,yj]=r[j];if(((yi>pt[1])!=(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/(yj-yi)+xi))c=!c}return c};
 // local metres projection
@@ -46,17 +57,22 @@ const check=async(r)=>{const c=r.properties.county,a=r.properties.apn;if(!a)retu
  if((wj.features||[]).some(f=>(f.attributes.NAME&&String(f.attributes.NAME).trim())||(f.attributes.SQKM||0)>=0.05))return {...out,fail:'aerial: waterfront'};
  // roads: state maintained + local inside town limits
  const pad=0.0004;const e=env(rings,pad);const eg={geometry:JSON.stringify(e),geometryType:'esriGeometryEnvelope',inSR:4326,spatialRel:'esriSpatialRelIntersects',outSR:4326,f:'json',returnGeometry:true};
- const s1=await P('https://services.arcgis.com/NuWFvHYDMVmmxMeM/ArcGIS/rest/services/NCDOT_StateMaintainedRoadsER/FeatureServer/0/query',{...eg,outFields:'RouteClass'});
- let lines=(s1.features||[]).flatMap(f=>(f.geometry.paths||[]).map(p=>p.map(pj.f)));let fr=frontage(rm,lines);
- if(fr<15){const ctr=grid(rings,1)[0];const tj=await P('https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer/4/query',{geometry:JSON.stringify({x:ctr[0],y:ctr[1],spatialReference:{wkid:4326}}),geometryType:'esriGeometryPoint',inSR:4326,spatialRel:'esriSpatialRelIntersects',outFields:'NAME',returnGeometry:false,f:'json'});
+ let lines,fr;
+ if(sc){// SC: every public road in the Census TIGER file counts (primary, secondary, local, ramps); private drives and trails don't
+  const T='https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Transportation/MapServer/';const js=await Promise.all([2,6,8].map(l=>P(T+l+'/query',{...eg,where:"MTFCC IN ('S1100','S1200','S1400','S1640')",outFields:'MTFCC'})));
+  lines=js.flatMap(j=>(j.features||[]).flatMap(f=>(f.geometry.paths||[]).map(p=>p.map(pj.f))));fr=frontage(rm,lines)}
+ else{const s1=await P('https://services.arcgis.com/NuWFvHYDMVmmxMeM/ArcGIS/rest/services/NCDOT_StateMaintainedRoadsER/FeatureServer/0/query',{...eg,outFields:'RouteClass'});
+  lines=(s1.features||[]).flatMap(f=>(f.geometry.paths||[]).map(p=>p.map(pj.f)));fr=frontage(rm,lines)}
+ if(fr<15&&!sc){const ctr=grid(rings,1)[0];const tj=await P('https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer/4/query',{geometry:JSON.stringify({x:ctr[0],y:ctr[1],spatialReference:{wkid:4326}}),geometryType:'esriGeometryPoint',inSR:4326,spatialRel:'esriSpatialRelIntersects',outFields:'NAME',returnGeometry:false,f:'json'});
   if((tj.features||[]).length){const s2=await P('https://gis11.services.ncdot.gov/arcgis/rest/services/NCDOT_RoadNC/RoadNC_CenterlinesGray/MapServer/4/query',{...eg,where:"RouteClass='5'",outFields:'RouteClass'});lines=lines.concat((s2.features||[]).flatMap(f=>(f.geometry.paths||[]).map(p=>p.map(pj.f))));fr=frontage(rm,lines);out.town=tj.features[0].attributes.NAME}}
  out.frontFt=Math.round(fr*3.28);
- if(fr<=0.5)return {...out,fail:'hold: no public road frontage'};
- if(fr<15)return {...out,fail:'hold: under 50 ft on a public road'};
+ if(fr<15&&/^brunswick$/i.test(c||'')&&!sc){out.privateRoad=await brunsPrivate(a)} // Rivers Edge, Ocean Ridge Plantation, SeaScape, SeaWatch: private roads OK
+ if(!out.privateRoad){if(fr<=0.5)return {...out,fail:'hold: no public road frontage'};
+  if(fr<15)return {...out,fail:'hold: under 50 ft on a public road'}}
  // flood + slope
  const G=grid(rings,8);const fz=await P('https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query',{geometry:JSON.stringify(env(rings)),geometryType:'esriGeometryEnvelope',inSR:4326,spatialRel:'esriSpatialRelIntersects',where:"SFHA_TF='T'",outFields:'FLD_ZONE',returnGeometry:true,outSR:4326,f:'json'});
  const fl=(fz.features||[]).filter(f=>f.geometry).map(f=>f.geometry.rings);const inF=G.filter(p=>fl.some(r=>inPoly(p,r))).length;out.floodPct=Math.round(100*inF/G.length);
- if(out.floodPct>=50)return {...out,fail:'in floodplain'};
+ if(out.floodPct>0)return {...out,fail:'in flood zone'}; // any flood zone fails
  const E=grid(rings,5);const es=await P('https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/getSamples',{geometry:JSON.stringify({points:E,spatialReference:{wkid:4326}}),geometryType:'esriGeometryMultipoint',returnFirstValueOnly:'true',f:'json'});
  const S=(es.samples||[]).map(s=>[...pj.f([s.location.x,s.location.y]),parseFloat(s.value)]).filter(s=>isFinite(s[2]));
  if(S.length>=3){const n=S.length,mx=S.reduce((t,s)=>t+s[0],0)/n,my=S.reduce((t,s)=>t+s[1],0)/n,mz=S.reduce((t,s)=>t+s[2],0)/n;let sxx=0,syy=0,sxy=0,sxz=0,syz=0;for(const [x,y,z] of S){const dx=x-mx,dy=y-my,dz=z-mz;sxx+=dx*dx;syy+=dy*dy;sxy+=dx*dy;sxz+=dx*dz;syz+=dy*dz}const D=sxx*syy-sxy*sxy;if(D>1e-6){const A=(sxz*syy-syz*sxy)/D,B=(syz*sxx-sxz*sxy)/D;out.slope=Math.round(100*Math.hypot(A,B))}}
