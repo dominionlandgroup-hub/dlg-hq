@@ -29,7 +29,7 @@
   const autoMap = cols => { const u = usable(cols), m = {}; for (const [f, ks] of Object.entries(F)) { const c = u.find(x => ks.some(k => K(k) === K(x))); if (c) m[f] = c; } return m; };
   const val = (o, k) => CK.map[k] ? String(o[CK.map[k]] ?? '').trim() : '';
   const county = o => val(o, 'county').replace(/\s+county$/i, '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-  const apnOf = o => { const raw = CK.map.apn ? String(o[CK.map.apn] ?? '') : ''; return /^duplin$/i.test(county(o)) ? raw : raw.trim(); }; // Duplin APN = CYPAR exactly, spaces and all
+  const apnOf = o => { const raw = CK.map.apn ? String(o[CK.map.apn] ?? '') : ''; return /^duplin$/i.test(county(o)) ? raw : raw.trim(); }; // Duplin APN kept exactly, spaces and all (rc.js matches it to the county ParcelNumber)
   const rowOf = (o, i) => { const res = CK.res[i] || {}, first = val(o, 'first'), last = val(o, 'last'); let mail = val(o, 'mail'); const unit = val(o, 'unit');
     if (unit && !mail.toLowerCase().includes(unit.toLowerCase())) mail = (mail + ' ' + (/^[#a-z]/i.test(unit) ? unit : '#' + unit)).trim();
     const sq = +val(o, 'sqft').replace(/[,$]/g, ''), ac = +val(o, 'acres').replace(/[,$]/g, '');
