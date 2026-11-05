@@ -10,8 +10,9 @@ const SRV={Gaston:['https://gis.gastoncountync.gov/publicgis/rest/services/Publi
  York:['https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0/query',a=>`TAXMAPID='${a.replace(/\D/g,'')}'`],
  Chester:['https://services8.arcgis.com/h9JHFVWvWofKfQhH/arcgis/rest/services/Scenario_Basemap_Parcels/FeatureServer/0/query',a=>`TAXMAP_NO='${esc(a)}'`],
  Lancaster:['https://services3.arcgis.com/rJcpRneDUBgTeCT3/arcgis/rest/services/LC_Parcels/FeatureServer/0/query',a=>`PIN='${esc(a)}'`],
- // Duplin: PropStream's APN (e.g. '02-1029-  -  -', spaces and all) equals CYPAR exactly, so it is not trimmed or stripped
- Duplin:['https://gis.duplinnc.gov/server/rest/services/TaxMapping/Parcels/FeatureServer/0/query',a=>`CYPAR='${esc(a)}'`],
+ // Duplin: PropStream's APN ('12- 752-  -  -') is the county's current ParcelNumber plus one trailing '  -' ('12- 752-  -').
+ // Not CYPAR: that's the old numbering, and an old CYPAR often equals a DIFFERENT parcel's APN (owner matched 97 of 100 on ParcelNumber, 0 on CYPAR)
+ Duplin:['https://gis.duplinnc.gov/server/rest/services/TaxMapping/Parcels/FeatureServer/0/query',a=>`ParcelNumber='${esc(String(a).replace(/  -$/,''))}'`],
  Greenville:['https://services.arcgis.com/zTM0LZtJeE1HzO09/arcgis/rest/services/kx_greenville_county_sc_tax_parcel_SHP/FeatureServer/0/query',a=>`PIN='${a.replace(/\D/g,'')}'`]};
 // counties only in SC (Cherokee and Union are also NC counties, so those need State = SC): never looked up on the NC statewide map
 const SC_ONLY=/^(York|Chester|Lancaster|Greenville|Spartanburg|Anderson|Pickens|Oconee|Horry)$/i;
