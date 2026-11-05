@@ -2,7 +2,8 @@ window.RC=(function(){
 const esc=s=>String(s).replace(/'/g,"''");
 const P=async(u,p,ms=40000)=>{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(u,{method:'POST',body:new URLSearchParams(p),signal:c.signal});if(!r.ok)throw new Error('http '+r.status);const j=await r.json();if(j.error)throw new Error(j.error.message||'err');return j}finally{clearTimeout(t)}};
 const SRV={Gaston:['https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Parcels/MapServer/11/query',a=>`PID='${esc(a)}'`],
- Cabarrus:['https://location.cabarruscounty.us/arcgisservices/rest/services/opendata/MapServer/46/query',a=>`PIN14 LIKE '${a.replace(/\D/g,'')}%'`],
+ // Cabarrus: exact match on the full 14-digit PIN (a 10-digit PIN is padded with zeros); fewer than 10 digits = skip (no prefix guessing)
+ Cabarrus:['https://location.cabarruscounty.us/arcgisservices/rest/services/opendata/MapServer/46/query',a=>{const d=a.replace(/\D/g,'');return d.length<10?null:`PIN14='${d.slice(0,14).padEnd(14,'0')}'`}],
  Iredell:['https://maps.iredellcountync.gov/server/rest/services/Data/TaxSQL_Parcels/FeatureServer/0/query',a=>`PIN='${esc(a.replace(/-/g,''))}'`],
  Mecklenburg:['https://meckgis.mecklenburgcountync.gov/server/rest/services/TaxParcelBoundaries/FeatureServer/0/query',a=>`pid='${a.replace(/\D/g,'').padStart(8,'0')}'`],
  Union:['https://atlas.unioncountync.gov/server/rest/services/OperationalLayers/MapServer/215/query',a=>`PID='${a.replace(/\D/g,'')}'`],
@@ -10,9 +11,11 @@ const SRV={Gaston:['https://gis.gastoncountync.gov/publicgis/rest/services/Publi
  Chester:['https://services8.arcgis.com/h9JHFVWvWofKfQhH/arcgis/rest/services/Scenario_Basemap_Parcels/FeatureServer/0/query',a=>`TAXMAP_NO='${esc(a)}'`],
  Lancaster:['https://services3.arcgis.com/rJcpRneDUBgTeCT3/arcgis/rest/services/LC_Parcels/FeatureServer/0/query',a=>`PIN='${esc(a)}'`]};
 const ST='https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query';
-const vars=a=>{a=a.trim();const s=a.replace(/[^0-9A-Za-z.]/g,''),s2=a.replace(/[^0-9A-Za-z]/g,'');return [...new Set([a,s,s2])].filter(Boolean)};
-const getGeom=async(c,a)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const j=await P(u,{where:w(a),outFields:'OBJECTID',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
- if(!g&&!/York|Chester|Lancaster/.test(c)){const vs=vars(a).map(v=>`'${esc(v)}'`).join(',');const j=await P(ST,{where:`cntyname='${c}' AND (parno IN (${vs}) OR altparno IN (${vs}))`,outFields:'objectid',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}
+// APN spellings to try on NC OneMap; also the first 10 digits (Forsyth 6882-46-0712.000 is altparno 6882460712 there)
+const vars=a=>{a=a.trim();const s=a.replace(/[^0-9A-Za-z.]/g,''),s2=a.replace(/[^0-9A-Za-z]/g,''),d=a.replace(/\D/g,'');return [...new Set([a,s,s2,d.length>10?d.slice(0,10):''])].filter(Boolean)};
+const SC_CO=/^(york|chester|lancaster|spartanburg|greenville|anderson|pickens|oconee|union|laurens|newberry|fairfield|kershaw|richland|lexington|charleston|berkeley|dorchester|horry|aiken|sumter|florence)$/i;
+const getGeom=async(c,a,sc)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const wh=w(a);if(!wh)throw 0;const j=await P(u,{where:wh,outFields:'OBJECTID',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
+ if(!g&&!/York|Chester|Lancaster/.test(c)&&!(sc)){const vs=vars(a).map(v=>`'${esc(v)}'`).join(',');const j=await P(ST,{where:`cntyname='${c}' AND (parno IN (${vs}) OR altparno IN (${vs}))`,outFields:'objectid',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}
  return g};
 const inPoly=(pt,rs)=>{let c=false;for(const r of rs)for(let i=0,j=r.length-1;i<r.length;j=i++){const [xi,yi]=r[i],[xj,yj]=r[j];if(((yi>pt[1])!=(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/(yj-yi)+xi))c=!c}return c};
 // local metres projection
@@ -26,7 +29,9 @@ const env=(rings,padDeg=0)=>{const p=rings.flat(),xs=p.map(q=>q[0]),ys=p.map(q=>
 const grid=(rings,n)=>{const e=env(rings);const out=[];for(let i=0;i<n;i++)for(let j=0;j<n;j++){const x=e.xmin+(e.xmax-e.xmin)*(i+.5)/n,y=e.ymin+(e.ymax-e.ymin)*(j+.5)/n;if(inPoly([x,y],rings))out.push([x,y])}if(!out.length)out.push([(e.xmin+e.xmax)/2,(e.ymin+e.ymax)/2]);return out};
 const gq=(rings)=>({geometry:JSON.stringify({rings,spatialReference:{wkid:4326}}),geometryType:'esriGeometryPolygon',inSR:4326,spatialRel:'esriSpatialRelIntersects',outSR:4326,f:'json'});
 const check=async(r)=>{const c=r.properties.county,a=r.properties.apn;if(!a)return {fail:'hold: parcel not found on county map'};
- const g=await getGeom(c,a);if(!g||!g.rings)return {fail:'hold: parcel not found on county map'};const rings=g.rings;const pj=proj(rings);const rm=rings.map(x=>x.map(pj.f));
+ // South Carolina has no statewide parcel map: a county without its own source can't be checked
+ const sc=String(r.properties.state||'').toUpperCase()==='SC'||(!r.properties.state&&SC_CO.test(c||'')&&!/^union$/i.test(c||''));if(sc&&(!SRV[c]||/^union$/i.test(c)))return {fail:'hold: no parcel map for this county'};
+ const g=await getGeom(c,a,sc);if(!g||!g.rings)return {fail:'hold: parcel not found on county map'};const rings=g.rings;const pj=proj(rings);const rm=rings.map(x=>x.map(pj.f));
  const areaM=polyArea(rm),acres=areaM/4046.86;const mr=minRect(rm.flat());const avgW=areaM/mr.L,fill=areaM/mr.a;
  const out={acres:+acres.toFixed(3),avgWft:Math.round(avgW*3.28),Lft:Math.round(mr.L*3.28)};
  if(acres<0.1)return {...out,fail:'aerial: too small'};
@@ -59,7 +64,8 @@ const check=async(r)=>{const c=r.properties.county,a=r.properties.apn;if(!a)retu
  return {...out,pass:true}};
 let pg={done:0,err:0,total:0};
 const save=()=>{try{localStorage.setItem('rc_res',JSON.stringify(window._RC.res))}catch(e){}};
-const run=async(rows,conc=6)=>{const todo=rows.filter(r=>!window._RC.res[r.id]);pg={done:0,err:0,total:todo.length,start:Date.now()};let i=0;
+// rows already checked (pass or fail) are skipped; rows that ended in {error} are tried again
+const run=async(rows,conc=6)=>{const todo=rows.filter(r=>{const x=window._RC.res[r.id];return !x||!(x.pass||x.fail)});pg={done:0,err:0,total:todo.length,start:Date.now()};let i=0;
  const w=async()=>{while(i<todo.length){const r=todo[i++];let o;for(let t=0;t<3;t++){try{o=await check(r);break}catch(e){o={error:String(e.message||e).slice(0,80)};await new Promise(z=>setTimeout(z,1500*(t+1)))}}if(o.error)pg.err++;window._RC.res[r.id]=o;pg.done++;if(pg.done%100===0)save()}};
  await Promise.all(Array.from({length:conc},w));save();pg.finished=true};
 return {run,check,get pg(){return pg}}})();'ok'
