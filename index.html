@@ -26,7 +26,7 @@
 <script src="scorecard.js?v=12"></script>
 <script src="checklist.js?v=1"></script>
 <script src="builderhub.js?v=1"></script>
-<script src="checker.js?v=5"></script>
+<script src="checker.js?v=6"></script>
 <style>
 .impsteps{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}.impsteps span{font-size:12px;padding:4px 10px;border-radius:999px;background:#eee;color:#666}.impsteps span.on{background:#efe7fb;color:#4b2a7b;font-weight:700}.impsteps span.done{background:#e3f1e6;color:#2f6b3a}
 .tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.tagchip{display:inline-flex;align-items:center;gap:4px;background:#efe7fb;color:#4b2a7b;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;font-weight:600}.tagchip.sm{padding:2px 8px;font-size:11px}.tagchip button{border:0;background:none;color:#4b2a7b;cursor:pointer;font-size:15px;line-height:1;padding:0 4px}.tagadd{border:1px dashed #b9a6d6;background:none;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#4b2a7b}.linkres{position:absolute;left:0;right:0;z-index:20;background:var(--card,#fff);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:8px;max-height:300px;overflow:auto}.linkres .pitem{padding:8px 10px;border-bottom:1px solid var(--line,#eee);cursor:pointer}.linkres .pitem:hover{background:#f5f1fb}
@@ -2012,7 +2012,7 @@ function buildLine(b){if(!b)return '';const x=[b.slope_pct!=null?`Slope ${b.slop
 // LOT CHECK (Nov 2026): the List Checker's checks (tools/rc.js) on one property, from its page
 async function lotCheck(id){const o=$('lc_out');o.textContent='Checking… (about 10 seconds)';
   try{const {data:p}=await sb.from('properties').select('apn,county,state').eq('id',id).single();if(!p||!p.apn||!p.county)return o.textContent='This property needs an APN and a county to check.';
-    if(!window.RC)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='tools/rc.js?v=5';s.onload=ok;s.onerror=()=>no(new Error('The checker did not load. Reload and try again.'));document.head.appendChild(s)});
+    if(!window.RC)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='tools/rc.js?v=6';s.onload=ok;s.onerror=()=>no(new Error('The checker did not load. Reload and try again.'));document.head.appendChild(s)});
     let r;for(let t=0;t<3;t++){try{r=await RC.check({properties:{apn:p.apn,county:p.county,state:p.state||''}});break}catch(e){r={error:String(e.message||e)};await new Promise(z=>setTimeout(z,1500))}}
     const m=[r.acres!=null?r.acres+' acres':'',r.avgWft?'about '+r.avgWft+' ft wide':'',r.floodPct!=null?(r.floodPct?r.floodPct+'% in a flood zone':'no flood zone'):'',r.slope!=null?r.slope+'% slope':''].filter(Boolean).join(' · ');
     o.innerHTML=r.pass?`<b style="color:#1d7a3a">Passed</b>${m?' · '+m:''}`:r.error?`<b style="color:#b26a00">Couldn't check:</b> ${esc(r.error)}`:`<b style="color:var(--red)">${esc(r.fail)}</b>${m?' · '+m:''}`}

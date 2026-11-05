@@ -14,7 +14,7 @@
   // the file's rows are saved once (key + ':rows'); results, column picks and the import state on every save
   const save = () => CK && idbSet(CK.key, { name: CK.name, cols: CK.cols, n: CK.rows.length, map: CK.map, res: CK.res, imp: CK.imp || null, at: Date.now() }).then(() => idbSet('last', CK.key));
   const loadRun = async k => { const p = k && await idbGet(k), rows = p && await idbGet(k + ':rows'); return p && rows ? { ...p, rows } : null; };
-  const loadRC = () => window.RC ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'tools/rc.js?v=5'; s.onload = ok; s.onerror = () => no(new Error('The checker script (tools/rc.js) did not load. Reload and try again.')); document.head.appendChild(s); });
+  const loadRC = () => window.RC ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'tools/rc.js?v=6'; s.onload = ok; s.onerror = () => no(new Error('The checker script (tools/rc.js) did not load. Reload and try again.')); document.head.appendChild(s); });
   // ---- columns: PropStream export, or a generic CSV ----
   const K = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
   const F = { first: ['Owner 1 First Name', 'owner1firstname', 'firstname'], last: ['Owner 1 Last Name', 'owner1lastname', 'lastname'], full: ['Owner Name', 'ownername', 'owner1fullname', 'owner1name', 'fullname', 'owner'],
