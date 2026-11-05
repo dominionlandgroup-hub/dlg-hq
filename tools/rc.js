@@ -31,7 +31,7 @@ const ST='https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/Feat
 // APN spellings to try on NC OneMap; also the first 10 digits (Forsyth 6882-46-0712.000 is altparno 6882460712 there)
 const vars=a=>{a=a.trim();const s=a.replace(/[^0-9A-Za-z.]/g,''),s2=a.replace(/[^0-9A-Za-z]/g,''),d=a.replace(/\D/g,'');return [...new Set([a,s,s2,d.length>10?d.slice(0,10):''])].filter(Boolean)};
 const SC_CO=/^(york|chester|lancaster|spartanburg|greenville|anderson|pickens|oconee|union|laurens|newberry|fairfield|kershaw|richland|lexington|charleston|berkeley|dorchester|horry|aiken|sumter|florence)$/i;
-const getGeom=async(c,a,sc)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const wh=w(a);if(!wh)throw 0;const j=await P(u,{where:wh,outFields:c==='Greenville'?'FID':c==='Guilford'?'objectid':'OBJECTID',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
+const getGeom=async(c,a,sc)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const wh=w(a);if(!wh)throw 0;const j=await P(u,{where:wh,outFields:'*',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
  if(!g&&!SC_ONLY.test(c||'')&&!sc){const vs=vars(a).map(v=>`'${esc(v)}'`).join(',');const j=await P(ST,{where:`cntyname='${c}' AND (parno IN (${vs}) OR altparno IN (${vs}))`,outFields:'objectid',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}
  return g};
 const inPoly=(pt,rs)=>{let c=false;for(const r of rs)for(let i=0,j=r.length-1;i<r.length;j=i++){const [xi,yi]=r[i],[xj,yj]=r[j];if(((yi>pt[1])!=(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/(yj-yi)+xi))c=!c}return c};
@@ -49,7 +49,8 @@ const gq=(rings)=>({geometry:JSON.stringify({rings,spatialReference:{wkid:4326}}
 const check=async(r)=>{const FL=String(r.properties.state||'').toUpperCase()==='FL';const c=FL?String(r.properties.county||'').trim()+' FL':r.properties.county,a=r.properties.apn;if(FL&&!SRV[c])return {fail:'hold: no parcel map for this county'};if(!a)return {fail:'hold: parcel not found on county map'};
  // South Carolina has no statewide parcel map: a county without its own source can't be checked
  const sc=FL||String(r.properties.state||'').toUpperCase()==='SC'||(!r.properties.state&&SC_CO.test(c||'')&&!/^union$/i.test(c||''));if(sc&&(!SRV[c]||/^union$/i.test(c)))return {fail:'hold: no parcel map for this county'};
- const g=await getGeom(c,a,sc);if(!g||!g.rings)return {fail:'hold: parcel not found on county map'};const rings=g.rings;const pj=proj(rings);const rm=rings.map(x=>x.map(pj.f));
+ // Onslow (old LandPortal data): APN is the account number without its leading zeros ('65289' = altparno '065289')
+ const g=await getGeom(c,/^onslow$/i.test(c||'')&&/^\d{1,5}$/.test(String(a).trim())?String(a).trim().padStart(6,'0'):a,sc);if(!g||!g.rings)return {fail:'hold: parcel not found on county map'};const rings=g.rings;const pj=proj(rings);const rm=rings.map(x=>x.map(pj.f));
  const areaM=polyArea(rm),acres=areaM/4046.86;const mr=minRect(rm.flat());const avgW=areaM/mr.L,fill=areaM/mr.a;
  const out={acres:+acres.toFixed(3),avgWft:Math.round(avgW*3.28),Lft:Math.round(mr.L*3.28)};
  if(acres<0.1)return {...out,fail:'aerial: too small'};
