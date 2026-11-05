@@ -56,7 +56,7 @@ const check=async(r)=>{const c=r.properties.county,a=r.properties.apn;if(!a)retu
  // flood + slope
  const G=grid(rings,8);const fz=await P('https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query',{geometry:JSON.stringify(env(rings)),geometryType:'esriGeometryEnvelope',inSR:4326,spatialRel:'esriSpatialRelIntersects',where:"SFHA_TF='T'",outFields:'FLD_ZONE',returnGeometry:true,outSR:4326,f:'json'});
  const fl=(fz.features||[]).filter(f=>f.geometry).map(f=>f.geometry.rings);const inF=G.filter(p=>fl.some(r=>inPoly(p,r))).length;out.floodPct=Math.round(100*inF/G.length);
- if(out.floodPct>=50)return {...out,fail:'in floodplain'};
+ if(out.floodPct>0)return {...out,fail:'in flood zone'};
  const E=grid(rings,5);const es=await P('https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/getSamples',{geometry:JSON.stringify({points:E,spatialReference:{wkid:4326}}),geometryType:'esriGeometryMultipoint',returnFirstValueOnly:'true',f:'json'});
  const S=(es.samples||[]).map(s=>[...pj.f([s.location.x,s.location.y]),parseFloat(s.value)]).filter(s=>isFinite(s[2]));
  if(S.length>=3){const n=S.length,mx=S.reduce((t,s)=>t+s[0],0)/n,my=S.reduce((t,s)=>t+s[1],0)/n,mz=S.reduce((t,s)=>t+s[2],0)/n;let sxx=0,syy=0,sxy=0,sxz=0,syz=0;for(const [x,y,z] of S){const dx=x-mx,dy=y-my,dz=z-mz;sxx+=dx*dx;syy+=dy*dy;sxy+=dx*dy;sxz+=dx*dz;syz+=dy*dz}const D=sxx*syy-sxy*sxy;if(D>1e-6){const A=(sxz*syy-syz*sxy)/D,B=(syz*sxx-sxz*sxy)/D;out.slope=Math.round(100*Math.hypot(A,B))}}
