@@ -10,9 +10,13 @@ const SRV={Gaston:['https://gis.gastoncountync.gov/publicgis/rest/services/Publi
  York:['https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0/query',a=>`TAXMAPID='${a.replace(/\D/g,'')}'`],
  Chester:['https://services8.arcgis.com/h9JHFVWvWofKfQhH/arcgis/rest/services/Scenario_Basemap_Parcels/FeatureServer/0/query',a=>`TAXMAP_NO='${esc(a)}'`],
  Lancaster:['https://services3.arcgis.com/rJcpRneDUBgTeCT3/arcgis/rest/services/LC_Parcels/FeatureServer/0/query',a=>`PIN='${esc(a)}'`],
- // Duplin: PropStream's APN (e.g. '02-1029-  -  -', spaces and all) equals CYPAR exactly, so it is not trimmed or stripped
- Duplin:['https://gis.duplinnc.gov/server/rest/services/TaxMapping/Parcels/FeatureServer/0/query',a=>`CYPAR='${esc(a)}'`],
- Greenville:['https://services.arcgis.com/zTM0LZtJeE1HzO09/arcgis/rest/services/kx_greenville_county_sc_tax_parcel_SHP/FeatureServer/0/query',a=>`PIN='${a.replace(/\D/g,'')}'`]};
+ // Duplin: PropStream's APN ('12- 752-  -  -') is the county's current ParcelNumber plus one trailing '  -' ('12- 752-  -').
+ // Not CYPAR: that's the old numbering, and an old CYPAR often equals a DIFFERENT parcel's APN (owner matched 97 of 100 on ParcelNumber, 0 on CYPAR)
+ Duplin:['https://gis.duplinnc.gov/server/rest/services/TaxMapping/Parcels/FeatureServer/0/query',a=>`ParcelNumber='${esc(String(a).replace(/  -$/,''))}'`],
+ // Guilford: PropStream's APN is the county REID with leading zeros ('0095315' = reid '95315'); the state map has no REID
+ Guilford:['https://gcgis.guilfordcountync.gov/arcgis/rest/services/Hosted/Parcel_Boundaries/FeatureServer/0/query',a=>/^\d{1,8}$/.test(String(a).trim())?`reid='${String(a).trim().replace(/^0+/,'')}'`:''],
+ // Greenville: keep the letter prefix (B004.05-01-115.00 = PIN 'B004050111500'); stripping it lost every B/P/M parcel
+ Greenville:['https://services.arcgis.com/zTM0LZtJeE1HzO09/arcgis/rest/services/kx_greenville_county_sc_tax_parcel_SHP/FeatureServer/0/query',a=>`PIN='${a.replace(/[^0-9A-Za-z]/g,'').toUpperCase()}'`]};
 // counties only in SC (Cherokee and Union are also NC counties, so those need State = SC): never looked up on the NC statewide map
 const SC_ONLY=/^(York|Chester|Lancaster|Greenville|Spartanburg|Anderson|Pickens|Oconee|Horry)$/i;
 // Brunswick NC private-road communities: lots here pass even without public road frontage (Brunswick GIS LegalDescription)
@@ -25,7 +29,7 @@ const ST='https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/Feat
 // APN spellings to try on NC OneMap; also the first 10 digits (Forsyth 6882-46-0712.000 is altparno 6882460712 there)
 const vars=a=>{a=a.trim();const s=a.replace(/[^0-9A-Za-z.]/g,''),s2=a.replace(/[^0-9A-Za-z]/g,''),d=a.replace(/\D/g,'');return [...new Set([a,s,s2,d.length>10?d.slice(0,10):''])].filter(Boolean)};
 const SC_CO=/^(york|chester|lancaster|spartanburg|greenville|anderson|pickens|oconee|union|laurens|newberry|fairfield|kershaw|richland|lexington|charleston|berkeley|dorchester|horry|aiken|sumter|florence)$/i;
-const getGeom=async(c,a,sc)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const wh=w(a);if(!wh)throw 0;const j=await P(u,{where:wh,outFields:c==='Greenville'?'FID':'OBJECTID',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
+const getGeom=async(c,a,sc)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const wh=w(a);if(!wh)throw 0;const j=await P(u,{where:wh,outFields:c==='Greenville'?'FID':c==='Guilford'?'objectid':'OBJECTID',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
  if(!g&&!SC_ONLY.test(c||'')&&!sc){const vs=vars(a).map(v=>`'${esc(v)}'`).join(',');const j=await P(ST,{where:`cntyname='${c}' AND (parno IN (${vs}) OR altparno IN (${vs}))`,outFields:'objectid',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}
  return g};
 const inPoly=(pt,rs)=>{let c=false;for(const r of rs)for(let i=0,j=r.length-1;i<r.length;j=i++){const [xi,yi]=r[i],[xj,yj]=r[j];if(((yi>pt[1])!=(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/(yj-yi)+xi))c=!c}return c};
