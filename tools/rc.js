@@ -14,6 +14,8 @@ const SRV={Gaston:['https://gis.gastoncountync.gov/publicgis/rest/services/Publi
  // Not CYPAR: that's the old numbering, and an old CYPAR often equals a DIFFERENT parcel's APN (owner matched 97 of 100 on ParcelNumber, 0 on CYPAR)
  Duplin:['https://gis.duplinnc.gov/server/rest/services/TaxMapping/Parcels/FeatureServer/0/query',a=>`ParcelNumber='${esc(String(a).replace(/  -$/,''))}'`],
  // Guilford: PropStream's APN is the county REID with leading zeros ('0095315' = reid '95315'); the state map has no REID
+ // Lee County FL: PropStream APN '36-44-26-L2-11107.0010' = STRAP '364426L2111070010' (dashes and dot removed)
+ 'Lee FL':['https://services2.arcgis.com/LvWGAAhHwbCJ2GMP/ArcGIS/rest/services/Lee_County_Parcels/FeatureServer/0/query',a=>`STRAP='${String(a).replace(/[^0-9A-Za-z]/g,'').toUpperCase()}'`],
  Guilford:['https://gcgis.guilfordcountync.gov/arcgis/rest/services/Hosted/Parcel_Boundaries/FeatureServer/0/query',a=>/^\d{1,8}$/.test(String(a).trim())?`reid='${String(a).trim().replace(/^0+/,'')}'`:''],
  // Greenville: keep the letter prefix (B004.05-01-115.00 = PIN 'B004050111500'); stripping it lost every B/P/M parcel
  Greenville:['https://services.arcgis.com/zTM0LZtJeE1HzO09/arcgis/rest/services/kx_greenville_county_sc_tax_parcel_SHP/FeatureServer/0/query',a=>`PIN='${a.replace(/[^0-9A-Za-z]/g,'').toUpperCase()}'`]};
@@ -43,9 +45,10 @@ const frontage=(ringsM,lines)=>{if(!lines.length)return 0;let len=0;for(const r 
 const env=(rings,padDeg=0)=>{const p=rings.flat(),xs=p.map(q=>q[0]),ys=p.map(q=>q[1]);return {xmin:Math.min(...xs)-padDeg,ymin:Math.min(...ys)-padDeg,xmax:Math.max(...xs)+padDeg,ymax:Math.max(...ys)+padDeg,spatialReference:{wkid:4326}}};
 const grid=(rings,n)=>{const e=env(rings);const out=[];for(let i=0;i<n;i++)for(let j=0;j<n;j++){const x=e.xmin+(e.xmax-e.xmin)*(i+.5)/n,y=e.ymin+(e.ymax-e.ymin)*(j+.5)/n;if(inPoly([x,y],rings))out.push([x,y])}if(!out.length)out.push([(e.xmin+e.xmax)/2,(e.ymin+e.ymax)/2]);return out};
 const gq=(rings)=>({geometry:JSON.stringify({rings,spatialReference:{wkid:4326}}),geometryType:'esriGeometryPolygon',inSR:4326,spatialRel:'esriSpatialRelIntersects',outSR:4326,f:'json'});
-const check=async(r)=>{const c=r.properties.county,a=r.properties.apn;if(!a)return {fail:'hold: parcel not found on county map'};
+// Florida (Nov 2026): only Lee County so far. Its SRV key is 'Lee FL' so Lee County NC never uses it; roads follow the SC rule (any public road in TIGER)
+const check=async(r)=>{const FL=String(r.properties.state||'').toUpperCase()==='FL';const c=FL?String(r.properties.county||'').trim()+' FL':r.properties.county,a=r.properties.apn;if(FL&&!SRV[c])return {fail:'hold: no parcel map for this county'};if(!a)return {fail:'hold: parcel not found on county map'};
  // South Carolina has no statewide parcel map: a county without its own source can't be checked
- const sc=String(r.properties.state||'').toUpperCase()==='SC'||(!r.properties.state&&SC_CO.test(c||'')&&!/^union$/i.test(c||''));if(sc&&(!SRV[c]||/^union$/i.test(c)))return {fail:'hold: no parcel map for this county'};
+ const sc=FL||String(r.properties.state||'').toUpperCase()==='SC'||(!r.properties.state&&SC_CO.test(c||'')&&!/^union$/i.test(c||''));if(sc&&(!SRV[c]||/^union$/i.test(c)))return {fail:'hold: no parcel map for this county'};
  const g=await getGeom(c,a,sc);if(!g||!g.rings)return {fail:'hold: parcel not found on county map'};const rings=g.rings;const pj=proj(rings);const rm=rings.map(x=>x.map(pj.f));
  const areaM=polyArea(rm),acres=areaM/4046.86;const mr=minRect(rm.flat());const avgW=areaM/mr.L,fill=areaM/mr.a;
  const out={acres:+acres.toFixed(3),avgWft:Math.round(avgW*3.28),Lft:Math.round(mr.L*3.28)};
