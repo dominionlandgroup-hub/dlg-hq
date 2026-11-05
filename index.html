@@ -22,8 +22,8 @@
 <script src="listbuilder.js?v=28"></script>
 <script src="owner-check.js?v=4"></script>
 <script src="followups.js?v=5"></script>
-<script src="split.js?v=27"></script>
-<script src="scorecard.js?v=11"></script>
+<script src="split.js?v=28"></script>
+<script src="scorecard.js?v=12"></script>
 <script src="checklist.js?v=1"></script>
 <script src="builderhub.js?v=1"></script>
 <style>
@@ -1118,7 +1118,7 @@ async function rsAsgSend(id){const {deal}=kDeal();const v=k=>($(k)?.value||'').t
     const asg_meta={..._jv,assignee:deal.assignment.assignee,fee:Number.isFinite(fee)?fee:null,buyer_id:bid,assignment_price:Number.isFinite(fee)&&deal.purchase_price?deal.purchase_price+fee:null,signed_psa_in_front:!!psa,close_date:(()=>{const t=new Date(deal.assignment.close_by||'');return isNaN(t)?null:t.toISOString().slice(0,10)})()};
     btn.textContent='Sending…';const {data,error}=await sb.functions.invoke('rabbitsign/send',{body:{deal_id:id,doc_kind:'asg',asg_meta,pdf_base64:btoa(bin),file_name:fname,title:v('rs_title'),summary:v('rs_msg'),signers}});
     if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}if(data?.error)throw new Error(data.error);
-    if(bid)await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);
+    if(bid){await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);BUYERS=null;if(window.BH)BH.buyers=null}
     const blob=new Blob([bytes],{type:'application/pdf'});const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
     if(!(await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/pdf'})).error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`Sent for signature - Assignment${psa?' (with signed purchase agreement)':''} - ${slug} (${new Date().toLocaleDateString()})`,storage_path:path,source:'rabbitsign'});
     $('rs_out').innerHTML=`✅ Sent. Check <b>${esc(me.email)}</b> — RabbitSign emails you first to sign, then <b>${esc(buyer.email)}</b>. When both sign, this deal moves to Assigned to Buyer automatically.`;toast('Assignment sent through RabbitSign')}
@@ -1155,7 +1155,7 @@ async function rsResaleSend(id,bid){const {deal}=kDeal();const v=k=>($(k)?.value
     const asg_meta={..._jv,resale:true,assignee:deal.resale.buyer,fee,buyer_id:bid,assignment_price:price,signed_psa_in_front:false,close_date:(()=>{const t=new Date(deal.close_date||'');return isNaN(t)?(_am?.as_meta?.close_date||null):t.toISOString().slice(0,10)})()};
     btn.textContent='Sending…';const {data,error}=await sb.functions.invoke('rabbitsign/send',{body:{deal_id:id,doc_kind:'asg',asg_meta,pdf_base64:btoa(bin),file_name:fname,title:v('rs_title'),summary:v('rs_msg'),signers}});
     if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}if(data?.error)throw new Error(data.error);
-    if(bid)await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);
+    if(bid){await sb.from('buyers').update({email:buyer.email}).eq('id',bid).is('email',null);BUYERS=null;if(window.BH)BH.buyers=null}
     const blob=new Blob([bytes],{type:'application/pdf'});const path=`${id}/${Date.now()}-${fname.replace(/[^\w.\- ]+/g,'_')}`;const {data:dl}=await sb.from('deals').select('property_id').eq('id',id).single();
     if(!(await sb.storage.from('deal-files').upload(path,blob,{contentType:'application/pdf'})).error)await sb.from('deal_files').insert({deal_id:id,property_id:dl?.property_id||null,name:`Sent for signature - Resale Purchase Agreement - ${slug} (${new Date().toLocaleDateString()})`,storage_path:path,source:'rabbitsign'});
     $('rs_out').innerHTML=`✅ Sent. Check <b>${esc(me.email)}</b> — RabbitSign emails you first to sign, then <b>${esc(buyer.email)}</b>.`;toast('Resale agreement sent through RabbitSign')}
@@ -2151,7 +2151,7 @@ async function editBuyer(id){const [{data:b},{data:dl}]=await Promise.all([id?sb
      :`<div class="card"><b>Buy box</b><div class="small muted" style="margin-top:6px">Not filled out yet${b.bb_status&&b.bb_status!=='not sent'?' · emails: '+esc(b.bb_status):''}.</div>${b.bb_token?`<div class="row" style="margin-top:8px"><button class="btn ghost" onclick="navigator.clipboard.writeText(BB_LINK+'${b.bb_code||b.bb_token}');toast('Their personal form link is copied')">Copy their form link</button>${b.bb_group?`<button class="btn ghost" onclick="bbPreview(${b.id})">Preview their emails</button>`:''}</div>`:''}</div>`}
    <div class="card"><b>Deals with this buyer</b>${(dl||[]).map(x=>`<div style="margin-top:6px"><a href="#" onclick="openDeal(${x.id});return false">${esc(x.leads?.full_name||x.property_label||'Deal')}</a> <span class="small muted">${esc([x.properties?.city,x.properties?.county].filter(Boolean).join(', '))} · ${x.status==='won'?'closed':x.status}</span></div>`).join('')||'<div class="muted small" style="margin-top:6px">None linked yet. Pick this buyer on a deal (Deal terms → Buyer) and it shows here.</div>'}</div>`)}
 async function saveBuyer(id){const v=k=>$('b_'+k).value.trim()||null;const r={name:v('name'),company:v('company'),phone:v('phone'),email:v('email'),buy_box:v('buy_box'),kind:v('kind')||'buyer',counties:(v('counties')||'').split(',').map(x=>x.trim()).filter(Boolean)};
-  if(!r.name)return toast('Name is required');const {error}=id?await sb.from('buyers').update(r).eq('id',id):await sb.from('buyers').insert(r);if(error)return toast(error.message);BUYERS=null;toast('Saved');closeDrawer();vBuyers()}
+  if(!r.name)return toast('Name is required');const {error}=id?await sb.from('buyers').update(r).eq('id',id):await sb.from('buyers').insert(r);if(error)return toast(error.message);BUYERS=null;if(window.BH)BH.buyers=null;toast('Saved');closeDrawer();vBuyers()}
 
 // ---------- auto followup ----------
 async function vFollowup(){

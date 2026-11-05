@@ -33,10 +33,14 @@
     }
     for (const l of leads) if (l.status !== 'record') add('leads', l.created_at);
     for (const d of deals) { add('offers', d.rs_sent_at); add('contracts', d.rs_signed_at); }
+    // an offer is counted once: a deal whose contract went out through RabbitSign (rs_sent_at) is not counted again for its 'offer' transaction
+    const txOfferDeals = [...new Set(tx.filter(t => t.kind === 'offer' && t.deal_id && t.tx_date >= since).map(t => t.deal_id))], rsSent = new Set(deals.filter(d => d.rs_sent_at).map(d => d.id));
+    const unknown = txOfferDeals.filter(id => !deals.some(d => d.id === id));
+    for (let i = 0; i < unknown.length; i += 200) { const { data } = await sb.from('deals').select('id').in('id', unknown.slice(i, i + 200)).not('rs_sent_at', 'is', null); (data || []).forEach(d => rsSent.add(d.id)); }
     const buyBy = {}; for (const t of tx) if (t.kind === 'purchase' && t.deal_id) buyBy[t.deal_id] = (buyBy[t.deal_id] || 0) + Number(t.price || 0) + Number(t.costs || 0);
     for (const t of tx) {
       if (!t.tx_date || t.tx_date < since) continue;
-      if (t.kind === 'offer') add('offers', t.tx_date + 'T12:00:00');
+      if (t.kind === 'offer' && !(t.deal_id && rsSent.has(t.deal_id))) add('offers', t.tx_date + 'T12:00:00');
       if (t.kind === 'sale') { add('closings', t.tx_date + 'T12:00:00'); add('profit', t.tx_date + 'T12:00:00', Number(t.price || 0) - Number(t.costs || 0) - (buyBy[t.deal_id] || 0)); }
     }
     const tagged = tag => props.filter(p => (Array.isArray(p.tags) ? p.tags : String(p.tags || '').split(',')).map(s => String(s).trim()).includes(tag));
