@@ -9,7 +9,7 @@ const SRV={Gaston:['https://gis.gastoncountync.gov/publicgis/rest/services/Publi
  York:['https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0/query',a=>`TAXMAPID='${a.replace(/\D/g,'')}'`],
  Chester:['https://services8.arcgis.com/h9JHFVWvWofKfQhH/arcgis/rest/services/Scenario_Basemap_Parcels/FeatureServer/0/query',a=>`TAXMAP_NO='${esc(a)}'`],
  Lancaster:['https://services3.arcgis.com/rJcpRneDUBgTeCT3/arcgis/rest/services/LC_Parcels/FeatureServer/0/query',a=>`PIN='${esc(a)}'`],
- Greenville:['https://services9.arcgis.com/pH6fw9gU2oojPvt8/arcgis/rest/services/Greenville_Parcels/FeatureServer/0/query',a=>`PIN='${a.replace(/\D/g,'')}'`]};
+ Greenville:['https://services.arcgis.com/zTM0LZtJeE1HzO09/arcgis/rest/services/kx_greenville_county_sc_tax_parcel_SHP/FeatureServer/0/query',a=>`PIN='${a.replace(/\D/g,'')}'`]};
 const ST='https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query';
 const vars=a=>{a=a.trim();const s=a.replace(/[^0-9A-Za-z.]/g,''),s2=a.replace(/[^0-9A-Za-z]/g,'');return [...new Set([a,s,s2])].filter(Boolean)};
 const getGeom=async(c,a)=>{let g=null;if(SRV[c]){try{const [u,w]=SRV[c];const j=await P(u,{where:w(a),outFields:'OBJECTID',returnGeometry:true,outSR:4326,f:'json',resultRecordCount:1});g=j.features?.[0]?.geometry||null}catch(e){}}
