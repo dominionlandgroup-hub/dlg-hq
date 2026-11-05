@@ -240,6 +240,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <a class="nav" data-v="inbox-buyer">Buyer Inbox <span class="badge hidden" id="b_buyer"></span></a>
     <a class="nav" data-v="board-buyer">Buyer Deals</a>
     <a class="nav" data-v="buyers">Buyers</a>
+    <a class="nav" data-v="prospects">Buyer Prospects</a>
     <a class="nav" data-v="match">Deal matcher</a>
     <a class="nav" data-v="scorecard" style="display:none">Weekly Scorecard</a>
     <a class="nav" data-v="tasks" style="display:none">Tasks</a>
@@ -340,9 +341,9 @@ async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=
 
 // ---------- router ----------
 const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox('seller'),'inbox-buyer':()=>vInbox('buyer'),
- 'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,
+ 'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,prospects:vProspects,
  followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit(),scorecard:()=>vScorecard(),checklist:()=>vChecklist(),checker:()=>vChecker(),targets:()=>vHubTargets(),match:()=>vHubMatch()};
-const TITLES={checker:'List Checker',dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
+const TITLES={prospects:'Buyer Prospects',checker:'List Checker',dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
 function go(v){try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch((()=>{try{return decodeURIComponent(m[2])}catch(e){return m[2]}})());return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
@@ -2197,9 +2198,26 @@ async function wsUpload(){const fs=$('ws_up').files;if(!fs.length)return toast('
   for(const f of fs){const path=`${Date.now()}-${f.name.replace(/[^\w.\- ()]+/g,'_')}`;const {error}=await sb.storage.from('wals-files').upload(path,f);if(error)return toast(error.message);await sb.from('wals_files').insert({name:f.name,path,position:++pos})}
   toast('Uploaded');vCourse()}
 async function wsDelFile(id){if(!confirm('Remove this download from the course?'))return;await sb.from('wals_files').delete().eq('id',id);vCourse()}
+// BUYER PROSPECTS (Nov 2026): builders/LLCs found on the state parcel map that built or bought lots recently. They have no buy box
+// (and usually no phone/email) yet, so they stay off the Buyers page until they fill out the form or Damien moves them over.
+const PROSPECT_GROUP='Building buyers list';
+async function vProspects(){
+  $('actions').innerHTML=`<button class="btn ghost" onclick="navigator.clipboard.writeText(BB_FORM);toast('Form link copied')">Copy buy-box form link</button>`;
+  let data=[];for(let f=0;;f+=1000){const r=await sb.from('buyers').select('*').eq('bb_group',PROSPECT_GROUP).order('name').range(f,f+999);data.push(...(r.data||[]));if(!r.data||r.data.length<1000)break}
+  const cos=[...new Set(data.flatMap(b=>b.counties||[]))].sort();
+  $('view').innerHTML=`<div class="card"><h3 class="sec" style="margin:0">Buyer prospects (${data.length})</h3><div class="small muted" style="margin-top:4px">Builders and LLCs that built new homes or bought lots in the last 18 months in your thin counties (from the NC state parcel map). No buy box yet. Get a phone number, call or text, and send their form link. When they fill it out, or you click Move to Buyers, they show on the Buyers page.</div>
+    <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><input id="pq" placeholder="Filter by name" style="flex:1;min-width:200px"><select id="pc" style="width:auto"><option value="">All counties</option>${cos.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div></div>
+   <div class="card" style="padding:0;overflow-x:auto"><table id="ptab"></table></div>`;
+  const draw=()=>{const q=$('pq').value.toLowerCase(),c=$('pc').value;const rows=data.filter(b=>(!q||String(b.name||'').toLowerCase().includes(q))&&(!c||(b.counties||[]).includes(c)));
+    $('ptab').innerHTML=`<tr><th>Company</th><th>County</th><th>Recent activity</th><th>Phone</th><th></th></tr>`+rows.map(b=>{const act=String(b.notes||'').replace(/^.*?\.\s*/,'').replace(/\.\s*Mailing address:.*$/,'');const mail=(/Mailing address: ([^.]*)/.exec(b.notes||'')||[])[1]||'';
+      return `<tr><td><b>${esc(b.name||'')}</b><div class="small muted">${esc(mail)}</div></td><td>${esc((b.counties||[]).join(', '))}</td><td class="small">${esc(act)}</td><td>${esc(b.phone||'')}</td>
+       <td style="white-space:nowrap"><button class="btn ghost sm" onclick="navigator.clipboard.writeText(BB_LINK+'${b.bb_code||b.bb_token}');toast('Their form link is copied')">Copy form link</button> <button class="btn ghost sm" onclick="editBuyer(${b.id})">Open</button> <button class="btn ghost sm" onclick="prospectMove(${b.id})">Move to Buyers</button></td></tr>`}).join('')+(!rows.length?'<tr><td colspan="5" class="muted">No prospects match.</td></tr>':'')};
+  $('pq').oninput=draw;$('pc').onchange=draw;draw()}
+async function prospectMove(id){const {error}=await sb.from('buyers').update({bb_group:'Buyers list'}).eq('id',id);if(error)return toast(error.message);toast('Moved to Buyers');vProspects()}
 async function vBuyers(){
   $('actions').innerHTML=`<button class="btn ghost" onclick="navigator.clipboard.writeText(BB_FORM);toast('Form link copied')">Copy buy-box form link</button><button class="btn" onclick="editBuyer(0)">+ Add Buyer</button>`;
   let data=[];for(let f=0;;f+=1000){const r=await sb.from('buyers').select('*').order('name').range(f,f+999);data.push(...(r.data||[]));if(!r.data||r.data.length<1000)break}
+  data=data.filter(b=>b.bb_group!==PROSPECT_GROUP); // prospects (no buy box yet) live on the Buyer Prospects page
   const {data:sw}=await sb.rpc('buybox_switch',{turn:null});
   const cnt=k=>data.filter(b=>(b.bb_status||'not sent')===k&&(k!=='not sent'||b.bb_group)).length;
   const warmLeft=data.filter(b=>b.bb_group==='Past buyer'&&b.bb_status==='not sent').length;
