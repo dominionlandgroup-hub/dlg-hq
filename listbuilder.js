@@ -254,21 +254,21 @@ LB.ownerBlocks = async function (days, log) {
   const block = new Map(); const touches = new Map();
   // 1) letters that went to the mail house: last 90 days = skip; 3+ in 12 months = resting
   const { data: camps } = await sb.from('campaigns').select('id,mail_status,drop_date').gte('drop_date', yearAgo).or('mail_status.is.null,mail_status.neq.not_sent').limit(1000); // blank status counts as mailed (same as workedSet)
-  for (const c of camps || []) for (let o = 0; ; o += 1000) { const { data } = await sb.from('campaign_records').select('leads(mail_address,mail_zip)').eq('campaign_id', c.id).range(o, o + 999);
+  for (const c of camps || []) for (let o = 0; ; o += 1000) { const { data } = await sb.from('campaign_records').select('leads(mail_address,mail_zip)').eq('campaign_id', c.id).order('id').range(o, o + 999);
     (data || []).forEach(x => { const k = normAddr(x.leads?.mail_address, x.leads?.mail_zip); if (k.length <= 8) return; touches.set(k, (touches.get(k) || 0) + 1); if (c.drop_date >= since && !block.has(k)) block.set(k, 'same owner mailed in the last ' + days + ' days'); });
     if (!data || data.length < 1000) break; }
   touches.forEach((n, k) => { if (n >= LB.RULES.maxTouchesPerYear && !block.has(k)) block.set(k, 'resting: owner mailed ' + LB.RULES.maxTouchesPerYear + ' times this year'); });
   // 2) contacts who responded, said no, are in due diligence, or are do-not-mail
   const add = (l, why) => { const k = normAddr(l.mail_address, l.mail_zip); if (k.length > 8 && !block.has(k)) block.set(k, why); };
-  for (let o = 0; ; o += 1000) { const { data } = await sb.from('leads').select('mail_address,mail_zip,status').neq('status', 'record').range(o, o + 999); (data || []).forEach(l => add(l, 'owner already worked in DLG HQ')); if (!data || data.length < 1000) break; }
+  for (let o = 0; ; o += 1000) { const { data } = await sb.from('leads').select('mail_address,mail_zip,status').neq('status', 'record').order('id').range(o, o + 999); (data || []).forEach(l => add(l, 'owner already worked in DLG HQ')); if (!data || data.length < 1000) break; }
   for (let o = 0; ; o += 1000) { const { data } = await LB.openDeals(sb.from('deals').select('id,leads(mail_address,mail_zip)').not('lead_id', 'is', null)).order('id').range(o, o + 999); (data || []).forEach(d => d.leads && add(d.leads, 'owner has an open deal')); if (!data || data.length < 1000) break; }
-  for (let o = 0; ; o += 1000) { const { data } = await sb.from('leads').select('mail_address,mail_zip').eq('do_not_mail', true).range(o, o + 999); (data || []).forEach(l => add(l, 'owner is do-not-mail')); if (!data || data.length < 1000) break; }
-  for (let o = 0; ; o += 1000) { const { data } = await sb.from('leads').select('mail_address,mail_zip,tags').not('tags', 'eq', '{}').range(o, o + 999); (data || []).forEach(l => { if ((l.tags || []).some(t => NEGTAG.test(t))) add(l, 'owner tagged in DLG HQ (DD or negative)'); }); if (!data || data.length < 1000) break; }
+  for (let o = 0; ; o += 1000) { const { data } = await sb.from('leads').select('mail_address,mail_zip').eq('do_not_mail', true).order('id').range(o, o + 999); (data || []).forEach(l => add(l, 'owner is do-not-mail')); if (!data || data.length < 1000) break; }
+  for (let o = 0; ; o += 1000) { const { data } = await sb.from('leads').select('mail_address,mail_zip,tags').not('tags', 'eq', '{}').order('id').range(o, o + 999); (data || []).forEach(l => { if ((l.tags || []).some(t => NEGTAG.test(t))) add(l, 'owner tagged in DLG HQ (DD or negative)'); }); if (!data || data.length < 1000) break; }
   log && log(`${block.size.toLocaleString()} owners blocked by mailing address (recent letters, resting, responded, tagged or do-not-mail).`);
   return block;
 };
 LB.apnKey = a => String(a || '').toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/^0+/, '');
-LB.suppressedApns = async function () { const set = new Set(); for (let o = 0; ; o += 1000) { const { data } = await sb.from('suppression').select('apn').not('apn', 'is', null).range(o, o + 999); (data || []).forEach(x => { set.add(String(x.apn)); set.add(LB.apnKey(x.apn)); }); if (!data || data.length < 1000) break; } return set; };
+LB.suppressedApns = async function () { const set = new Set(); for (let o = 0; ; o += 1000) { const { data } = await sb.from('suppression').select('apn').not('apn', 'is', null).order('apn').range(o, o + 999); (data || []).forEach(x => { set.add(String(x.apn)); set.add(LB.apnKey(x.apn)); }); if (!data || data.length < 1000) break; } return set; };
 
 // ---- house check: the county is slow to record new houses (a new home shows as a $0-building lot) ----
 // NC: the state 911 address map. If an address on the lot is the owner's mailing address, they live there -> house.
@@ -421,7 +421,7 @@ LB.run = async function (opt = {}) {
 // Offer codes are "<prefix>-<record number>", padded to at least 3 digits (001-999, then 1000-9999).
 // Needs assign_offer_codes in the database to pad with greatest(3, length(n)) instead of a fixed 3 (Nov 2026 fix).
 LB.MAX_CODED = 9999;
-LB.tooBigMsg = n => `This campaign would have ${Number(n).toLocaleString()} records. Offer codes only go up to ${LB.MAX_CODED} per campaign (record 1,000 would repeat an earlier code). Split the list into campaigns of ${LB.MAX_CODED} or fewer.`;
+LB.tooBigMsg = n => `This campaign would have ${Number(n).toLocaleString()} records. Offer codes only go up to ${LB.MAX_CODED.toLocaleString()} per campaign. Split the list into campaigns of ${LB.MAX_CODED.toLocaleString()} or fewer.`;
 // Every code on campaign `cid` is compared with ALL offer codes already in DLG HQ: other campaigns' records,
 // contacts (leads.offer_code) and old Pebble/GHL codes (legacy_codes). Also flags a prefix (the "317" in 317-109)
 // that another campaign already uses. Returns { codes: [clashing codes], prefixes: [shared prefixes] }.
@@ -448,7 +448,7 @@ LB.blockOnCodeClash = async function (cid, opt = {}) {
   let x; try { x = await LB.offerCodeClashes(cid); } catch (e) { return { soft: true, msg: 'Could not check offer codes (' + e.message + '). Start Mailing checks again and will not send until it passes.' }; }
   if (!x.codes.length && !x.prefixes.length) return null;
   if (opt.keep) return { soft: false, msg: 'BLOCKED: do not mail this campaign. ' + LB.clashMsg(x) + ' Start Mailing will refuse it until the codes are fixed.' };
-  const lids = []; for (let o = 0; ; o += 1000) { const { data } = await sb.from('campaign_records').select('lead_id').eq('campaign_id', cid).range(o, o + 999); lids.push(...(data || []).map(r => r.lead_id).filter(Boolean)); if (!data || data.length < 1000) break; }
+  const lids = []; for (let o = 0; ; o += 1000) { const { data } = await sb.from('campaign_records').select('lead_id').eq('campaign_id', cid).order('id').range(o, o + 999); lids.push(...(data || []).map(r => r.lead_id).filter(Boolean)); if (!data || data.length < 1000) break; }
   await sb.from('campaign_records').delete().eq('campaign_id', cid); await sb.from('campaigns').delete().eq('id', cid);
   const ul = [...new Set(lids)]; for (let i = 0; i < ul.length; i += 200) { const { data } = await sb.from('campaign_records').select('lead_id,offer_code').in('lead_id', ul.slice(i, i + 200)).not('offer_code', 'is', null).order('id', { ascending: false });
     const last = new Map(); (data || []).forEach(r => { if (!last.has(r.lead_id)) last.set(r.lead_id, r.offer_code); });
@@ -468,12 +468,13 @@ async function loadCampaign(name, final, opt = {}) {
   let rec = 0; const res = [];
   for (let i = 0; i < rows.length; i += 100) { const { data, error } = await sb.rpc('import_campaign_list', { cid: camp.id, rows: rows.slice(i, i + 100), src: 'county', tag: 'Weekly List', skip_dnm: true, skip_ni: true, skip_days: 0 }); if (error) throw error; res.push(data); rec += data.records; st.loaded = rec; }
   { const { error } = await sb.rpc('finish_campaign_import', { cid: camp.id }); if (error) throw new Error('Records saved, but offer codes were not assigned (campaign "' + name + '"): ' + error.message); }
-  await sb.from('campaigns').update({ records: rec, cost: +(rec * (R.costPerPiece || 0.55)).toFixed(2) }).eq('id', camp.id);
+  // records = lots; cost = letters (one per owner) x the cost per piece (recountCampaign in index.html)
+  try { if (typeof recountCampaign === 'function') await recountCampaign(camp.id, R.costPerPiece || 0.55); else throw 0; } catch (e) { await sb.from('campaigns').update({ records: rec, cost: +(rec * (R.costPerPiece || 0.55)).toFixed(2) }).eq('id', camp.id); }
   const clash = await LB.blockOnCodeClash(camp.id); if (clash && !clash.soft) throw new Error(clash.msg);
   const codeWarn = clash ? clash.msg : '';
   // stamp FIPS, check results and the buildable tag on each property
   const byKey = new Map(final.map(c => [String(c.r.apn) + '|' + c.r.county.toLowerCase(), c]));
-  for (let from = 0; ; from += 1000) { const { data } = await sb.from('campaign_records').select('property_id,properties(id,apn,county,fields)').eq('campaign_id', camp.id).range(from, from + 999); if (!data || !data.length) break;
+  for (let from = 0; ; from += 1000) { const { data } = await sb.from('campaign_records').select('property_id,properties(id,apn,county,fields)').eq('campaign_id', camp.id).order('id').range(from, from + 999); if (!data || !data.length) break;
     for (let i = 0; i < data.length; i += 25) await Promise.all(data.slice(i, i + 25).map(x => { const p = x.properties; if (!p) return; const c = byKey.get(String(p.apn) + '|' + String(p.county || '').toLowerCase()); if (!c) return;
       return sb.from('properties').update({ fips: c.r.fips || null, fields: { ...(p.fields || {}), buildable: { checked: new Date().toISOString().slice(0, 10), avg_width_ft: c.sh.avgWidth, length_ft: c.sh.length, road_frontage_ft: c.front, flood: 'not in SFHA', sewer: c.sewer, slope_pct: c.slope ? c.slope.pct : null, relief_ft: c.slope ? c.slope.relief : null, land_value: c.r.landval || null, source: LB.source(c.r.state, c.r.county).name } } }).eq('id', p.id); }));
     if (data.length < 1000) break; }
@@ -507,7 +508,7 @@ LB.listName = function (kind, size, drop, who) { const d = new Date((drop || new
   return kind === 'buybox' ? `BB ${code} · ${who} · ${size} lots · mail ${date}` : `WL ${code} · Builder Lots · ${size} · mail ${date}`; };
 // ---- Pebble import file (same records and offer codes as DLG HQ) ----
 LB.pebbleCSV = async function (campaignId) { const all = [];
-  for (let o = 0; ; o += 1000) { const { data } = await sb.from('campaign_records').select('offer_code,leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip),properties(apn,address,city,state,zip,county,fips,acres)').eq('campaign_id', campaignId).range(o, o + 999); all.push(...(data || [])); if (!data || data.length < 1000) break; }
+  for (let o = 0; ; o += 1000) { const { data } = await sb.from('campaign_records').select('offer_code,leads(full_name,first_name,last_name,mail_address,mail_city,mail_state,mail_zip),properties(apn,address,city,state,zip,county,fips,acres)').eq('campaign_id', campaignId).order('id').range(o, o + 999); all.push(...(data || [])); if (!data || data.length < 1000) break; }
   const { data: c } = await sb.from('campaigns').select('name').eq('id', campaignId).single();
   const rows = all.map(r => { const l = r.leads || {}, p = r.properties || {}; return { 'Owner Name': l.full_name || '', 'First Name': l.first_name || '', 'Last Name': l.last_name || '', 'Mailing Address': l.mail_address || '', 'Mailing City': l.mail_city || '', 'Mailing State': l.mail_state || '', 'Mailing Zip': l.mail_zip || '',
     'Property Address': p.address || '', 'Property City': /^\d{5}$/.test(p.city || '') ? '' : (p.city || ''), 'Property State': p.state || '', 'Property Zip': p.zip || '', 'County': p.county || '', 'FIPS': p.fips || '', 'APN': p.apn || '', 'Acres': p.acres != null ? String(+(+p.acres).toFixed(2)) : '', 'Offer Code': r.offer_code || '' }; });
