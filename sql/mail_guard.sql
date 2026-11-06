@@ -89,6 +89,55 @@ end $$;
 revoke execute on function public.mail_guard(bigint[], date) from public, anon;
 grant execute on function public.mail_guard(bigint[], date) to authenticated;
 
+-- same check for a slice of records (Start Mailing sends 400 at a time so each call stays under the API time limit)
+create or replace function public.mail_guard_ids(rids bigint[], md date)
+returns table(record_id bigint, reason text, other text, other_date date)
+language plpgsql stable security definer set search_path to 'public' as $$
+begin
+  return query
+  with mine as materialized (
+    select r.id, r.lead_id, r.property_id,
+           mg_hh(l.mail_address, l.mail_zip, l.mail_city) as hh, mg_apn(p.county, p.apn) as ak
+    from campaign_records r left join leads l on l.id = r.lead_id left join properties p on p.id = r.property_id
+    where r.id = any(rids)),
+  cids0 as (select array_agg(distinct campaign_id) as cids from campaign_records where id = any(rids)),
+  win as materialized (
+    select c.id, c.name, c.drop_date from campaigns c, cids0
+    where c.channel = 'mail' and not (c.id = any(cids0.cids)) and c.drop_date < '2099-01-01'
+      and c.drop_date > md - 90 and c.drop_date < md + 90
+      and (c.drop_date <= md or coalesce(c.mail_status,'not_sent') <> 'not_sent')),
+  -- every other copy of the person: same lead, same household (index), same parcel (index)
+  sib_leads as materialized (
+    select m.id, m.lead_id as lid from mine m where m.lead_id is not null
+    union select m.id, l2.id from mine m join leads l2 on mg_hh(l2.mail_address, l2.mail_zip, l2.mail_city) = m.hh where m.hh is not null),
+  sib_props as materialized (
+    select m.id, m.property_id as pid from mine m where m.property_id is not null
+    union select m.id, p2.id from mine m join properties p2 on mg_apn(p2.county, p2.apn) = m.ak where m.ak is not null),
+  hits as (
+    select s.id, w.name, w.drop_date from sib_leads s join campaign_records r on r.lead_id = s.lid join win w on w.id = r.campaign_id
+    union all
+    select s.id, w.name, w.drop_date from sib_props s join campaign_records r on r.property_id = s.pid join win w on w.id = r.campaign_id),
+  recent as (
+    select distinct on (h.id) h.id, 'mailed within 90 days'::text as reason, h.name, h.drop_date
+    from hits h order by h.id, h.drop_date desc),
+  bad as (
+    select s.id, 'do not mail / Due Diligence (this or another copy of the owner)'::text as reason, l.full_name as name, null::date as drop_date
+      from sib_leads s join leads l on l.id = s.lid where mg_bad_lead(l)
+    union all
+    select s.id, 'do not mail / Due Diligence (another owner of this parcel)', l.full_name, null::date
+      from sib_props s join campaign_records r on r.property_id = s.pid join leads l on l.id = r.lead_id where mg_bad_lead(l)
+    union all
+    select s.id, 'do not mail / Due Diligence (another owner of this parcel)', l.full_name, null::date
+      from sib_props s join property_owners po on po.property_id = s.pid join leads l on l.id = po.lead_id where mg_bad_lead(l)
+    union all
+    select s.id, 'has a seller deal', l.full_name, null::date
+      from sib_leads s join deals d on d.lead_id = s.lid and coalesce(d.board,'seller') = 'seller' join leads l on l.id = s.lid)
+  select distinct on (x.id) x.id::bigint, x.reason::text, x.name::text, x.drop_date::date from (select * from bad union all select * from recent) x
+  order by x.id, (x.reason = 'mailed within 90 days');
+end $$;
+revoke execute on function public.mail_guard_ids(bigint[], date) from public, anon;
+grant execute on function public.mail_guard_ids(bigint[], date) to authenticated;
+
 -- 3. tags carry to every copy ---------------------------------------------------------------------------------------
 create or replace function public.dd_mark_person(lid bigint) returns int
 language plpgsql security definer set search_path to 'public' as $$

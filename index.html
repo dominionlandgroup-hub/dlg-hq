@@ -1744,7 +1744,8 @@ async function buildMailList(idOrIds,opt={}){
   // Due Diligence, not selling / dead or with a seller deal on ANY copy. 90-day hits are held; do-not-mail hits come off.
   const guarded=[];if(on){$('m_msg').textContent='Checking every copy of each owner (mail guard)…';
     const {data:_d2}=await sb.from('campaigns').select('drop_date').in('id',ids);const _md2=(_d2||[]).map(x=>x.drop_date).filter(Boolean).sort()[0]||localISO();
-    const {data:mg,error:mgErr}=await sb.rpc('mail_guard',{cids:ids,md:_md2});
+    let mg=[],mgErr=null;const _rid=kept0.map(r=>r.id);for(let i=0;i<_rid.length&&!mgErr;i+=400){$('m_msg').textContent=`Checking every copy of each owner (mail guard ${Math.min(i+400,_rid.length).toLocaleString()} of ${_rid.length.toLocaleString()})…`;
+      const r=await sb.rpc('mail_guard_ids',{rids:_rid.slice(i,i+400),md:_md2});if(r.error)mgErr=r.error;else mg.push(...(r.data||[]))}
     if(mgErr){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">BLOCKED: the mail guard isn't set up or failed (${esc(mgErr.message)}).</b> Nothing was sent. Run sql/mail_guard.sql in Supabase, then try again.`}
     const why=new Map((mg||[]).map(x=>[x.record_id,x]));
     for(let i=kept0.length-1;i>=0;i--){const r=kept0[i],g=why.get(r.id);if(!g)continue;kept0.splice(i,1);
