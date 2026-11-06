@@ -38,54 +38,51 @@ create or replace function public.mg_bad_lead(l leads) returns boolean language 
 $$;
 
 -- 2. the guard --------------------------------------------------------------------------------------------------------
+create index if not exists campaign_records_lead_idx on campaign_records (lead_id);
+create index if not exists campaign_records_property_idx on campaign_records (property_id);
+create index if not exists property_owners_property_idx on property_owners (property_id);
+
 create or replace function public.mail_guard(cids bigint[], md date)
 returns table(record_id bigint, reason text, other text, other_date date)
 language plpgsql stable security definer set search_path to 'public' as $$
 begin
   return query
-  with mine as (
+  with mine as materialized (
     select r.id, r.lead_id, r.property_id,
            mg_hh(l.mail_address, l.mail_zip, l.mail_city) as hh, mg_apn(p.county, p.apn) as ak
     from campaign_records r left join leads l on l.id = r.lead_id left join properties p on p.id = r.property_id
     where r.campaign_id = any(cids)),
-  win as (
+  win as materialized (
     select c.id, c.name, c.drop_date from campaigns c
     where c.channel = 'mail' and not (c.id = any(cids)) and c.drop_date < '2099-01-01'
       and c.drop_date > md - 90 and c.drop_date < md + 90
       and (c.drop_date <= md or coalesce(c.mail_status,'not_sent') <> 'not_sent')),
-  other as (
-    select r.id, r.lead_id, r.property_id, w.name, w.drop_date,
-           mg_hh(l.mail_address, l.mail_zip, l.mail_city) as hh, mg_apn(p.county, p.apn) as ak
-    from campaign_records r join win w on w.id = r.campaign_id
-    left join leads l on l.id = r.lead_id left join properties p on p.id = r.property_id),
+  -- every other copy of the person: same lead, same household (index), same parcel (index)
+  sib_leads as materialized (
+    select m.id, m.lead_id as lid from mine m where m.lead_id is not null
+    union select m.id, l2.id from mine m join leads l2 on mg_hh(l2.mail_address, l2.mail_zip, l2.mail_city) = m.hh where m.hh is not null),
+  sib_props as materialized (
+    select m.id, m.property_id as pid from mine m where m.property_id is not null
+    union select m.id, p2.id from mine m join properties p2 on mg_apn(p2.county, p2.apn) = m.ak where m.ak is not null),
   hits as (
-    select m.id, o.name, o.drop_date from mine m join other o on o.lead_id = m.lead_id
-    union all select m.id, o.name, o.drop_date from mine m join other o on o.property_id = m.property_id
-    union all select m.id, o.name, o.drop_date from mine m join other o on o.hh = m.hh where m.hh is not null
-    union all select m.id, o.name, o.drop_date from mine m join other o on o.ak = m.ak where m.ak is not null),
+    select s.id, w.name, w.drop_date from sib_leads s join campaign_records r on r.lead_id = s.lid join win w on w.id = r.campaign_id
+    union all
+    select s.id, w.name, w.drop_date from sib_props s join campaign_records r on r.property_id = s.pid join win w on w.id = r.campaign_id),
   recent as (
     select distinct on (h.id) h.id, 'mailed within 90 days'::text as reason, h.name, h.drop_date
     from hits h order by h.id, h.drop_date desc),
-  badp as (   -- every parcel and household that belongs to a do-not-mail / Due Diligence / worked person
-    select mg_hh(l.mail_address, l.mail_zip, l.mail_city) as hh, null::text as ak, l.full_name from leads l where mg_bad_lead(l)
-    union all
-    select null, mg_apn(p.county, p.apn), l.full_name from leads l join campaign_records r on r.lead_id = l.id
-      join properties p on p.id = r.property_id where mg_bad_lead(l)
-    union all
-    select null, mg_apn(p.county, p.apn), l.full_name from leads l join property_owners po on po.lead_id = l.id
-      join properties p on p.id = po.property_id where mg_bad_lead(l)),
   bad as (
-    select m.id, 'do not mail / Due Diligence (another copy of this person)'::text as reason, b.full_name as name, null::date as drop_date
-      from mine m join badp b on b.hh = m.hh where m.hh is not null
+    select s.id, 'do not mail / Due Diligence (this or another copy of the owner)'::text as reason, l.full_name as name, null::date as drop_date
+      from sib_leads s join leads l on l.id = s.lid where mg_bad_lead(l)
     union all
-    select m.id, 'do not mail / Due Diligence (another copy of this person)', b.full_name, null::date
-      from mine m join badp b on b.ak = m.ak where m.ak is not null
+    select s.id, 'do not mail / Due Diligence (another owner of this parcel)', l.full_name, null::date
+      from sib_props s join campaign_records r on r.property_id = s.pid join leads l on l.id = r.lead_id where mg_bad_lead(l)
     union all
-    select m.id, 'do not mail / Due Diligence', l.full_name, null::date
-      from mine m join leads l on l.id = m.lead_id where mg_bad_lead(l)
+    select s.id, 'do not mail / Due Diligence (another owner of this parcel)', l.full_name, null::date
+      from sib_props s join property_owners po on po.property_id = s.pid join leads l on l.id = po.lead_id where mg_bad_lead(l)
     union all
-    select m.id, 'has a seller deal', l.full_name, null::date
-      from mine m join deals d on d.lead_id = m.lead_id and coalesce(d.board,'seller') = 'seller' join leads l on l.id = m.lead_id)
+    select s.id, 'has a seller deal', l.full_name, null::date
+      from sib_leads s join deals d on d.lead_id = s.lid and coalesce(d.board,'seller') = 'seller' join leads l on l.id = s.lid)
   select distinct on (x.id) x.id::bigint, x.reason::text, x.name::text, x.drop_date::date from (select * from bad union all select * from recent) x
   order by x.id, (x.reason = 'mailed within 90 days');
 end $$;
@@ -127,12 +124,7 @@ end $$;
 drop trigger if exists dd_on_tag on leads;
 create trigger dd_on_tag after update of tags on leads for each row execute function dd_on_tag();
 
--- one-time catch-up: everyone already tagged Due Diligence (any spelling) gets every copy marked
-do $$ declare r record; begin
-  for r in select id from leads where exists (select 1 from unnest(coalesce(tags,'{}')) t where t ~* '^(due diligence|dd)$') loop
-    perform dd_mark_person(r.id);
-  end loop;
-end $$;
+-- one-time catch-up already ran on Nov 5, 2026 (marked every copy of everyone tagged Due Diligence)
 
 -- check: should list Guillermo's 3 copies, all do_not_mail = true
 select id, full_name, do_not_mail, tags from leads where mail_address ilike '%annafrel%' or full_name ilike '%guillermo%berna%';
