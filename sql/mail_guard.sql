@@ -46,7 +46,6 @@ create or replace function public.mail_guard(cids bigint[], md date)
 returns table(record_id bigint, reason text, other text, other_date date)
 language plpgsql stable security definer set search_path to 'public' as $$
 begin
-  return query
   -- EXECUTE plans each call with the real values (a cached generic plan was 100x slower)
   return query execute $q$
   with mine as materialized (
@@ -97,7 +96,6 @@ create or replace function public.mail_guard_ids(rids bigint[], md date)
 returns table(record_id bigint, reason text, other text, other_date date)
 language plpgsql stable security definer set search_path to 'public' as $$
 begin
-  return query
   -- EXECUTE plans each call with the real values (a cached generic plan was 100x slower)
   return query execute $q$
   with mine as materialized (
