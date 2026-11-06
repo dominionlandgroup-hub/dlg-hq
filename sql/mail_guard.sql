@@ -47,16 +47,18 @@ returns table(record_id bigint, reason text, other text, other_date date)
 language plpgsql stable security definer set search_path to 'public' as $$
 begin
   return query
+  -- EXECUTE plans each call with the real values (a cached generic plan was 100x slower)
+  return query execute $q$
   with mine as materialized (
     select r.id, r.lead_id, r.property_id,
            mg_hh(l.mail_address, l.mail_zip, l.mail_city) as hh, mg_apn(p.county, p.apn) as ak
     from campaign_records r left join leads l on l.id = r.lead_id left join properties p on p.id = r.property_id
-    where r.campaign_id = any(cids)),
+    where r.campaign_id = any($1)),
   win as materialized (
     select c.id, c.name, c.drop_date from campaigns c
-    where c.channel = 'mail' and not (c.id = any(cids)) and c.drop_date < '2099-01-01'
-      and c.drop_date > md - 90 and c.drop_date < md + 90
-      and (c.drop_date <= md or coalesce(c.mail_status,'not_sent') <> 'not_sent')),
+    where c.channel = 'mail' and not (c.id = any($1)) and c.drop_date < '2099-01-01'
+      and c.drop_date > $2 - 90 and c.drop_date < $2 + 90
+      and (c.drop_date <= $2 or coalesce(c.mail_status,'not_sent') <> 'not_sent')),
   -- every other copy of the person: same lead, same household (index), same parcel (index)
   sib_leads as materialized (
     select m.id, m.lead_id as lid from mine m where m.lead_id is not null
@@ -84,7 +86,8 @@ begin
     select s.id, 'has a seller deal', l.full_name, null::date
       from sib_leads s join deals d on d.lead_id = s.lid and coalesce(d.board,'seller') = 'seller' join leads l on l.id = s.lid)
   select distinct on (x.id) x.id::bigint, x.reason::text, x.name::text, x.drop_date::date from (select * from bad union all select * from recent) x
-  order by x.id, (x.reason = 'mailed within 90 days');
+  order by x.id, (x.reason = 'mailed within 90 days')
+  $q$ using cids, md;
 end $$;
 revoke execute on function public.mail_guard(bigint[], date) from public, anon;
 grant execute on function public.mail_guard(bigint[], date) to authenticated;
@@ -95,17 +98,19 @@ returns table(record_id bigint, reason text, other text, other_date date)
 language plpgsql stable security definer set search_path to 'public' as $$
 begin
   return query
+  -- EXECUTE plans each call with the real values (a cached generic plan was 100x slower)
+  return query execute $q$
   with mine as materialized (
     select r.id, r.lead_id, r.property_id,
            mg_hh(l.mail_address, l.mail_zip, l.mail_city) as hh, mg_apn(p.county, p.apn) as ak
     from campaign_records r left join leads l on l.id = r.lead_id left join properties p on p.id = r.property_id
-    where r.id = any(rids)),
-  cids0 as (select array_agg(distinct campaign_id) as cids from campaign_records where id = any(rids)),
+    where r.id = any($1)),
+  cids0 as (select array_agg(distinct campaign_id) as cids from campaign_records where id = any($1)),
   win as materialized (
     select c.id, c.name, c.drop_date from campaigns c, cids0
     where c.channel = 'mail' and not (c.id = any(cids0.cids)) and c.drop_date < '2099-01-01'
-      and c.drop_date > md - 90 and c.drop_date < md + 90
-      and (c.drop_date <= md or coalesce(c.mail_status,'not_sent') <> 'not_sent')),
+      and c.drop_date > $2 - 90 and c.drop_date < $2 + 90
+      and (c.drop_date <= $2 or coalesce(c.mail_status,'not_sent') <> 'not_sent')),
   -- every other copy of the person: same lead, same household (index), same parcel (index)
   sib_leads as materialized (
     select m.id, m.lead_id as lid from mine m where m.lead_id is not null
@@ -133,7 +138,8 @@ begin
     select s.id, 'has a seller deal', l.full_name, null::date
       from sib_leads s join deals d on d.lead_id = s.lid and coalesce(d.board,'seller') = 'seller' join leads l on l.id = s.lid)
   select distinct on (x.id) x.id::bigint, x.reason::text, x.name::text, x.drop_date::date from (select * from bad union all select * from recent) x
-  order by x.id, (x.reason = 'mailed within 90 days');
+  order by x.id, (x.reason = 'mailed within 90 days')
+  $q$ using rids, md;
 end $$;
 revoke execute on function public.mail_guard_ids(bigint[], date) from public, anon;
 grant execute on function public.mail_guard_ids(bigint[], date) to authenticated;
