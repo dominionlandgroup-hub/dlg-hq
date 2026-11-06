@@ -1738,6 +1738,20 @@ async function buildMailList(idOrIds,opt={}){
     for(let i=kept0.length-1;i>=0;i--){const r=kept0[i],h=[last['l'+r.lead_id],last['p'+r.property_id],last['h'+_hk(r.leads)]].filter(Boolean).sort((a,b)=>b.d.localeCompare(a.d))[0];
       if(h){const ok=new Date(new Date(h.d+'T12:00:00').getTime()+90*864e5).toISOString().slice(0,10);r._held={...h,ok};held.push(r);kept0.splice(i,1)}}}
   window._held=held;
+  // MAIL GUARD (Nov 2026, sql/mail_guard.sql): the same owner is often in DLG HQ 2-3 times (Pebble, GHL, a misspelled
+  // copy, the parcel number written two ways, no zip). This matches by person, household (address + zip, or + city) and
+  // parcel (dashes / zeros removed) against everything mailing within 90 days, and against anyone marked Do Not Mail,
+  // Due Diligence, not selling / dead or with a seller deal on ANY copy. 90-day hits are held; do-not-mail hits come off.
+  const guarded=[];if(on){$('m_msg').textContent='Checking every copy of each owner (mail guard)…';
+    const {data:_d2}=await sb.from('campaigns').select('drop_date').in('id',ids);const _md2=(_d2||[]).map(x=>x.drop_date).filter(Boolean).sort()[0]||localISO();
+    const {data:mg,error:mgErr}=await sb.rpc('mail_guard',{cids:ids,md:_md2});
+    if(mgErr){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">BLOCKED: the mail guard isn't set up or failed (${esc(mgErr.message)}).</b> Nothing was sent. Run sql/mail_guard.sql in Supabase, then try again.`}
+    const why=new Map((mg||[]).map(x=>[x.record_id,x]));
+    for(let i=kept0.length-1;i>=0;i--){const r=kept0[i],g=why.get(r.id);if(!g)continue;kept0.splice(i,1);
+      if(g.reason==='mailed within 90 days'){const ok=new Date(new Date(g.other_date+'T12:00:00').getTime()+90*864e5).toISOString().slice(0,10);r._held={n:g.other,d:g.other_date,ok};held.push(r)}
+      else{r._chk={status:'guard',reason:`${g.reason}${g.other?' ('+g.other+')':''}`};guarded.push(r)}}
+    if(guarded.length){const gid=guarded.map(r=>r.id);for(let i=0;i<gid.length;i+=200)await sb.from('campaign_records').delete().in('id',gid.slice(i,i+200));for(const i of ids){try{await recountCampaign(i)}catch(e){}}}}
+  window._guarded=guarded;
   // CURRENT OWNER CHECK (Oct 2026): every record is checked against the county's live ownership record.
   // Sold / changed-owner records are taken off the list and the lead is marked Sold + do not mail.
   const {data:_cns}=await sb.from('campaigns').select('id,name').in('id',ids);const _cname=Object.fromEntries((_cns||[]).map(x=>[x.id,x.name]));const _cn={name:(_cns||[]).map(x=>x.name).join(' + ')};
@@ -1771,7 +1785,7 @@ async function buildMailList(idOrIds,opt={}){
   const line=r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: ${esc(r._chk.reason)}</li>`;
   const ok=kept.length-unv.length;
   $('m_msg').innerHTML=`<b>Owner check done.</b> ${ok.toLocaleString()} confirmed with the county${kept.filter(r=>r._chk.status==='heir').length?` (${kept.filter(r=>r._chk.status==='heir').length} addressed to an heir / PR)`:''}.`
-   +((window._notTd||[]).length?`<br><b style="color:var(--red)">${window._notTd.length} removed: house too new or recently renovated for a teardown.</b><details><summary class="small">See which</summary><ul class="small">${window._notTd.map(line).join('')}</ul></details>`:'')+(gone.length?`<br><b style="color:var(--red)">${gone.length} removed: sold or a different owner now.</b> Marked Sold and do-not-mail.<details><summary class="small">See who</summary><ul class="small">${gone.map(line).join('')}</ul></details>`:'<br>Nobody on this list has sold.')
+   +((window._notTd||[]).length?`<br><b style="color:var(--red)">${window._notTd.length} removed: house too new or recently renovated for a teardown.</b><details><summary class="small">See which</summary><ul class="small">${window._notTd.map(line).join('')}</ul></details>`:'')+((window._guarded||[]).length?`<br><b style="color:var(--red)">${window._guarded.length} removed: Do Not Mail, Due Diligence or already being worked (on this copy or another copy of the same owner).</b> Taken out of the campaign.<details><summary class="small">See who</summary><ul class="small">${window._guarded.slice(0,500).map(line).join('')}</ul></details>`:'')+(gone.length?`<br><b style="color:var(--red)">${gone.length} removed: sold or a different owner now.</b> Marked Sold and do-not-mail.<details><summary class="small">See who</summary><ul class="small">${gone.map(line).join('')}</ul></details>`:'<br>Nobody on this list has sold.')
    +(held.length?`<br><b style="color:#b26a00">${held.length} held: mailed in the last 90 days.</b> They stay in the campaign but are not on this list. Mail them on or after the date shown.<details><summary class="small">See who</summary><ul class="small">${held.slice(0,500).map(r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: in "${esc(r._held.n)}" (${fmtDate(r._held.d)}), OK after ${fmtDate(r._held.ok)}</li>`).join('')}</ul></details>`:'')
    +(unv.length?`<br><b style="color:#b26a00">${unv.length} couldn't be checked.</b><details><summary class="small">See why</summary><ul class="small">${unv.slice(0,300).map(line).join('')}</ul></details><label class="small"><input type="checkbox" id="m_unv" style="width:auto" ${(opt.auto&&window._tuUnv!=null?window._tuUnv:unv.every(r=>/connected to the owner check|only publishes qualified sales/.test(r._chk?.reason||'')))?'checked':''}> Mail these ${unv.length} anyway</label>`:'')
    +(letterCount(kept)<kept.length?`<br><b>${kept.length.toLocaleString()} lots go out as ${letterCount(kept).toLocaleString()} letters</b> (owners with more than one lot get one letter listing all their parcels).`:'')+`<br><br><button class="btn" onclick='finishMailList(${JSON.stringify(ids)},this)'>Draft email with the checked list</button>`;
