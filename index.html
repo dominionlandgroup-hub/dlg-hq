@@ -286,8 +286,14 @@ const ago=d=>{if(!d)return'';const s=(Date.now()-new Date(d))/1e3;if(s<3600)retu
 const toast=m=>{const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)};
 // Split a contact into first and last. Trusts saved first and last when they differ.
 // Imported names are often stored as "LAST FIRST MIDDLE" (all caps), so those are read that way.
+// Joint owners exported as First "Homer" / Last "& ruby daniels" -> "Homer & Ruby" / "Daniels" (Nov 2026)
+function fixJoint(fn,ln){fn=String(fn||'').trim();ln=String(ln||'').trim();const m=/^(&|and)\s+(.+)$/i.exec(ln);
+  if(!m||!fn||/\b(llc|inc|corp|co|company|ltd|lp|llp|trust|trustee|estate|heirs|bank|church|holdings|properties|investments?|homes|group|partners|association|revocable|living|family|ministries)\b/i.test(m[2]))return {first:fn,last:ln};
+  const cap=w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();const w=m[2].split(/\s+/);if(w.length<2)return {first:fn,last:ln};
+  return {first:`${cap(fn)} & ${w.slice(0,-1).map(cap).join(' ')}`,last:cap(w[w.length-1])}}
 function splitName(l){
-  const fn=(l?.first_name||'').trim().replace(/\s+/g,' '),ln=(l?.last_name||'').trim().replace(/\s+/g,' ');
+  const _j=fixJoint(l?.first_name,l?.last_name);
+  const fn=_j.first.replace(/\s+/g,' '),ln=_j.last.replace(/\s+/g,' ');
   if(fn&&ln&&fn.toLowerCase()!==ln.toLowerCase())return {first:fn,last:ln};
   const full=(l?.full_name||'').trim().replace(/\s+/g,' ');
   if(!full)return {first:fn,last:ln};
@@ -2577,6 +2583,7 @@ async function runImport(){const f=$('impFile').files[0];if(!f)return toast('Cho
   if(cid==='new'){if(!$('icName').value)return toast('Name the campaign');const {data,error}=await sb.from('campaigns').insert({name:$('icName').value,channel:'mail',county:$('icCounty').value||null,state:$('icState').value||null,drop_date:$('icDate').value||null,cost:Number($('icCost').value)||0,source:'hq',mail_status:'not_sent'}).select('id').single();if(error)return toast(error.message);cid=data.id}
   Papa.parse(f,{header:true,skipEmptyLines:true,complete:async r=>{const m=impMapCols(r.meta.fields||[]);
     const rows=r.data.map(o=>{const x={};for(const [k,c] of Object.entries(m)){let v=o[c]==null?'':String(o[c]).trim();if(!v)continue;if(['acres','lat','lng','offer_price'].includes(k)){v=Number(v.replace(/[$,]/g,''));if(isNaN(v))continue}x[k]=v}
+      if(x.first_name&&x.last_name){const j=fixJoint(x.first_name,x.last_name);x.first_name=j.first;x.last_name=j.last}
       if(!x.full_name&&(x.first_name||x.last_name))x.full_name=[x.first_name,x.last_name].filter(Boolean).join(' ');return x}).filter(x=>x.full_name||x.phone||x.apn||x.address);
     if(cid!=='none'){const {count}=await sb.from('campaign_records').select('id',{count:'exact',head:true}).eq('campaign_id',Number(cid));if((count||0)+rows.length>LB.MAX_CODED)return msg(`<b style="color:var(--red)">${esc(LB.tooBigMsg((count||0)+rows.length))}</b> Nothing was imported.`)}
     if(cid==='none'){let done=0;for(let i=0;i<rows.length;i+=500){const part=rows.slice(i,i+500).map(x=>({source:$('impSource').value,status:'record',full_name:x.full_name,first_name:x.first_name||splitName({full_name:x.full_name}).first||null,last_name:x.last_name||splitName({full_name:x.full_name}).last||null,phone:x.phone,email:x.email,mail_address:x.mail_address,mail_city:x.mail_city,mail_state:x.mail_state,mail_zip:x.mail_zip,apn:x.apn,county:x.county,offer_code:x.offer_code,tags:$('impTag').value?[$('impTag').value]:[]}));
