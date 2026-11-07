@@ -539,7 +539,7 @@ async function vDashboard(){
 // ---------- boards ----------
 async function vBoard(board){
   $('actions').innerHTML=`<input id="bf" placeholder="Filter name / address / APN" style="width:210px"><select id="bp" style="width:auto"><option value="">Any priority</option><option>hot</option><option>warm</option><option>cold</option></select><button class="btn" onclick="newDeal('${board}')">+ Add Deal</button><button class="btn ghost" onclick="addStage('${board}')">+ Stage</button>`;
-  let data=[],error=null;for(let f=0;;f+=1000){const r=await sb.from('deals').select('*, leads(id,full_name,first_name,last_name,phone), properties(apn,address,city,county,county_state,acres)').eq('board',board).order('position').order('id').range(f,f+999);if(r.error){error=r.error;break}data.push(...r.data);if(r.data.length<1000)break}
+  let data=[],error=null;for(let f=0;;f+=1000){const r=await sb.from('deals').select('*, leads(id,full_name,first_name,last_name,phone), properties(apn,address,city,zip,county,county_state,acres,fields)').eq('board',board).order('position').order('id').range(f,f+999);if(r.error){error=r.error;break}data.push(...r.data);if(r.data.length<1000)break}
   if(error){$('view').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
   window._deals=data||[];
   const draw=()=>{
@@ -2024,7 +2024,7 @@ async function vRecord(id){const {data:r,error}=await sb.from('campaign_records'
    </div></div>`}
 // stage options for the Add Deal drawer's board picker (a named function: an inlined function's quotes broke the onchange)
 function adStages(b){return STAGES.filter(s=>s.board===b).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}
-async function addDealFromRecord(id){const {data:r}=await sb.from('campaign_records').select('*, campaigns(id,name), leads(id,full_name), properties(id,apn,address,city,county,county_state)').eq('id',id).single();
+async function addDealFromRecord(id){const {data:r}=await sb.from('campaign_records').select('*, campaigns(id,name), leads(id,full_name), properties(id,apn,address,city,county,county_state,fields)').eq('id',id).single();
   const p=r.properties,l=r.leads;const st=adStages;
   openDrawer(head('Add Deal')+`<div class="card"><label class="f">Deal Title</label><input id="ad_t" value="${esc(l?.full_name||p?.address||'')}">
    <label class="f">Board</label><select id="ad_b" onchange="$('ad_s').innerHTML=adStages(this.value)"><option value="seller">Seller Deals</option><option value="buyer">Buyer Deals</option></select>
