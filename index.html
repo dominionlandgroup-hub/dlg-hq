@@ -1410,7 +1410,8 @@ async function campaignByOfferCode(code){code=String(code||'').trim();if(!code)r
   const tries=[...new Set([code,d,d.length>3?d.slice(0,3)+'-'+d.slice(3):'',d.length>2?d.slice(0,2)+'-'+d.slice(2):'',d.length>4?d.slice(0,4)+'-'+d.slice(4):''])].filter(Boolean);
   const {data}=await sb.from('campaign_records').select('campaign_id,lead_id,property_id,offer_code').in('offer_code',tries).limit(5);return (data||[])[0]||null}
 async function guessCampaign(leadId,propId,before,text){for(const c of offerCodesIn(text)){const r=await campaignByOfferCode(c);if(r)return r.campaign_id}
-  if(leadId){const {data:_lc}=await sb.from('leads').select('offer_code').eq('id',leadId).maybeSingle();if(_lc?.offer_code){const r=await campaignByOfferCode(_lc.offer_code);if(r)return r.campaign_id}}
+  // the lead's saved code is its NEWEST letter, maybe not mailed yet: only use it if that letter already went out by the deal date
+  if(leadId){const {data:_lc}=await sb.from('leads').select('offer_code').eq('id',leadId).maybeSingle();if(_lc?.offer_code){const r=await campaignByOfferCode(_lc.offer_code);if(r){const {data:_c}=await sb.from('campaigns').select('drop_date,mail_status').eq('id',r.campaign_id).maybeSingle();if(_c&&_c.mail_status&&_c.mail_status!=='not_sent'&&String(_c.drop_date||'')<=(before||localISO()).slice(0,10))return r.campaign_id}}}
   if(!leadId&&!propId)return null;
   const ors=[leadId?'lead_id.eq.'+leadId:null,propId?'property_id.eq.'+propId:null].filter(Boolean).join(',');
   const {data}=await sb.from('campaign_records').select('campaign_id,campaigns(id,drop_date,created_at,mail_status,channel)').or(ors).limit(200);
