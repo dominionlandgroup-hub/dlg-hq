@@ -624,6 +624,9 @@ const buyerSearch=sid=>`<input type="search" placeholder="Search buyers by name,
 function filterBuyers(sid,q){const s=$(sid);if(!s)return;const cur=s.value;q=String(q||'').trim().toLowerCase();const L=(BUYERS||[]).filter(b=>String(b.id)===cur||!q||buyerQ(b).includes(q));
   s.innerHTML='<option value="">'+(q?L.filter(b=>String(b.id)!==cur).length+' match'+(L.filter(b=>String(b.id)!==cur).length===1?'':'es'):'—')+'</option>'+L.map(b=>buyerOpt(b,String(b.id)===cur)).join('');s.value=cur}
 function newDeal(board,stageId){openDealForm({board,stage_id:stageId||STAGES.find(s=>s.board===board)?.id})}
+async function dealSetByCode(id){const c=prompt('Offer code the seller gave (for example 364-6668)');if(!c)return;const r=await campaignByOfferCode(c);if(!r)return toast('No letter found with offer code '+c);
+  const {data:d}=await sb.from('deals').select('lead_id,property_id').eq('id',id).single();const upd={campaign_id:r.campaign_id};if(!d.property_id&&r.property_id)upd.property_id=r.property_id;if(!d.lead_id&&r.lead_id)upd.lead_id=r.lead_id;
+  const {error}=await sb.from('deals').update(upd).eq('id',id);if(error)return toast(error.message);await sb.from('activity').insert({lead_id:d.lead_id||r.lead_id,kind:'note',body:`Campaign set from offer code ${c}`}).then(()=>{},()=>{});toast('Campaign set from offer code '+c);openDeal(id)}
 async function openDeal(id){const {data:d,error}=await sb.from('deals').select('*, leads(*), properties(*)').eq('id',id).single();if(error)return toast(error.message);if(d.properties&&!(d.properties.fields||{}).alt_checked){await fillAltApn(d.properties)}openDealForm(d);rsAuto(d)}
 // RabbitSign: if the signing webhook was missed, a contract stays "sent" after everyone signs.
 // Opening the deal quietly re-checks RabbitSign (once per deal per session) and reopens it if anything changed.
@@ -676,7 +679,7 @@ async function openDealForm(d){
      <div class="g3"><div><label class="f">Escalate up to</label><div class="moneyin"><span>$</span><input id="d_esc_max" type="number" step="any" value="${esc(d.as_meta?.esc_max??'')}"></div></div><div><label class="f">Escalation increments</label><div class="moneyin"><span>$</span><input id="d_esc_step" type="number" step="any" value="${esc(d.as_meta?.esc_step??'')}"></div></div><div class="small muted" style="align-self:end">${d.as_meta?.esc_max&&d.purchase_price?'Offer '+money(d.purchase_price)+' escalating by '+money(d.as_meta.esc_step||0)+' up to '+money(d.as_meta.esc_max):'Purchase price = starting offer'}</div></div>
      <div class="small muted" style="margin:-4px 0 8px">Value = your fee after the JV partner's cut. The dashboard counts Value.</div>
      <div class="g2">${tf('attorney','Closing attorney')}<div><label class="f">Buyer</label>${buyerSearch('d_buyer_id')}<select id="d_buyer_id"><option value="">—</option>${BUYERS.map(b=>buyerOpt(b,b.id===d.buyer_id)).join('')}</select></div></div>
-     <div class="g2"><div style="grid-column:1/-1"><label class="f">Campaign</label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}${d.campaign_id&&!(camps||[]).some(c=>c.id===d.campaign_id)?`<option value="${d.campaign_id}" selected>Campaign #${d.campaign_id}</option>`:''}</select></div></div>
+     <div class="g2"><div style="grid-column:1/-1"><label class="f">Campaign <a href="#" class="small" style="font-weight:400" onclick="dealSetByCode(${d.id});return false">set by offer code</a></label><select id="d_campaign_id" onchange="if(this.value==='sms')$('d_source').value='ReplySmart SMS'"><option value="">—</option><option value="sms" ${!d.campaign_id&&/replysmart|sms/i.test(d.source||'')?'selected':''}>ReplySmart (SMS)</option>${(camps||[]).map(c=>`<option value="${c.id}" ${c.id===d.campaign_id?'selected':''}>${esc(c.name)} (${(c.drop_date||'').slice(0,10)})</option>`).join('')}${d.campaign_id&&!(camps||[]).some(c=>c.id===d.campaign_id)?`<option value="${d.campaign_id}" selected>Campaign #${d.campaign_id}</option>`:''}</select></div></div>
      <div class="g2">${tf('source','Source')}${!d.id||!p?tf('property_label','Property address'):`<input id="d_property_label" type="hidden" value="${esc(d.property_label||'')}">`}</div>
      <div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="saveDeal(${d.id||0},'${board}')">Save deal</button>
      ${d.id?(board==='seller'?`<button class="btn" style="background:var(--accent)" onclick="moveToBuyer(${d.id})">Under contract → Buyer Deals</button>`:`<button class="btn ghost" onclick="moveToSeller(${d.id})">← Back to Seller Deals</button>`)+`<button class="btn danger" style="margin-left:auto" onclick="delDeal(${d.id},'${board}')">Delete deal</button>`:''}</div></div>
@@ -1401,7 +1404,13 @@ function emailScript(email,box,key){const code=GMAIL_SCRIPT.replaceAll('__EMAIL_
    <p class="small muted">Keep this code private. It lets that mailbox talk to DLG HQ.</p></div>`}
 // Responses = deals. A deal only counts for a campaign when it's linked to it, so new deals link themselves to the
 // most recent campaign that actually went out to that owner or property (letters at/after the mail house, or texts).
-async function guessCampaign(leadId,propId,before){if(!leadId&&!propId)return null;
+// OFFER CODE FIRST (Nov 2026): the letter the seller holds is the truth. Find codes like 364-6668 or 227026563 in text.
+function offerCodesIn(t){const out=new Set();String(t||'').replace(/(?:offer|mailer|letter|promo)?\s*(?:code|#)\s*(?:is|:|was|provided by the caller is)?\s*([0-9]{2,4}[- ]?[0-9]{2,7})/gi,(m,c)=>{out.add(c.replace(/\s/g,''))});return [...out]}
+async function campaignByOfferCode(code){code=String(code||'').trim();if(!code)return null;const d=code.replace(/\D/g,'');
+  const tries=[...new Set([code,d,d.length>3?d.slice(0,3)+'-'+d.slice(3):'',d.length>2?d.slice(0,2)+'-'+d.slice(2):'',d.length>4?d.slice(0,4)+'-'+d.slice(4):''])].filter(Boolean);
+  const {data}=await sb.from('campaign_records').select('campaign_id,lead_id,property_id,offer_code').in('offer_code',tries).limit(5);return (data||[])[0]||null}
+async function guessCampaign(leadId,propId,before,text){for(const c of offerCodesIn(text)){const r=await campaignByOfferCode(c);if(r)return r.campaign_id}
+  if(!leadId&&!propId)return null;
   const ors=[leadId?'lead_id.eq.'+leadId:null,propId?'property_id.eq.'+propId:null].filter(Boolean).join(',');
   const {data}=await sb.from('campaign_records').select('campaign_id,campaigns(id,drop_date,created_at,mail_status,channel)').or(ors).limit(200);
   const cut=(before||localISO()).slice(0,10);
@@ -1409,7 +1418,8 @@ async function guessCampaign(leadId,propId,before){if(!leadId&&!propId)return nu
     .map(c=>({id:c.id,d:(c.drop_date||String(c.created_at||'').slice(0,10))})).filter(c=>c.d&&c.d<=cut).sort((a,b)=>b.d.localeCompare(a.d));
   return ok[0]?.id||null}
 async function dealFromThread(tid){const {data:t}=await sb.from('threads').select('*, leads(id,full_name,prop_address)').eq('id',tid).single();const b=t.inbox==='buyer'?'buyer':'seller';const st=STAGES.find(s=>s.board===b);
-  const campaign_id=await guessCampaign(t.lead_id,null);const {data,error}=await sb.from('deals').insert({board:b,stage_id:st?.id,lead_id:t.lead_id,property_label:t.leads?.full_name||t.title,source:'inbox',status:'open',campaign_id}).select().single();if(error)return toast(error.message);openDeal(data.id)}
+  const {data:_msgs}=await sb.from('messages').select('body').eq('thread_id',tid).order('id',{ascending:false}).limit(50);
+  const campaign_id=await guessCampaign(t.lead_id,null,null,(_msgs||[]).map(m=>m.body).join(' \n '));const {data,error}=await sb.from('deals').insert({board:b,stage_id:st?.id,lead_id:t.lead_id,property_label:t.leads?.full_name||t.title,source:'inbox',status:'open',campaign_id}).select().single();if(error)return toast(error.message);openDeal(data.id)}
 async function startConversation(box){const q=prompt('Phone number or contact name');if(!q)return;const {data}=await sb.rpc('global_search',{q,lim:5});const c=data?.contacts?.[0];
   let lid=c?.id;if(!lid){const {data:n,error}=await sb.from('leads').insert({phone:q,source:'hq',status:'new',inbox:box}).select().single();if(error)return toast(error.message);lid=n.id}
   const {data:tid,error}=await sb.rpc('thread_for_lead',{lid,box});if(error)return toast(error.message);IST2.tid=tid;loadThreads();openThreadT(tid)}
