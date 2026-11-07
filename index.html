@@ -562,7 +562,9 @@ async function fillAltApn(p){try{if(!p?.id||!p.apn||(p.fields||{}).alt_checked||
   const a=String(p.apn).trim(),d=a.replace(/\D/g,''),v=[...new Set([a,a.replace(/[^0-9A-Za-z.]/g,''),a.replace(/[^0-9A-Za-z]/g,''),d.length&&d.length<8?d.padStart(8,'0'):'',d+'0000',d.length>=12?d.slice(0,12):''])].filter(Boolean).map(x=>`'${x.replace(/'/g,"''")}'`).join(',');
   const r=await fetch('https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query',{method:'POST',body:new URLSearchParams({where:`UPPER(cntyname)='${String(p.county||'').replace(/\s*county\s*$/i,'').replace(/'/g,'').toUpperCase()}' AND (parno IN (${v}) OR altparno IN (${v}))`,outFields:'parno,altparno',returnGeometry:'false',f:'json',resultRecordCount:'1'})});const j=await r.json();const at=j.features?.[0]?.attributes;if(j.error||!Array.isArray(j.features))return;
   const norm=x=>String(x||'').replace(/[^0-9A-Za-z]/g,'').replace(/^0+/,'');let alt='';if(at){const na=norm(a),np=norm(at.parno),nx=norm(at.altparno);const selfIsAlt=nx&&(nx===na||nx.startsWith(na)||na.startsWith(nx));alt=selfIsAlt?(at.parno||''):(at.altparno||'');if(norm(alt)===na)alt=''}
-  const fields={...(p.fields||{}),alt_checked:true};if(alt)fields.alt_apn=String(alt).trim();await sb.from('properties').update({fields}).eq('id',p.id);p.fields=fields}catch(e){}}
+  const fields={...(p.fields||{}),alt_checked:true};const dg=v=>String(v).replace(/\D/g,'').length;
+  if(alt&&PRIMARY_ALT.test(p.county||'')&&dg(alt)<dg(a)){fields.state_pin=a;delete fields.alt_apn;await sb.from('properties').update({apn:String(alt).trim(),fields}).eq('id',p.id);p.apn=String(alt).trim();p.fields=fields;return} // Gaston: county Parcel ID only (Damien, Nov 7)
+  if(alt)fields.alt_apn=String(alt).trim();await sb.from('properties').update({fields}).eq('id',p.id);p.fields=fields}catch(e){}}
 function card(d){const p=d.properties||{},l=d.leads;
   return `<div class="dcard" draggable="true" data-id="${d.id}" style="border-left-color:${d.priority==='hot'?'var(--hot)':d.priority==='warm'?'var(--accent)':'var(--brand2)'}" onclick="openDeal(${d.id})">
    <div class="t"><span>${esc(leadName(l)||d.property_label||'Deal')}</span>${d.value?`<span class="val">${money(d.value)}</span>`:''}</div>
@@ -1806,12 +1808,14 @@ async function buildMailList(idOrIds,opt={}){
     for(let f=0;;f+=1000){const r=await LB.openDeals(sb.from('deals').select('id,lead_id,property_id,board,properties(county,apn)').order('id').range(f,f+999));if(r.error)throw r.error;(r.data||[]).filter(d=>(d.board||'seller')==='seller').forEach(d=>{const x={full_name:'open seller deal'};if(d.lead_id)putB('L'+d.lead_id,x);if(d.property_id)putB('P'+d.property_id,x);putB('A'+AK(d.properties),x)});if((r.data||[]).length<1000)break}
     // c) check this list
     // d) BUY BOX (Nov 2026): every lot must fit at least one buyer's area (county/city/zip) and lot size; 5+ acres only where a buyer takes 5+
-    $('m_msg').textContent='Mail guard: checking every lot against your buyers\' buy boxes…';let BB=[];for(let f=0;;f+=1000){const r=await sb.from('buyers').select('counties,cities,zips,lot_sizes,bb_group,kind').range(f,f+999);if(r.error)throw r.error;BB.push(...r.data);if(r.data.length<1000)break}
+    $('m_msg').textContent='Mail guard: checking every lot against your buyers\' buy boxes…';const _tplNm=String($('m_tpl')?.value||''),_houseL=/\bhouse|homes?\b/i.test(_tplNm)&&!/teardown/i.test(_tplNm);let BB=[];for(let f=0;;f+=1000){const r=await sb.from('buyers').select('counties,cities,zips,lot_sizes,bb_group,kind,buy_box').range(f,f+999);if(r.error)throw r.error;BB.push(...r.data);if(r.data.length<1000)break}
     BB=BB.filter(b=>b.bb_group!=='Building buyers list'&&b.kind!=='lender');const _n=x=>String(x||'').toLowerCase().replace(/\.|county/g,'').replace(/,?\s*\b(nc|sc)$/,'').replace('iredall','iredell').replace('duplib','duplin').trim();
     const _cs=b=>(b.counties||[]).flatMap(c=>String(c).split(/[\/,;&]|\s+and\s+|\s+(?=pender|onslow|duplin|duplib)/i)).map(_n).filter(Boolean);
     const _SZ={'Under 1/4 acre':[0,.25],'1/4 to 1/2 acre':[.25,.5],'1/2 to 1 acre':[.5,1],'1 to 5 acres':[1,5],'5+ acres':[5,1e9]};const _fit=(b,a)=>b.lot_sizes.some(z=>{const q=_SZ[z];return q&&a>=q[0]-1e-9&&a<=q[1]+1e-9});
     const _area=(b,p)=>_cs(b).includes(_n(p.county))||(b.cities||[]).some(c=>_n(c)&&_n(c)===_n(p.city))||(b.zips||[]).includes(String(p.zip||'').slice(0,5));
-    const bbWhy=p=>{p=p||{};const inA=BB.filter(b=>_area(b,p));if(!inA.length)return 'no buyer in this area';const a=+(p.acres??NaN);if(isNaN(a))return 'no acreage on file, so the buy box can\'t be confirmed';const st=inA.filter(b=>(b.lot_sizes||[]).length);if(st.length&&!st.some(b=>_fit(b,a)))return `${a} acres is outside every buyer\'s lot size here`;if(a>5&&!st.some(b=>_fit(b,a)))return `${a} acres, no buyer here takes 5+ acres`;return ''};
+    const HB=BB.filter(b=>/\bhouses?\b|townhom/i.test(b.buy_box||''));
+    const _noBB=/estate|attorney|foreclosure/i.test(_tplNm); // letters to attorneys / estates / foreclosures are not lot offers
+    const bbWhy=p=>{p=p||{};if(_noBB)return '';if(_houseL){return HB.some(b=>_area(b,p))?'':'not in a house buyer\'s area (New Western: '+[...new Set(HB.flatMap(_cs))].join(', ')+')'}const inA=BB.filter(b=>_area(b,p));if(!inA.length)return 'no buyer in this area';const a=+(p.acres??NaN);if(isNaN(a))return 'no acreage on file, so the buy box can\'t be confirmed';const st=inA.filter(b=>(b.lot_sizes||[]).length);if(st.length&&!st.some(b=>_fit(b,a)))return `${a} acres is outside every buyer\'s lot size here`;if(a>5&&!st.some(b=>_fit(b,a)))return `${a} acres, no buyer here takes 5+ acres`;return ''};
     // e) MAILING ADDRESS (Nov 2026): no letter goes out without a street number and a 5-digit zip (old Pebble data had blanks, 'Nva' cities and zips missing the leading 0)
     const addrWhy=l=>{l=l||{};const a=String(l.mail_address||'').trim(),c=String(l.mail_city||'').trim(),z=String(l.mail_zip||'').trim();if(!a||!/\d/.test(a))return 'no street number on the mailing address';if(!c||/^nva$/i.test(c))return 'no valid mailing city';{const zf=zipFix(z,l.mail_state);if(zf!==z){l.mail_zip=zf;return ''}}if(!/^\d{5}(-?\d{4})?$/.test(z))return 'no 5-digit zip code on the mailing address';return ''};
     for(let i=kept0.length-1;i>=0;i--){const w=addrWhy(kept0[i].leads);if(w){kept0[i]._chk={status:'guard',reason:'bad mailing address: '+w+' (kept in the campaign)'};soft.push(kept0[i]);kept0.splice(i,1)}}
@@ -1938,6 +1942,12 @@ async function _finishMailList(idOrIds){
   // the 90-day check all match the letters actually mailed.
   {const md=_c0.drop_date||localISO(),tpl=$('m_tpl').value,inFile=new Set(kept.map(r=>r.id)),left=[];
     for(const i of ids)for(let f=0;;f+=1000){const {data}=await sb.from('campaign_records').select('id,campaign_id,lead_id,property_id').eq('campaign_id',i).order('id').range(f,f+999);(data||[]).forEach(r=>{if(!inFile.has(r.id))left.push(r)});if(!data||data.length<1000)break}
+    const _fixIds=new Set((window._guarded||[]).filter(r=>r._chk&&/^(bad mailing address|outside buy box|this parcel had an owner|already being worked|same mailing address)/.test(r._chk.reason||'')).map(r=>r.id));
+    const fixL=left.filter(r=>_fixIds.has(r.id));if(fixL.length){try{let {data:nf}=await sb.from('campaigns').select('id,name').eq('name','Held - Needs fixing').eq('channel','mail').limit(1);nf=nf&&nf[0];
+        if(!nf){const r=await sb.from('campaigns').insert({name:'Held - Needs fixing',channel:'mail',drop_date:'2099-12-31',source:'hq',mail_status:'not_sent'}).select().single();if(r.error)throw r.error;nf=r.data}
+        await moveRecords(fixL,nf.id);for(let k=left.length-1;k>=0;k--)if(_fixIds.has(left[k].id))left.splice(k,1);
+        $('m_msg').innerHTML+=`<br>${fixL.length.toLocaleString()} record${fixL.length===1?'':'s'} left off (bad address, outside the buy box, being worked) moved to "Held - Needs fixing" instead of next week's campaign.`}
+      catch(e){$('m_msg').innerHTML+=`<br><b style="color:var(--red)">Couldn't move the left-off records to Needs fixing: ${esc(e.message)}</b>`}}
     if(left.length){try{const later=await laterCampaigns(ids,tpl,md,{dest:true});const nd=new Date(new Date(md+'T12:00:00').getTime()+7*864e5).toISOString().slice(0,10);
         const t=later[0]||await newLaterCampaign({name:c.name},tpl,nd,'Not mailed');await moveRecords(left,t.id);
         $('m_msg').innerHTML+=`<br>${left.length.toLocaleString()} record${left.length===1?'':'s'} not in the file moved to "${esc(t.name)}", so this campaign only counts what was mailed.`}
@@ -2065,7 +2075,7 @@ async function vProperties(){
 async function loadProps(byMap){
   let q=sb.from('properties').select('id,apn,address,city,county,county_state,acres,lat,lng').limit(1000);
   const c=$('pf_county').value.trim(),a=$('pf_apn').value.trim(),ad=$('pf_addr').value.trim(),t=$('pf_tag').value.trim();
-  if(c)q=q.ilike('county',c+'%');if(a){const aa=a.replace(/[,()*:]/g,'');q=q.or(`apn.ilike.%${aa}%,fields->>alt_apn.ilike.%${aa}%`)}if(ad)q=q.ilike('address','%'+ad+'%');if(t)q=q.contains('tags',[t]);
+  if(c)q=q.ilike('county',c+'%');if(a){const aa=a.replace(/[,()*:]/g,'');q=q.or(`apn.ilike.%${aa}%,fields->>alt_apn.ilike.%${aa}%,fields->>state_pin.ilike.%${aa}%`)}if(ad)q=q.ilike('address','%'+ad+'%');if(t)q=q.contains('tags',[t]);
   if(byMap&&!c&&!a&&!ad&&!t){const b=map.getBounds();q=q.gte('lat',b.getSouth()).lte('lat',b.getNorth()).gte('lng',b.getWest()).lte('lng',b.getEast())}
   const {data,error}=await q;if(error){$('plist').innerHTML=`<div style="padding:12px">${esc(error.message)}</div>`;return}
   const P=data||[];mapLayer.clearLayers();const pts=[];
