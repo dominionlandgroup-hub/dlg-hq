@@ -76,7 +76,7 @@ th{color:var(--muted);font-weight:500;font-size:12px}tr.click{cursor:pointer}tr.
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .kpi .v{font-size:22px;font-weight:700;color:var(--brand)}.kpi .l{color:var(--muted);font-size:12px}
 .kpi.gold{border-top:3px solid var(--accent)}
-.gsearch{margin:-8px 0 14px}.gwrap{position:relative;max-width:520px}.gwrap input{padding-right:40px}.gbtn{position:absolute;right:4px;top:4px;border:0;background:none;font-size:18px;color:var(--muted)}
+.gsearch{margin:-8px 0 14px}.gwrap{position:relative;max-width:520px}.gwrap input{padding-right:70px}.gx{position:absolute;right:36px;top:6px;border:0;background:none;font-size:15px;color:var(--muted);cursor:pointer;padding:2px 6px}.gx:hover{color:var(--ink,#222)}.gbtn{position:absolute;right:4px;top:4px;border:0;background:none;font-size:18px;color:var(--muted)}
 .gres{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.14);z-index:50;max-height:70vh;overflow:auto}
 .gres .gh{display:flex;justify-content:space-between;background:#f1f0eb;padding:7px 12px;font-size:12px;font-weight:700}.gres a{display:block;padding:9px 12px;border-top:1px solid var(--line);text-decoration:none;color:var(--ink)}.gres a:hover{background:var(--chip)}
 .gres a b{color:#5C2977}.gres .sm{font-size:12px;color:var(--muted)}mark{background:#fff1a8;padding:0}
@@ -260,7 +260,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <div class="foot"><div id="verse" class="verse" style="margin-bottom:12px"></div><span id="who"></span><br><button onclick="sb.auth.signOut().then(boot)">Sign out</button></div>
   </aside>
   <main>
-    <div class="gsearch"><div class="gwrap"><input id="gq" placeholder="Search offer codes, contacts, phones, APNs, addresses, deals" autocomplete="off"><button class="gbtn" onclick="go('search:'+encQ($('gq').value.trim()))">⌕</button><div id="gres" class="gres"></div></div></div>
+    <div class="gsearch"><div class="gwrap"><input id="gq" placeholder="Search offer codes, contacts, phones, APNs, addresses, deals" autocomplete="off"><button class="gx hidden" id="gx" title="Clear search" onclick="gsClear()">✕</button><button class="gbtn" onclick="go('search:'+encQ($('gq').value.trim()))">⌕</button><div id="gres" class="gres"></div></div></div>
     <div class="topbar"><button class="btn ghost sm" id="mtoggle" onclick="$('side').classList.toggle('open')">☰</button><h1 id="title">Dashboard</h1><div id="actions"></div></div>
     <div id="view"></div>
   </main>
@@ -351,7 +351,7 @@ const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox
  followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit(),scorecard:()=>vScorecard(),checklist:()=>vChecklist(),checker:()=>vChecker(),targets:()=>vHubTargets(),match:()=>vHubMatch()};
 const TITLES={prospects:'Buyer Prospects',checker:'List Checker',dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
-function go(v){try{const _vw=document.getElementById('view');if(_vw)_vw.style.opacity=''}catch(e){}try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch((()=>{try{return decodeURIComponent(m[2])}catch(e){return m[2]}})());return}
+function go(v){try{const _vw=document.getElementById('view');if(_vw)_vw.style.opacity='';if(document.getElementById('gq')){document.getElementById('gq').value='';const gx=document.getElementById('gx');if(gx)gx.classList.add('hidden')}}catch(e){}try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||''))IST2.status=INBOX_DEFAULT(String(v).slice(6))}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch((()=>{try{return decodeURIComponent(m[2])}catch(e){return m[2]}})());return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
   document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v===v));{const on=document.querySelector('details.navmore a.nav.on');if(on)on.closest('details').open=true;}
   $('title').textContent=TITLES[v];$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');VIEWS[v]()}
@@ -2031,13 +2031,16 @@ function gsHTML(r,q,full){if(!r)return '';const sec=(title,items,fn,key)=>items&
    +sec('Properties',r.properties,x=>`<a href="#" onclick="gsGo(null,()=>openProperty(${x.id}));return false"><b>⛰ ${hl(x.apn||'',q)}</b><div class="sm">${hl([x.address,x.city].filter(Boolean).join(', '),q)} · ${esc([x.county,x.county_state].filter(Boolean).join(', '))}${x.acres?' | '+(+x.acres).toFixed(2)+' acres':''}</div></a>`)
    +sec('Deals',r.deals,x=>`<a href="#" onclick="gsGo(null,()=>openDeal(${x.id}));return false">${hl(x.title,q)}<div class="sm">${x.board==='buyer'?'Buyer Deals':'Seller Deals'} · ${esc(x.stage||'')}</div></a>`)
    ||'<div class="muted small" style="padding:12px">No results.</div>'}
-function gsGo(view,fn){$('gres').style.display='none';if(view)go(view);if(fn)fn()}
-(function(){let t;const inp=()=>$('gq');document.addEventListener('input',e=>{if(e.target.id!=='gq')return;clearTimeout(t);const q=e.target.value.trim();if(q.length<2){$('gres').style.display='none';return}
+function gsGo(view,fn){$('gres').style.display='none';if($('gq'))$('gq').value='';gsSync();if(view)go(view);if(fn)fn()}
+// ✕ clears the top search box; it also clears itself when you open something that isn't the search results page, and on Esc
+function gsClear(){const q=$('gq');if(!q)return;q.value='';$('gres').style.display='none';$('gx').classList.add('hidden');q.focus()}
+function gsSync(){const q=$('gq'),x=$('gx');if(q&&x)x.classList.toggle('hidden',!q.value)}
+(function(){let t;const inp=()=>$('gq');document.addEventListener('input',e=>{if(e.target.id!=='gq')return;gsSync();clearTimeout(t);const q=e.target.value.trim();if(q.length<2){$('gres').style.display='none';return}
   t=setTimeout(async()=>{const r=await gsearch(q,5);if(inp().value.trim()!==q)return;$('gres').innerHTML=gsHTML(r,q)+`<a href="#" onclick="gsGo('search:${encQ(q)}');return false" class="sm" style="text-align:center">See all results</a>`;$('gres').style.display='block'},250)});
- document.addEventListener('keydown',e=>{if(e.target.id==='gq'&&e.key==='Enter'){gsGo('search:'+encQ(e.target.value.trim()))}});
+ document.addEventListener('keydown',e=>{if(e.target.id==='gq'&&e.key==='Enter'){gsGo('search:'+encQ(e.target.value.trim()))}if(e.target.id==='gq'&&e.key==='Escape'){gsClear();e.target.blur()}});
  document.addEventListener('click',e=>{if(!e.target.closest('.gwrap'))$('gres').style.display='none'})})();
 let GSTAB='all';
-async function vSearch(q){$('title').textContent='Global Search';$('gq').value=q;const r=await gsearch(q,50);if(!r)return;
+async function vSearch(q){$('title').textContent='Search: '+q;gsSync();const r=await gsearch(q,50);if(!r)return;
   const n={records:r.records?.length||0,contacts:r.contacts?.length||0,properties:r.properties?.length||0,deals:r.deals?.length||0};
   const tabs=[['all','All'],['contacts',`Contacts (${n.contacts})`],['properties',`Properties (${n.properties})`],['deals',`Deals (${n.deals})`],['records',`Campaign records (${n.records})`]];
   const pick=GSTAB==='all'?r:{[GSTAB]:r[GSTAB]};
