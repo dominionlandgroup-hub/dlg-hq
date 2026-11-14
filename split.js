@@ -360,7 +360,8 @@ async function spImport(file) {
     const listName = file.name.replace(/\.xlsx$/i, '');
     const out = new Map();
     for (const name of wb.SheetNames) {
-      const county = /^charlotte/i.test(name) ? 'Charlotte' : /^gaston/i.test(name) ? 'Gaston' : null;
+      const SPC = ['Union', 'Cabarrus', 'Iredell', 'Rowan', 'Catawba', 'Cleveland', 'Lincoln', 'Stanly', 'Davidson', 'Forsyth', 'Guilford', 'Randolph', 'Montgomery', 'Brunswick', 'New Hanover', 'Pender', 'Onslow', 'Duplin', 'Buncombe', 'Burke', 'York', 'Lancaster', 'Chester', 'Greenville'];
+      const county = /^(charlotte|mecklenburg)/i.test(name) ? 'Charlotte' : /^gaston/i.test(name) ? 'Gaston' : (SPC.find(c => new RegExp('^' + c.replace(' ', '\\s*'), 'i').test(name)) || null);
       if (!county) continue;
       for (const r of XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: null })) {
         if (!r['ParcelID']) continue;
@@ -381,7 +382,7 @@ async function spImport(file) {
       }
     }
     const rows = [...out.values()].map(o => { Object.keys(o).forEach(k => o[k] === undefined && delete o[k]); return o; });
-    if (!rows.length) return toast('No Charlotte or Gaston tabs with parcels found in that file.');
+    if (!rows.length) return toast('No county tabs with parcels found in that file. Name each tab after its county (e.g. Union, Cabarrus, Charlotte, Gaston).');
     for (let i = 0; i < rows.length; i += 500) {
       const { error } = await sb.from('split_parcels').upsert(rows.slice(i, i + 500), { onConflict: 'dedupe_key' });
       if (error) return toast('Import failed: ' + error.message);

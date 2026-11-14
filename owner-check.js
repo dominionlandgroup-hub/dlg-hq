@@ -120,6 +120,26 @@
     return out;
   }
 
+  // Counties without their own connection (Nov 14): read the owner from the NC statewide parcel map. It can run a few
+  // months behind the county, so results say so; it still catches most sales instead of mailing every lot unchecked.
+  const STATE_MAP = 'https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query';
+  const nk = a => String(a || '').toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/^0+/, '');
+  async function queryState(county, apns) {
+    const out = {}; const list = [...new Set(apns.filter(Boolean))];
+    for (let i = 0; i < list.length; i += 60) {
+      const vs = [...new Set(list.slice(i, i + 60).flatMap(a => { a = String(a).trim(); return [a, a.toUpperCase(), a.replace(/[^0-9A-Za-z.]/g, ''), a.replace(/[^0-9A-Za-z]/g, '')]; }))].filter(Boolean).map(v => `'${v.replace(/'/g, "''")}'`).join(',');
+      let j, err;
+      for (let tries = 0; tries < 3 && !j; tries++) {
+        try { const r = await fetch(STATE_MAP, { method: 'POST', body: new URLSearchParams({ where: `UPPER(cntyname)='${county.replace(/'/g, '')}' AND (parno IN (${vs}) OR altparno IN (${vs}))`, outFields: 'parno,altparno,ownname,ownname2,saledate,sourcedate', returnGeometry: 'false', f: 'json' }) }); j = await r.json(); if (j.error) { err = new Error(j.error.message || 'state map query failed'); j = null; } }
+        catch (e) { err = e; }
+        if (!j && tries < 2) await new Promise(r => setTimeout(r, 1500));
+      }
+      if (!j) throw err || new Error('state map query failed');
+      for (const f of j.features || []) { const a = f.attributes; const r = { owner: join(a.ownname, a.ownname2), sale: ep(a.saledate || a.sourcedate), price: null }; if (a.parno) out[nk(a.parno)] = r; if (a.altparno) out[nk(a.altparno)] = r; }
+    }
+    return out;
+  }
+
   // records: [{lead:{full_name,first_name,last_name,tags,created_at}, prop:{apn,county,state}}]
   async function run(records, opts = {}) {
     const res = new Array(records.length); const groups = {};
@@ -152,6 +172,21 @@
             else res[i] = { status: 'unverified', reason: 'Union County only publishes qualified sales, not current owners; no sale found' };
           });
         } catch (e) { idx.forEach(i => res[i] = { status: 'unverified', reason: 'Union County site did not answer: ' + e.message }); }
+        tick(idx.length); continue;
+      }
+      if (!cfg && g.endsWith('|NC') && county) {
+        let cur; try { cur = await queryState(county, idx.map(i => records[i].prop?.apn || '')); }
+        catch (e) { idx.forEach(i => res[i] = { status: 'unverified', reason: `${titled} County: NC state map did not answer (${e.message})` }); tick(idx.length); continue; }
+        idx.forEach(i => {
+          const r = records[i]; const c = cur[nk(r.prop?.apn)];
+          if (!c) { res[i] = { status: 'unverified', reason: `Parcel ${r.prop?.apn || '(none)'} not found on the NC state map (${titled} County)` }; return; }
+          const base = { owner: c.owner, sale: c.sale, price: null };
+          if (nameMatch(r.lead || {}, c.owner)) { res[i] = { status: 'ok', reason: `${titled} County: owner matches on the NC state map (it can run a few months behind)`, ...base }; return; }
+          const recent = c.sale && (now - c.sale.getTime()) < 730 * DAY;
+          const heir = opts.estateCampaign || ESTATE_TAGS.test([].concat(r.lead?.tags || []).join(' '));
+          if (heir && !recent && !INSTITUTION.test(c.owner)) { res[i] = { status: 'heir', reason: `State map owner is ${c.owner}; letter goes to the heir / PR`, ...base }; return; }
+          res[i] = { status: recent || INSTITUTION.test(c.owner) ? 'sold' : 'changed', reason: `${titled} County (NC state map): owner is ${c.owner}${c.sale ? ' (deed ' + c.sale.toLocaleDateString() + ')' : ''}, not the name on our list`, ...base };
+        });
         tick(idx.length); continue;
       }
       if (!cfg) { idx.forEach(i => res[i] = { status: 'unverified', reason: `${titled} County isn't connected to the owner check yet` }); tick(idx.length); continue; }

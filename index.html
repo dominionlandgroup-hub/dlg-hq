@@ -1209,7 +1209,7 @@ async function vInbox(box){if(!PNUMS)await loadPnums();if(IST2.box!==box)IST2={s
      <div class="seg" id="seg2">${SEGS.map(([x,l])=>`<button class="${IST2.status===x?'on':''}" onclick="IST2.status='${x}';drawSeg();loadThreads()">${l}</button>`).join('')}</div></div><div id="tl"></div></div>
    <div class="convo" id="convo"><div class="muted" style="padding:20px">Pick a conversation.</div></div><div class="cpanel" id="cpanel"></div></div>`;
   let t;$('tq').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{IST2.term=e.target.value.trim();loadThreads()},300)};loadThreads(true)}
-async function loadThreads(first){let {data,error}=await sb.rpc('inbox_threads',{box:IST2.box,status:IST2.status,term:IST2.term||null,lim:200,off:0});
+let _ltSeq=0;async function loadThreads(first){const _my=++_ltSeq,_box=IST2.box,_st=IST2.status,_tm=IST2.term;let {data,error}=await sb.rpc('inbox_threads',{box:_box,status:_st,term:_tm||null,lim:200,off:0});if(_my!==_ltSeq)return;
   // blocked conversations only show under Archived
   if(!error&&IST2.status!=='archived'){const {data:mu}=await sb.from('threads').select('id').eq('muted',true).limit(1000);const M=new Set((mu||[]).map(x=>x.id));data=(data||[]).filter(t=>!M.has(t.id))}
   if(error){$('tl').innerHTML=`<div class="muted small" style="padding:12px">${esc(error.message)}</div>`;return}
@@ -1270,6 +1270,7 @@ async function threadCodeCheck(t,msgs){try{const all=(msgs||[]).map(m=>m.body||'
 async function threadMoveTo(tid,lid){if(!confirm('Move this conversation to the owner of that offer code?'))return;const {error}=await sb.from('threads').update({lead_id:lid}).eq('id',tid);if(error)return toast(error.message);await sb.from('messages').update({lead_id:lid}).eq('thread_id',tid).then(()=>{},()=>{});toast('Moved');openThreadT(tid)}
 async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem').forEach(e=>e.classList.toggle('on',e.getAttribute('onclick')===`openThreadT(${tid})`));
   const [{data:t},{data:msgs},{data:tpl},{data:obx}]=await Promise.all([sb.from('threads').select('*, leads(*)').eq('id',tid).single(),sb.from('messages').select('*').eq('thread_id',tid).order('created_at'),sb.from('templates').select('id,name,body').eq('kind','text').order('name'),sb.from('email_outbox').select('id,subject,body,status,error,created_at').eq('thread_id',tid).in('status',['pending','sending','failed']).order('id')]);
+  if(IST2.tid!==tid||!t)return; // you clicked another conversation while this one loaded
   const l=t.leads||{};_tl=l;window._tpl=tpl||[];const _ls=(msgs||[]).filter(m=>m.channel==='email'&&m.subject).slice(-1)[0]?.subject||'';const lastSubj=_ls?(/^re:/i.test(_ls)?_ls:'Re: '+_ls):'';
   const bubble=m=>{const out=m.direction==='out';const who=m.sender||(out?'Damien Dupee':(l.full_name||t.title||''));const when=new Date(m.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
     let inner='';if(m.channel==='call'){inner=`<div><b>${out?'Outgoing call':m.duration_s?'Incoming call':'Missed call'}</b>${m.duration_s?` · ${Math.floor(m.duration_s/60)}:${String(m.duration_s%60).padStart(2,'0')}`:''}</div>${m.body?`<div style="margin-top:6px">${esc(m.body)}</div>`:''}${m.recording_url?(m.recording_url.startsWith('storage:')?`<audio controls preload="none" data-rec="${esc(m.recording_url.slice(8))}" style="width:100%;margin-top:6px"></audio>`:`<audio controls preload="none" src="${esc(/^https?:/.test(m.recording_url)?m.recording_url:'https://app.pebblerei.com'+m.recording_url)}" style="width:100%;margin-top:6px"></audio>`):''}`}
@@ -1570,16 +1571,18 @@ async function vCampaign(id){
      <button class="btn ghost sm" onclick="copyMailLink(${id})">Copy mail house link</button></div></div>`:''}
    <div class="card" style="padding:12px 14px"><div class="row" style="align-items:center;gap:8px;flex-wrap:wrap">
      <input id="rq" placeholder="Search owner, code, APN or address" value="${esc(RSTATE.q)}" style="max-width:300px">
-     <select id="rtag" style="width:auto"><option value="">Tag: Any</option>${['Due Diligence','Not Selling','Overpriced Offer'].map(t=>`<option ${RSTATE.tag===t?'selected':''}>${t}</option>`).join('')}</select>
+     <select id="rtag" style="width:auto"><option value="">Tag: Any</option>${[...new Set(['Due Diligence','Not Selling','Overpriced Offer',...(window._recTags||[])])].sort().map(t=>`<option ${RSTATE.tag===t?'selected':''}>${esc(t)}</option>`).join('')}</select>
      <select id="rboard" style="width:auto"><option value="">Board: Any</option><option value="seller" ${RSTATE.board==='seller'?'selected':''}>Seller Deals</option><option value="buyer" ${RSTATE.board==='buyer'?'selected':''}>Buyer Deals</option></select>
      <span style="flex:1"></span><div class="menu"><button class="btn ghost" onclick="toggleMenu(this)">Actions ▾</button><div class="mlist"><a href="#" onclick="adjustPrice(${id});return false">Adjust Price</a><a href="#" onclick="exportCampaign(${id});return false">Export</a></div></div></div></div>
    <div id="rlist"><div class="muted">Loading…</div></div>`;
-  let t;$('rq').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{RSTATE.q=e.target.value.trim();RSTATE.page=0;loadRecs(id)},300)};
-  $('rtag').onchange=e=>{RSTATE.tag=e.target.value;RSTATE.page=0;loadRecs(id)};$('rboard').onchange=e=>{RSTATE.board=e.target.value;RSTATE.page=0;loadRecs(id)};
+  const rsReset=()=>{RSTATE.all=false;RSTATE.sel.clear();RSTATE.page=0};let t;$('rq').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{RSTATE.q=e.target.value.trim();rsReset();loadRecs(id)},300)};
+  $('rtag').onchange=e=>{RSTATE.tag=e.target.value;rsReset();loadRecs(id)};$('rboard').onchange=e=>{RSTATE.board=e.target.value;rsReset();loadRecs(id)};
   loadRecs(id)}
-async function loadRecs(id){const P=20;
+async function loadRecTags(id){if(window._recTagsFor===id)return;window._recTagsFor=id;const T=new Set();for(let off=0;off<20000;off+=1000){const {data}=await sb.from('campaign_records').select('leads(tags)').eq('campaign_id',id).range(off,off+999);(data||[]).forEach(r=>(r.leads?.tags||[]).forEach(t=>t&&T.add(t)));if(!data||data.length<1000)break}
+  window._recTags=[...T];const sel=$('rtag');if(sel){const cur=sel.value;sel.innerHTML='<option value="">Tag: Any</option>'+[...new Set(['Due Diligence','Not Selling','Overpriced Offer',...T])].sort().map(t=>`<option ${cur===t?'selected':''}>${esc(t)}</option>`).join('')}}
+let _recSeq=0;async function loadRecs(id){const P=20;const my=++_recSeq;loadRecTags(id);
   const {data,error}=await sb.rpc('campaign_records_page',{cid:id,q:RSTATE.q||null,tag:RSTATE.tag||null,board:RSTATE.board||null,lim:P,off:RSTATE.page*P});
-  if(error){$('rlist').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
+  if(my!==_recSeq||!$('rlist'))return;if(error){$('rlist').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
   const total=data?.[0]?.total||0,rows=data||[];const pages=Math.max(1,Math.ceil(total/P));
   const pager=`<div class="pager"><label class="small" style="margin-right:auto"><input type="checkbox" style="width:auto" onchange="selAllRecs(${id},this.checked)" ${RSTATE.all?'checked':''}> Select all ${total.toLocaleString()}</label><span class="small">${total?RSTATE.page*P+1:0} - ${Math.min(total,RSTATE.page*P+P)} of ${total.toLocaleString()} results</span><button class="btn ghost sm" ${RSTATE.page?'':'disabled'} onclick="RSTATE.page--;loadRecs(${id})">‹</button><button class="btn ghost sm" ${RSTATE.page<pages-1?'':'disabled'} onclick="RSTATE.page++;loadRecs(${id})">›</button></div>`;
   $('rlist').innerHTML=pager+rows.map(r=>`<div class="card rec"><input type="checkbox" style="width:auto" ${RSTATE.all||RSTATE.sel.has(r.rec_id)?'checked':''} onchange="selRec(${r.rec_id},this.checked)">
@@ -1587,17 +1590,19 @@ async function loadRecs(id){const P=20;
        <a href="#" class="code" onclick="go('record:${r.rec_id}');return false"><b>Code:</b> ${esc(r.offer_code||'—')}</a>${r.offer_price?` <span class="small muted">Offer ${money(r.offer_price)}</span>`:''}</div>
      <div class="rr card">${r.property_id?`<a href="#" onclick="openProperty(${r.property_id});return false"><b>⛰ ${esc(r.apn?apnText(r):'APN not entered')}</b></a>`:''}<div class="small">${r.address?'⌂ '+esc([r.address,r.city].filter(Boolean).join(', ')):''}</div><div class="small muted">${esc([r.county,r.county_state].filter(Boolean).join(', '))}${r.acres?' | '+(+r.acres).toFixed(2)+' acres':''}</div>
        ${(r.tags||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join(' ')} ${r.deal_board?`<span class="pill hot">${r.deal_board==='seller'?'Seller Deals':'Buyer Deals'}</span>`:''}</div></div>`).join('')+(rows.length?pager:'<div class="card muted">No records match.</div>')}
-function selRec(id,on){RSTATE.all=false;on?RSTATE.sel.add(id):RSTATE.sel.delete(id)}
+async function selRec(id,on){if(RSTATE.all&&!on){const cid=RSTATE.id,ids=[];for(let off=0;;off+=1000){const {data,error}=await sb.rpc('campaign_records_page',{cid,q:RSTATE.q||null,tag:RSTATE.tag||null,board:RSTATE.board||null,lim:1000,off});if(error)return toast(error.message);ids.push(...(data||[]).map(r=>r.rec_id));if(!data||data.length<1000)break}RSTATE.all=false;RSTATE.sel=new Set(ids);}
+  on?RSTATE.sel.add(id):RSTATE.sel.delete(id)}
 function selAllRecs(cid,on){RSTATE.all=on;RSTATE.sel.clear();loadRecs(cid)}
 async function exportCampaign(id){toast('Building export…');const all=[];for(let off=0;;off+=1000){const {data,error}=await sb.rpc('campaign_records_page',{cid:id,q:RSTATE.q||null,tag:RSTATE.tag||null,board:RSTATE.board||null,lim:1000,off});if(error)return toast(error.message);all.push(...data);if(data.length<1000)break}
   const rows=all.filter(r=>RSTATE.all||!RSTATE.sel.size||RSTATE.sel.has(r.rec_id)).map(r=>({Owner:r.owner,'Mail Address':r.mail_address,'Mail City':r.mail_city,'Mail State':r.mail_state,'Mail Zip':r.mail_zip,'Offer Code':r.offer_code,'Offer Price':r.offer_price,APN:r.apn,'Property Address':r.address,'Property City':r.city,County:r.county,State:r.county_state,Acres:r.acres,Tags:(r.tags||[]).join('; ')}));
   const {data:c}=await sb.from('campaigns').select('name').eq('id',id).single();dlCSV(`Campaign Export - ${c.name.replace(/[^\w ]+/g,'')} - ${rows.length} Records.csv`,rows)}
-async function adjustPrice(id){const ids=RSTATE.all?null:[...RSTATE.sel];if(!RSTATE.all&&!ids.length)return toast('Select records first (or Select all)');
+async function adjustPrice(id){if(RSTATE.all&&(RSTATE.q||RSTATE.tag||RSTATE.board)){const ids=[];for(let off=0;;off+=1000){const {data,error}=await sb.rpc('campaign_records_page',{cid:id,q:RSTATE.q||null,tag:RSTATE.tag||null,board:RSTATE.board||null,lim:1000,off});if(error)return toast(error.message);ids.push(...(data||[]).map(r=>r.rec_id));if(!data||data.length<1000)break}RSTATE.all=false;RSTATE.sel=new Set(ids)}
+  const ids=RSTATE.all?null:[...RSTATE.sel];if(!RSTATE.all&&!ids.length)return toast('Select records first (or Select all)');
   openDrawer(head('Adjust Price')+`<div class="card"><p class="small muted" style="margin-top:0">${RSTATE.all?'All records in this campaign':ids.length+' selected records'}</p>
    <label class="f">How</label><select id="ap_m"><option value="set">Set offer price to</option><option value="pct">Change by percent</option><option value="amt">Change by dollars</option></select>
-   <label class="f">Amount</label><input id="ap_v" type="number" placeholder="e.g. 15000 or -10"><br><br><button class="btn" onclick="doAdjust(${id})">Apply</button></div>`)}
-async function doAdjust(id){const v=+$('ap_v').value;if(!$('ap_v').value)return;const {error}=await sb.rpc('campaign_adjust_price',{cid:id,ids:RSTATE.all?null:[...RSTATE.sel],mode:$('ap_m').value,val:v});
-  if(error)return toast(error.message);toast('Prices updated');closeDrawer();loadRecs(id)}
+   <label class="f">Amount</label><input id="ap_v" type="number" placeholder="e.g. 15000 or -10"><br><br><button class="btn" id="ap_go" onclick="doAdjust(${id})">Apply</button></div>`)}
+async function doAdjust(id){const v=+$('ap_v').value;if(!$('ap_v').value)return;if($('ap_go')){if($('ap_go').disabled)return;$('ap_go').disabled=true;$('ap_go').textContent='Applying…'}const {error}=await sb.rpc('campaign_adjust_price',{cid:id,ids:RSTATE.all?null:[...RSTATE.sel],mode:$('ap_m').value,val:v});
+  if(error){if($('ap_go')){$('ap_go').disabled=false;$('ap_go').textContent='Apply'}return toast(error.message)}toast('Prices updated');closeDrawer();loadRecs(id)}
 async function askDeleteCampaign(id){const {data:c}=await sb.from('campaigns').select('id,name,records,mail_status').eq('id',id).single();if(!c)return;const sent=c.mail_status&&c.mail_status!=='not_sent';
   openDrawer(head('Delete campaign')+`<div class="card"><p style="margin-top:0">Delete <b>${esc(c.name)}</b>?</p>
    <p class="small">${(c.records||0).toLocaleString()} campaign records and their offer codes will be removed. The contacts and properties stay in DLG HQ.</p>
@@ -2040,7 +2045,7 @@ function gsSync(){const q=$('gq'),x=$('gx');if(q&&x)x.classList.toggle('hidden',
  document.addEventListener('keydown',e=>{if(e.target.id==='gq'&&e.key==='Enter'){gsGo('search:'+encQ(e.target.value.trim()))}if(e.target.id==='gq'&&e.key==='Escape'){gsClear();e.target.blur()}});
  document.addEventListener('click',e=>{if(!e.target.closest('.gwrap'))$('gres').style.display='none'})})();
 let GSTAB='all';
-async function vSearch(q){$('title').textContent='Search: '+q;gsSync();const r=await gsearch(q,50);if(!r)return;
+let _gsLastQ='';async function vSearch(q){$('title').textContent='Search: '+q;gsSync();if(q!==_gsLastQ){GSTAB='all';_gsLastQ=q}const r=await gsearch(q,50);if(!r){$('view').innerHTML=`<div class="card">Search didn't finish. Try again in a moment.</div>`;return}
   const n={records:r.records?.length||0,contacts:r.contacts?.length||0,properties:r.properties?.length||0,deals:r.deals?.length||0};
   const tabs=[['all','All'],['contacts',`Contacts (${n.contacts})`],['properties',`Properties (${n.properties})`],['deals',`Deals (${n.deals})`],['records',`Campaign records (${n.records})`]];
   const pick=GSTAB==='all'?r:{[GSTAB]:r[GSTAB]};
@@ -2198,9 +2203,10 @@ async function vContacts(){
   $('view').innerHTML=`<div class="card" style="padding:10px;display:flex;gap:8px"><input id="q" placeholder="Search name, phone, address, APN or offer code" style="font-size:15px;flex:1"><input id="qtag" list="qtaglist" placeholder="Filter by tag" style="max-width:190px"><datalist id="qtaglist">${TAG_QUICK.map(x=>`<option value="${x}">`).join('')}</datalist></div><div class="small muted" id="qi" style="margin:0 4px 8px"></div><div class="card" style="padding:0;overflow-x:auto"><table id="res"></table></div>`;
   let t;const run=()=>{clearTimeout(t);t=setTimeout(()=>searchLeads($('q').value.trim()),250)};$('q').oninput=run;$('qtag').oninput=run;searchLeads('');
 }
-async function searchLeads(q){const tag=($('qtag')?.value||'').trim();let data,error;
-  if(tag){let qq=sb.from('leads').select('*').contains('tags',[tag]).order('updated_at',{ascending:false}).limit(100);({data,error}=await qq);if(!error&&q){const s=q.toLowerCase();data=data.filter(l=>JSON.stringify([l.full_name,l.phone,l.phone2,l.prop_address,l.apn,l.offer_code]).toLowerCase().includes(s))}}
-  else ({data,error}=await sb.rpc('search_leads',{q,lim:100}));if(error){$('qi').textContent=error.message;return}
+let _slSeq=0;async function searchLeads(q){const tag=($('qtag')?.value||'').trim();let data,error;const my=++_slSeq;if($('qi'))$('qi').textContent='Searching…';
+  if(tag&&!q){({data,error}=await sb.from('leads').select('*').contains('tags',[tag]).order('updated_at',{ascending:false}).limit(100))}
+  else if(tag){({data,error}=await sb.rpc('search_leads',{q,lim:200}));if(!error)data=(data||[]).filter(l=>(l.tags||[]).some(t=>String(t).toLowerCase()===tag.toLowerCase())).slice(0,100)}
+  else ({data,error}=await sb.rpc('search_leads',{q,lim:100}));if(my!==_slSeq||!$('res'))return;if(error){$('qi').textContent=error.message;return}
   $('qi').textContent=tag?`${data.length}${data.length===100?'+':''} tagged "${tag}"`:q?`${data.length}${data.length===100?'+':''} matches`:'Most recently updated';
   $('res').innerHTML=`<tr><th>Name</th><th>Phone</th><th>Property</th><th>Offer code</th><th>Status</th></tr>`+data.map(l=>`<tr class="click" onclick="openLead(${l.id})"><td><b>${esc(leadName(l))}</b><div class="small muted">${esc([l.mail_address,l.mail_city,l.mail_state].filter(Boolean).join(', '))}</div>${(l.tags||[]).filter(x=>x!=='GHL').length?`<div class="tagrow">${l.tags.filter(x=>x!=='GHL').slice(0,4).map(x=>`<span class="tagchip sm">${esc(x)}</span>`).join('')}</div>`:''}</td><td>${esc(l.phone||'')}</td><td>${esc(l.prop_address||l.apn||'')}<div class="small muted">${esc(l.county||'')}</div></td><td>${esc(l.offer_code||'')}</td><td><span class="pill">${esc(l.status.replace('_',' '))}</span></td></tr>`).join('')}
 const STATUSES=['record','new','contacted','interested','offer','under_contract','assigned','closed','dead','not_selling'];
@@ -2311,6 +2317,9 @@ async function addLead(){const v=i=>$(i).value||null;const r={first_name:v('a_fi
 // ---------- buyers ----------
 const BB_LINK='https://dominionlandgroup.land/bb/',BB_FORM='https://dominionlandgroup.land/buybox';
 // ---------- WALS course: students, invites, downloads ----------
+// ONE SAVE PER CLICK (Nov 14): buttons that create records ignore a second click while the first save is running
+const _busyFns=new Set();function guardFn(name){const f=window[name];if(typeof f!=='function'||f._guarded)return;const g=async function(...a){if(_busyFns.has(name)){toast('Saving…');return}_busyFns.add(name);try{return await f.apply(this,a)}finally{setTimeout(()=>_busyFns.delete(name),700)}};g._guarded=true;window[name]=g}
+['addLead','saveBuyer','addTask','addDealNote','addNote','addTx','uploadDealFiles','saveDealFromRecord'].forEach(guardFn);
 async function vCourse(){
   $('actions').innerHTML=`<button class="btn ghost" onclick="emailSetup('course')">✉ Course email</button> <a class="btn ghost" href="https://landiq.land/wals/" target="_blank" rel="noopener">View course site</a>`;
   const [{data:st},{data:fl},{data:pr}]=await Promise.all([sb.from('wals_students').select('id,email,name,plan,source,active,created_at,last_login,pw_hash').order('created_at',{ascending:false}),sb.from('wals_files').select('*').order('position'),sb.from('wals_progress').select('student_id')]);
@@ -2582,7 +2591,7 @@ async function vImport(){IMP={step:1,counties:[],cols:[],rows:[],map:{}};const {
     <label class="f" style="flex:1">Cost per letter<input id="icPiece" type="number" step="0.01" value="0.55"></label></div>
    <label class="f" style="margin-top:10px">Counties <span class="small muted">(pick every county on the list; more than one needs a FIPS column)</span></label>
    <div id="icCtys" class="tagrow"></div><div class="row" style="margin-top:6px"><input id="icCtyIn" list="ctyList" placeholder="Type a county, e.g. Gaston, NC" onkeydown="if(event.key==='Enter'){impAddCounty();event.preventDefault()}"><button class="btn ghost" style="flex:0" onclick="impAddCounty()">Add county</button></div>
-   <datalist id="ctyList">${NC_COUNTIES.map(c=>`<option value="${c}">`).join('')}</datalist>
+   <datalist id="ctyList">${[...MY_MARKETS,...NC_COUNTIES.filter(c=>!MY_MARKETS.includes(c+', NC')).map(c=>c+', NC')].map(c=>`<option value="${c}">`).join('')}</datalist>
    <label class="f" style="margin-top:12px">List file (CSV)</label><input type="file" id="impFile" accept=".csv" onchange="impLoad()">
    <div id="impMap" style="margin-top:12px"></div>
    <div class="small" style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:12px 0"><b>Leave off:</b>
@@ -2594,7 +2603,10 @@ async function vImport(){IMP={step:1,counties:[],cols:[],rows:[],map:{}};const {
   $('icName').oninput=()=>impStep()}
 function impStep(){const n=!!$('icName').value.trim(),c=IMP.counties.length>0,u=IMP.rows.length>0,m=u&&IMP.map.mail_address&&(IMP.map.full_name||IMP.map.last_name);
   [n,n&&c,n&&c&&u,n&&c&&m,false].forEach((ok,i)=>{const e=$('st'+(i+1));if(e){e.classList.toggle('done',!!ok);e.classList.toggle('on',!ok&&(i===0||[n,n&&c,n&&c&&u,n&&c&&m][i-1]))}})}
-function impAddCounty(){let v=$('icCtyIn').value.trim();if(!v)return;if(!/,\s*[A-Z]{2}$/i.test(v))v+=', NC';v=v.replace(/\s+county/i,'').replace(/,\s*([a-z]{2})$/i,(m,s)=>', '+s.toUpperCase());if(!IMP.counties.includes(v))IMP.counties.push(v);$('icCtyIn').value='';impDrawCounties()}
+// Your markets with their state, so York/Lancaster/Chester/Greenville go in as SC and Lee as FL (Nov 14)
+const MY_MARKETS=['Mecklenburg, NC','Gaston, NC','Iredell, NC','Union, NC','Cabarrus, NC','Rowan, NC','Catawba, NC','Cleveland, NC','Lincoln, NC','Stanly, NC','Davidson, NC','Forsyth, NC','Guilford, NC','Randolph, NC','Montgomery, NC','Brunswick, NC','New Hanover, NC','Pender, NC','Onslow, NC','Duplin, NC','Buncombe, NC','Burke, NC','York, SC','Lancaster, SC','Chester, SC','Greenville, SC','Lee, FL'];
+const MARKET_STATE={york:'SC',lancaster:'SC',chester:'SC',greenville:'SC',lee:'FL'};
+function impAddCounty(){let v=$('icCtyIn').value.trim();if(!v)return;if(!/,\s*[A-Z]{2}$/i.test(v)){const k=v.replace(/\s+county$/i,'').trim().toLowerCase();v+=', '+(MARKET_STATE[k]||'NC');if(MARKET_STATE[k])toast(v.replace(/\s+county/i,'')+' (type ", NC" if you meant the NC county)')}v=v.replace(/\s+county/i,'').replace(/,\s*([a-z]{2})$/i,(m,s)=>', '+s.toUpperCase());if(!IMP.counties.includes(v))IMP.counties.push(v);$('icCtyIn').value='';impDrawCounties()}
 function impDrawCounties(){$('icCtys').innerHTML=IMP.counties.map((c,i)=>`<span class="tagchip">${esc(c)}<button onclick="IMP.counties.splice(${i},1);impDrawCounties()">×</button></span>`).join('')||'<span class="small muted">No counties yet.</span>';impStep();if(IMP.rows.length)impDrawMap()}
 const IMP_LABELS={full_name:'Owner name',first_name:'First name',last_name:'Last name',mail_address:'Mailing address',mail_city:'Mailing city',mail_state:'Mailing state',mail_zip:'Mailing zip',apn:'APN',address:'Property address',city:'Property city',state:'Property state',zip:'Property zip',county:'County',fips:'FIPS',acres:'Acres',phone:'Phone',email:'Email',lat:'Latitude',lng:'Longitude',offer_code:'Offer code (optional)'};
 function impLoad(){const f=$('impFile').files[0];if(!f)return;Papa.parse(f,{header:true,skipEmptyLines:true,complete:r=>{IMP.cols=r.meta.fields||[];IMP.rows=r.data;IMP.map=impMapCols(IMP.cols);impDrawMap();impStep()}})}
