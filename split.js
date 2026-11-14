@@ -513,6 +513,8 @@ const SP_PARCEL_SRC = [
   { url: 'https://gis.charlottenc.gov/arcgis/rest/services/PLN/AllParcelData/MapServer/0/query', id: 'parcelid', county: 'Charlotte', box: [-81.06, 35.0, -80.55, 35.52] },
   { url: 'https://gis.gastoncountync.gov/publicgis/rest/services/PublicGIS/Parcels/MapServer/11/query', id: 'PIN', county: 'Gaston', box: [-81.46, 35.14, -80.92, 35.42] },
 ];
+// every other NC county: the statewide NC OneMap parcel layer (used when neither county layer above covers the view)
+const SP_NC_SRC = { url: 'https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query', id: 'parno', alt: 'altparno', cnty: 'cntyname', box: [-84.33, 33.84, -75.46, 36.59] };
 async function spParcelLines() {
   if (!SP.map || !SP.lines || !SP.map.hasLayer(SP.lines)) return;
   const m = SP.map, z = m.getZoom(), seq = (SP.lineSeq = (SP.lineSeq || 0) + 1);
@@ -527,10 +529,18 @@ async function spParcelLines() {
       for (const f of j.features || []) feats.push({ src, f });
     } catch (e) { }
   }
+  const usedLocal = SP_PARCEL_SRC.some(src => !(env[2] < src.box[0] || env[0] > src.box[2] || env[3] < src.box[1] || env[1] > src.box[3]));
+  if (!usedLocal && !(env[2] < SP_NC_SRC.box[0] || env[0] > SP_NC_SRC.box[2] || env[3] < SP_NC_SRC.box[1] || env[1] > SP_NC_SRC.box[3])) {
+    try {
+      const j = await (await fetch(SP_NC_SRC.url + '?' + new URLSearchParams({ geometry: env.join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326', outSR: '4326', spatialRel: 'esriSpatialRelIntersects', outFields: 'parno,altparno,cntyname', returnGeometry: 'true', resultRecordCount: '1500', geometryPrecision: '6', f: 'json' }))).json();
+      for (const f of j.features || []) feats.push({ src: SP_NC_SRC, f });
+    } catch (e) { }
+  }
   if (seq !== SP.lineSeq) return;
   SP.lines.clearLayers();
   for (const { src, f } of feats) {
-    const r = byKey.get(src.county + '|' + f.attributes[src.id]);
+    const a = f.attributes || {}, nc = src === SP_NC_SRC, co = nc ? String(a.cntyname || '').replace(/\b(\w)(\w*)/g, (m, x, y) => x.toUpperCase() + y.toLowerCase()) : src.county;
+    const r = byKey.get(co + '|' + a[src.id]) || (nc && a.altparno ? byKey.get(co + '|' + a.altparno) : null);
     const ll = (f.geometry.rings || []).map(rr => rr.map(([x, y]) => [y, x]));
     if (r) {
       const g = spMath(r).grade, col = g === 'Profit' ? '#22c55e' : g === 'Free lot' ? '#facc15' : '#ef4444';
