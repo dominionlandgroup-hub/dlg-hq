@@ -1254,8 +1254,8 @@ async function campDrill(cid,kind){
 }
 async function hydrateRec(){const els=[...document.querySelectorAll('audio[data-rec]')];if(!els.length)return;const {data}=await sb.storage.from('call-recordings').createSignedUrls(els.map(e=>e.dataset.rec),21600);(data||[]).forEach((d,i)=>{if(d.signedUrl)els[i].src=d.signedUrl})}
 // INBOX (Nov 2026): calls are filed by phone number. If the caller gave an offer code that belongs to a different owner, say so and offer to move the conversation there.
-async function threadCodeCheck(t,msgs){try{const txt=(msgs||[]).filter(m=>m.direction!=='out').map(m=>m.body||'').join(' \n ');const codes=offerCodesIn(txt);if(!codes.length)return;
-  for(const c of codes){let r=await campaignByOfferCode(c),guess=false;if(!r&&/^\d{7,10}$/.test(c)){r=await campaignByOfferCode(c.slice(1));guess=!!r}if(!r||!r.lead_id||r.lead_id===t.lead_id)continue;
+async function threadCodeCheck(t,msgs){try{const all=(msgs||[]).map(m=>m.body||'').join(' \n '),inb=(msgs||[]).filter(m=>m.direction!=='out').map(m=>m.body||'').join(' \n ');const kw=offerCodesIn(all),bare=offerCodesBare(inb).filter(c=>!kw.includes(c));const codes=[...kw,...bare];if(!codes.length)return;
+  for(const c of codes){const exactOnly=!kw.includes(c);let r=exactOnly?(await sb.from('campaign_records').select('campaign_id,lead_id,property_id,offer_code').eq('offer_code',c).limit(1)).data?.[0]||null:await campaignByOfferCode(c),guess=false;if(!r&&!exactOnly&&/^\d{7,10}$/.test(c)){r=await campaignByOfferCode(c.slice(1));guess=!!r}if(!r||!r.lead_id||r.lead_id===t.lead_id)continue;
     const [{data:o},{data:cp}]=await Promise.all([sb.from('leads').select('id,full_name').eq('id',r.lead_id).single(),sb.from('campaigns').select('name').eq('id',r.campaign_id).single()]);
     const el=document.createElement('div');el.className='card';el.style.cssText='border:1px solid var(--accent);margin:8px 0';el.innerHTML=`<b>Offer code ${esc(c)}${guess?` (probably ${esc(r.offer_code)})`:''} belongs to ${esc(o?.full_name||'another owner')}</b> <span class="small muted">${esc(cp?.name||'')}</span><div class="small">This conversation is filed under ${esc(t.leads?.full_name||'this number')} because of the phone number.</div><div style="margin-top:6px"><button class="btn sm" onclick="threadMoveTo(${t.id},${r.lead_id})">Move this conversation to ${esc(o?.full_name||'that owner')}</button> <a href="#" class="small" onclick="openLead(${r.lead_id});return false">Open ${esc(o?.full_name||'owner')}</a></div>`;
     if(IST2.tid!==t.id)return;const m=$('msgs');if(m)m.parentNode.insertBefore(el,m);return}}catch(e){}}
@@ -1424,7 +1424,13 @@ function emailScript(email,box,key){const code=GMAIL_SCRIPT.replaceAll('__EMAIL_
 // Responses = deals. A deal only counts for a campaign when it's linked to it, so new deals link themselves to the
 // most recent campaign that actually went out to that owner or property (letters at/after the mail house, or texts).
 // OFFER CODE FIRST (Nov 2026): the letter the seller holds is the truth. Find codes like 364-6668 or 227026563 in text.
-function offerCodesIn(t){const out=new Set();String(t||'').replace(/\b(?:offer|mailer|letter|promo|tracking)\s+(?:code|number|#)\s*(?:is|:|was|provided by the caller is|of)?\s*#?\s*([0-9]{2,4}-[0-9]{2,6}|[0-9]{6,10})\b/gi,(m,c)=>{out.add(c)});return [...out]}
+// Offer codes in calls/texts (Nov 14): spoken digits ("two seven oh") and spaced digits ("2 7 0 2 6") are joined first;
+// "code", "reference number", "number on the letter" count too. Bare codes like 270-26563 are returned by offerCodesBare (exact match only).
+function _codeText(t){const W={zero:0,oh:0,o:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9};
+  t=String(t||'').replace(/\b(zero|oh|one|two|three|four|five|six|seven|eight|nine)\b/gi,m=>W[m.toLowerCase()]);
+  for(let k=0;k<6;k++)t=t.replace(/(\d)[ ,.]+(?=\d\b)/g,'$1').replace(/(\d)\s*(?:dash|-)\s*(\d)/gi,'$1-$2');return t}
+function offerCodesIn(t){const out=new Set();_codeText(t).replace(/\b(?:(?:offer|mailer|letter|promo|tracking|reference|ref)\s*(?:code|number|no\.?|#)|code(?:\s+number)?|number\s+on\s+(?:the|my)\s+letter)\s*(?:is|:|was|provided by the caller is|of|it'?s)?\s*#?\s*([0-9]{2,4}-[0-9]{2,6}|[0-9]{6,10})\b/gi,(m,c)=>{out.add(c)});return [...out]}
+function offerCodesBare(t){const out=new Set();String(t||'').replace(/(^|[^\d\-()])(\d{2,3}-\d{3,6})(?![\d-])/g,(m,pre,c,i,all)=>{const before=all.slice(Math.max(0,i-8),i+pre.length);if(/(\(\d{3}\)\s*|\d{3}[-.\s])$/.test(before)||/\b(call|phone|cell|number|reach|text|at)\b[^\d]{0,6}$/i.test(all.slice(Math.max(0,i-20),i+pre.length)))return m;out.add(c);return m});return [...out]}
 async function campaignByOfferCode(code){code=String(code||'').trim();if(!code)return null;const d=code.replace(/\D/g,'');
   const {data:ex}=await sb.from('campaign_records').select('campaign_id,lead_id,property_id,offer_code').eq('offer_code',code).limit(1);if(ex?.length)return ex[0];
   const tries=[...new Set([d,d.length>3?d.slice(0,3)+'-'+d.slice(3):'',d.length>2?d.slice(0,2)+'-'+d.slice(2):'',d.length>4?d.slice(0,4)+'-'+d.slice(4):''])].filter(x=>x&&x!==code);
