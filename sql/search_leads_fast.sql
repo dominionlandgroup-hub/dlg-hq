@@ -18,6 +18,10 @@ create index if not exists leads_phone_digits_trgm on leads using gin ((
 ) gin_trgm_ops);
 
 create index if not exists campaign_records_offer_code_upper on campaign_records (upper(offer_code));
+-- a lot's parcel number lives on the property, not always on the contact: search it there too (dashes/spaces ignored)
+create index if not exists properties_apn_norm on properties ((upper(regexp_replace(coalesce(apn,''),'[^0-9A-Za-z]','','g'))));
+create index if not exists property_owners_property_id on property_owners (property_id);
+create index if not exists campaign_records_property_id on campaign_records (property_id);
 
 create or replace function search_leads(q text, lim int default 50)
 returns setof leads language plpgsql stable as $fn$
@@ -41,6 +45,11 @@ begin
     sql := sql || format(' union select id from leads where regexp_replace(coalesce(phone,'''')||'' ''||coalesce(phone2,'''')||'' ''||coalesce(phone3,''''),''\D'','''',''g'') like %L', '%'||d||'%');
   end if;
   sql := sql || format(' union select lead_id from campaign_records where upper(offer_code) = upper(%L) and lead_id is not null', qq);
+  -- parcel number typed (4+ letters/digits, at least 4 digits): match the property's APN, with or without dashes, then its owners
+  if regexp_replace(qq,'[^0-9A-Za-z]','','g') ~ '^[0-9A-Za-z]{4,}$' and length(d) >= 4 and qq !~ '\s' then
+    sql := sql || format(' union select po.lead_id from property_owners po join properties p on p.id = po.property_id where upper(regexp_replace(coalesce(p.apn,''''),''[^0-9A-Za-z]'','''',''g'')) = %L', upper(regexp_replace(qq,'[^0-9A-Za-z]','','g')));
+    sql := sql || format(' union select cr.lead_id from campaign_records cr join properties p on p.id = cr.property_id where cr.lead_id is not null and upper(regexp_replace(coalesce(p.apn,''''),''[^0-9A-Za-z]'','''',''g'')) = %L', upper(regexp_replace(qq,'[^0-9A-Za-z]','','g')));
+  end if;
   return query execute format('select l.* from leads l where l.id in (%s) order by l.updated_at desc nulls last limit %s', sql, greatest(1, least(coalesce(lim,50), 200)));
 end $fn$;
 
