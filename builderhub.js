@@ -184,7 +184,7 @@
     return [...new Set(out.filter(Boolean))];
   }
   async function findPin(input) {
-    let d; try { d = await targets(); } catch (e) { d = await base(); d.T = d.T || []; }
+    let d; try { d = await targets(); } catch (e) { const b0 = await base(); d = { ...b0, T: b0.T || [] }; }
     for (const pin of pinCands(input)) {
       const t = d.T.find(x => npin(x.pin) === pin);
       if (t) { const r = { pin: t.pin, addr: t.site, city: t.city, zip: t.zip, ac: t.ac, kind: 'Vacant', list: t.kind, land: t.land, bldg: t.bldg, yb: t.yb, owner: t.owner, la: t.la, lo: t.lo, sewer: t.sewer, zon: t.zoning };
@@ -239,7 +239,7 @@
     if (BH.matchPin) { $('bh_pin').value = BH.matchPin; BH.matchPin = ''; runMatch(); }
   };
 
-  async function runMatch() { try { await runMatch0(); } catch (e) { $('bh_mout').innerHTML = msg(`<b>The match didn't finish:</b> ${E(e.message || String(e))}. Reload the page and try again.`); } }
+  async function runMatch() { try { await runMatch0(); } catch (e) { if ($('bh_mout')) $('bh_mout').innerHTML = msg(`<b>The match didn't finish:</b> ${E(e.message || String(e))}. Reload the page and try again.`); } }
   async function runMatch0() {
     const out = $('bh_mout'), d = await base(), Z = d.Z, pinRaw = $('bh_pin').value.trim();
     let p = null;
