@@ -14,6 +14,12 @@
       note: 'Split parcels: vacant parcels that cut into 3+ lots by right on the existing road (frontage, flood, creek buffers, slope, public road and setbacks checked), owned by people, churches, heirs or family trusts. Most Gaston ones are septic areas. Full detail in Split Finder. Vacant lots: Gaston parcel records in zips where infill builders are active (owners with more than 5 lots left out). Infill lots: passed every check and have lot comps nearby.',
       salesNote: 'Builders are the LLCs that owned new homes (built since 2023), so it catches builders even after they sold. Production and build-to-rent groups are filtered out. Lot prices are the recorded sale while the builder still owned it.' },
   };
+  // Nov 14: the matcher covers every county you mail. Mecklenburg and Gaston have full comps/builder data; the rest look the
+  // parcel up live on the NC state map (SC/FL: enter zip + acres) and show whose buy box fits.
+  const LIVE = [['iredell','Iredell','NC'],['union','Union','NC'],['cabarrus','Cabarrus','NC'],['rowan','Rowan','NC'],['catawba','Catawba','NC'],['cleveland','Cleveland','NC'],['lincoln','Lincoln','NC'],['stanly','Stanly','NC'],['davidson','Davidson','NC'],['forsyth','Forsyth','NC'],['guilford','Guilford','NC'],['randolph','Randolph','NC'],['montgomery','Montgomery','NC'],['brunswick','Brunswick','NC'],['newhanover','New Hanover','NC'],['pender','Pender','NC'],['onslow','Onslow','NC'],['duplin','Duplin','NC'],['buncombe','Buncombe','NC'],['burke','Burke','NC'],['york','York','SC'],['lancaster','Lancaster','SC'],['chester','Chester','SC'],['greenville','Greenville','SC'],['lee','Lee','FL']];
+  for (const [k, n, s] of LIVE) MARKETS[k] = { name: n + (s !== 'NC' ? ' ' + s : ''), county: n, state: s, file: n.replace(/\s+/g, '_'), live: true,
+    note: n + ' County: parcel looked up on the ' + (s === 'NC' ? 'NC state map' : 'county record you enter') + '. No targets list for this county yet.',
+    salesNote: 'DLG HQ has no lot sales loaded for ' + n + ' County yet, so check Land id or Canopy for comps. Whose buy box fits is live from your Buyers.' };
   const KINDS = [['Vacant', 'Vacant lots'], ['Split', 'Split parcels (3+ lots)'], ['Sewer', 'Infill lots (comps + sewer/septic)']];
   const SORTS = [['high', 'Highest-end areas first'], ['quick', 'Quick ones first'], ['score', 'Best prospects first'], ['land', 'Land value, high to low'], ['held', 'Owned longest'], ['ac', 'Largest lot'], ['comp', 'Flat lots first, then closest comps']];
   const CHECKS = [['abs', 'Absentee owner'], ['oos', 'Out of state'], ['est', 'Heirs / estate'], ['ind', 'Individuals only'], ['old', 'Owned 10+ years']];
@@ -58,14 +64,14 @@
   // ---------- data ----------
   async function getJSON(name) { const r = await fetch(`data/hub/${name}_${BH.mkt}.json?v=${DATA_V}`); if (!r.ok) throw new Error(name); return r.json(); }
   function D() { return BH.data[BH.mkt] || (BH.data[BH.mkt] = {}); }
-  async function base() { const d = D(); if (!d.Z) { const [Z, CP, B] = await Promise.all([getJSON('zones'), getJSON('comps'), getJSON('builders')]); Object.assign(d, { Z, CP, B }); } return d; }
+  async function base() { const d = D(); if (!d.Z && MARKETS[BH.mkt].live) { Object.assign(d, { Z: {}, CP: [], B: [], T: [], P: {}, PI: new Map(), BP: {} }); } if (!d.Z) { const [Z, CP, B] = await Promise.all([getJSON('zones'), getJSON('comps'), getJSON('builders')]); Object.assign(d, { Z, CP, B }); } return d; }
   async function targets() { const d = await base(); if (!d.T) { const { data: tr, error: te } = await sb.from('hub_targets').select('data').eq('key', 'targets_' + BH.mkt).maybeSingle(); if (te) throw new Error('targets: ' + te.message); if (!tr || !tr.data || !tr.data.r) { d.T = []; d.noTargets = true; return d; } const j = tr.data; d.T = j.r.map(r => Object.fromEntries(j.k.map((k, i) => [k, r[i]]))); } return d; }
   async function pins() { const d = D(); if (!d.P) { d.P = await getJSON('pins'); d.PI = new Map(Object.keys(d.P).map(k => [npin(k), k])); } return d; }
   async function bpts() { const d = D(); if (!d.BP) { try { d.BP = await getJSON('bpts'); } catch (e) { d.BP = {}; } } return d; }
   async function loadBuyers() { const all = []; for (let f = 0; ; f += 1000) { const r = await sb.from('buyers').select('*').order('name').range(f, f + 999); if (r.error) throw r.error; all.push(...(r.data || [])); if (!r.data || r.data.length < 1000) break; } return (BH.buyers = all); }
   const bName = id => { const d = D(); const b = (d.B || []).find(x => x.id === id); return b ? b.name : ((d.Z && d.Z.__names && d.Z.__names[id]) || id); };
 
-  function marketSel(id) { return `<label>Market<select id="${id}">${Object.entries(MARKETS).map(([k, m]) => `<option value="${k}" ${k === BH.mkt ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label>`; }
+  function marketSel(id, all) { return `<label>Market<select id="${id}">${Object.entries(MARKETS).filter(([k, m]) => all || !m.live).map(([k, m]) => `<option value="${k}" ${k === BH.mkt ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label>`; }
   function setMarket(m, redraw) { BH.mkt = m; ss('dlg_hub_mkt', m); BH.page = 0; BH.f.zip = ''; BH.f.q = ''; redraw(); }
 
   // ---------- Targets ----------
@@ -117,6 +123,7 @@
   window.vHubTargets = async function () {
     addCss();
     $('actions').innerHTML = `<button class="btn" id="bh_dl">Download this list</button>`;
+    if (MARKETS[BH.mkt].live) { BH.mkt = 'meck'; }
     $('view').innerHTML = `<div class="bh"><div class="card"><div class="bar">${marketSel('bh_mkt')}<div class="seg" id="bh_seg"></div></div>
       <div class="bar" style="margin-top:10px"><label id="bh_zipw">Zip<select id="bh_zip"></select></label>
       <label>Sort<select id="bh_sort">${SORTS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
@@ -183,7 +190,17 @@
     const c = raw.match(/^(MEC|GAS)[VSW]([0-9A-Z]+)$/); if (c) out.push(c[2]); // offer code -> APN
     return [...new Set(out.filter(Boolean))];
   }
+  async function livePin(input) {
+    const m = MARKETS[BH.mkt]; if (m.state !== 'NC') return null;
+    const raw = String(input || '').trim(), d = raw.replace(/\D/g, ''), vs = [...new Set([raw, raw.toUpperCase(), raw.replace(/[^0-9A-Za-z.]/g, ''), raw.replace(/[^0-9A-Za-z]/g, ''), d])].filter(Boolean).map(v => `'${v.replace(/'/g, "''")}'`).join(',');
+    const r = await fetch('https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query', { method: 'POST', body: new URLSearchParams({ where: `UPPER(cntyname)='${m.county.toUpperCase()}' AND (parno IN (${vs}) OR altparno IN (${vs}))`, outFields: 'parno,altparno,siteadd,scity,szip,gisacres,landval,improvval,ownname,structyear', returnGeometry: 'true', outSR: '4326', f: 'json', resultRecordCount: '1' }) });
+    const j = await r.json(); if (j.error) throw new Error('state map: ' + (j.error.message || 'lookup failed')); const f = j.features && j.features[0]; if (!f) return null;
+    const a = f.attributes, ring = f.geometry && f.geometry.rings && f.geometry.rings[0]; let la = null, lo = null;
+    if (ring && ring.length) { la = ring.reduce((s, q) => s + q[1], 0) / ring.length; lo = ring.reduce((s, q) => s + q[0], 0) / ring.length; }
+    return { pin: a.parno, addr: a.siteadd || '', city: a.scity || '', zip: String(a.szip || '').slice(0, 5), ac: a.gisacres ? Math.round(a.gisacres * 100) / 100 : null, kind: (a.improvval || 0) >= 20000 ? 'Teardown' : 'Vacant', land: a.landval || null, bldg: a.improvval || null, yb: a.structyear || null, owner: a.ownname || '', la, lo };
+  }
   async function findPin(input) {
+    if (MARKETS[BH.mkt].live) return livePin(input);
     let d; try { d = await targets(); } catch (e) { const b0 = await base(); d = { ...b0, T: b0.T || [] }; }
     for (const pin of pinCands(input)) {
       const t = d.T.find(x => npin(x.pin) === pin);
@@ -221,7 +238,7 @@
 
   window.vHubMatch = async function () {
     addCss();
-    $('view').innerHTML = `<div class="bh"><div class="card"><form id="bh_mf" class="bar" autocomplete="off">${marketSel('bh_mmkt')}
+    $('view').innerHTML = `<div class="bh"><div class="card"><form id="bh_mf" class="bar" autocomplete="off">${marketSel('bh_mmkt', true)}
       <label>Parcel number (APN)<input id="bh_pin" placeholder="${BH.mkt === 'gas' ? 'e.g. 3546-72-8889' : 'e.g. 07719608'}"></label><button class="btn" type="submit">Match</button>
       <span class="small muted" style="align-self:center">or enter it yourself:</span>
       <label>Zip<select id="bh_mzip"><option value=""></option></select></label><label>Acres<input id="bh_ac" type="number" step="0.01" min="0" placeholder="0.25" style="width:90px"></label>
@@ -234,7 +251,8 @@
     ['bh_mzip', 'bh_kind'].forEach(id => $(id).onchange = () => { if (id === 'bh_mzip') $('bh_pin').value = ''; runMatch(); });
     ['bh_rad', 'bh_pct', 'bh_ac'].forEach(id => $(id).onchange = () => { if ($('bh_mout').querySelector('.mg')) runMatch(); });
     try { await base(); } catch (e) { $('bh_mout').innerHTML = msg('Couldn\'t load comps. Reload the page.'); return; }
-    const Z = D().Z; $('bh_mzip').innerHTML = '<option value=""></option>' + Object.keys(Z).filter(k => !k.startsWith('__')).sort().map(z => `<option value="${z}">${z} · ${E(Z[z].city)}</option>`).join('');
+    if (MARKETS[BH.mkt].live) { const zi = document.createElement('input'); zi.id = 'bh_mzip'; zi.placeholder = '28602'; zi.style.width = '90px'; zi.maxLength = 5; $('bh_mzip').replaceWith(zi); zi.onchange = () => { $('bh_pin').value = ''; runMatch(); }; }
+    const Z = D().Z; if (!MARKETS[BH.mkt].live) $('bh_mzip').innerHTML = '<option value=""></option>' + Object.keys(Z).filter(k => !k.startsWith('__')).sort().map(z => `<option value="${z}">${z} · ${E(Z[z].city)}</option>`).join('');
     loadBuyers().catch(e => { BH.buyersErr = e.message || String(e); });
     if (BH.matchPin) { $('bh_pin').value = BH.matchPin; BH.matchPin = ''; runMatch(); }
   };
@@ -246,10 +264,10 @@
     if (pinRaw) {
       out.innerHTML = msg('Looking up parcel…');
       p = await findPin(pinRaw);
-      if (!p) { out.innerHTML = msg(`<b>Parcel ${E(pinRaw)} isn't in the ${MARKETS[BH.mkt].name} data.</b> Check the market at the top, or pick its zip, acres and type and press Match.`); return; }
-      if (p.zip && Z[p.zip]) $('bh_mzip').value = p.zip; if (p.ac) $('bh_ac').value = p.ac; $('bh_kind').value = p.kind;
+      if (!p) { out.innerHTML = msg(MARKETS[BH.mkt].live && MARKETS[BH.mkt].state !== 'NC' ? `<b>${E(MARKETS[BH.mkt].name)} parcels can't be looked up here.</b> Type the zip and acres instead and press Match.` : `<b>Parcel ${E(pinRaw)} isn't in the ${MARKETS[BH.mkt].name} data.</b> Check the market at the top, or pick its zip, acres and type and press Match.`); return; }
+      if (p.zip && (Z[p.zip] || MARKETS[BH.mkt].live)) $('bh_mzip').value = p.zip; if (p.ac) $('bh_ac').value = p.ac; $('bh_kind').value = p.kind;
     } else {
-      const z = $('bh_mzip').value; if (!z) { out.innerHTML = msg('<b>Enter a parcel number</b>, or pick a zip and acres.'); return; }
+      const z = String($('bh_mzip').value || '').trim().slice(0, 5); if (!z) { out.innerHTML = msg('<b>Enter a parcel number</b>, or pick a zip and acres.'); return; }
       p = { pin: '', addr: '', city: Z[z]?.city || '', zip: z, ac: parseFloat($('bh_ac').value) || null, kind: $('bh_kind').value, manual: true };
     }
     p.kind = $('bh_kind').value; p.ac = parseFloat($('bh_ac').value) || p.ac;
