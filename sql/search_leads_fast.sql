@@ -6,9 +6,10 @@
 
 create extension if not exists pg_trgm;
 
+drop index if exists leads_search_trgm;
 create index if not exists leads_search_trgm on leads using gin ((
   lower(coalesce(full_name,'')||' '||coalesce(first_name,'')||' '||coalesce(last_name,'')||' '||
-        coalesce(prop_address,'')||' '||coalesce(mail_address,'')||' '||coalesce(apn,'')||' '||
+        coalesce(prop_address,'')||' '||coalesce(mail_address,'')||' '||coalesce(mail_city,'')||' '||coalesce(mail_zip,'')||' '||coalesce(apn,'')||' '||
         coalesce(offer_code,'')||' '||coalesce(phone,'')||' '||coalesce(email,''))
 ) gin_trgm_ops);
 
@@ -23,20 +24,20 @@ returns setof leads language plpgsql stable as $fn$
 declare
   qq text := btrim(coalesce(q,''));
   d  text := regexp_replace(qq,'\D','','g');
-  txt text := $e$lower(coalesce(full_name,'')||' '||coalesce(first_name,'')||' '||coalesce(last_name,'')||' '||coalesce(prop_address,'')||' '||coalesce(mail_address,'')||' '||coalesce(apn,'')||' '||coalesce(offer_code,'')||' '||coalesce(phone,'')||' '||coalesce(email,''))$e$;
+  txt text := $e$lower(coalesce(full_name,'')||' '||coalesce(first_name,'')||' '||coalesce(last_name,'')||' '||coalesce(prop_address,'')||' '||coalesce(mail_address,'')||' '||coalesce(mail_city,'')||' '||coalesce(mail_zip,'')||' '||coalesce(apn,'')||' '||coalesce(offer_code,'')||' '||coalesce(phone,'')||' '||coalesce(email,''))$e$;
   conds text;
   sql text;
 begin
   if qq = '' then
-    return query select * from leads order by updated_at desc nulls last limit lim;
+    return query select * from leads order by updated_at desc nulls last limit greatest(1, least(coalesce(lim,50), 200));
     return;
   end if;
   -- every word must match (escape % and _ so they are searched literally)
   select string_agg(format('%s like %L', txt, '%'||replace(replace(replace(w,'\','\\'),'%','\%'),'_','\_')||'%'), ' and ')
     into conds
-    from unnest(regexp_split_to_array(lower(qq), '\s+')) w where w <> '' and w <> '&';
+    from unnest(regexp_split_to_array(lower(qq), '[\s,]+')) w where w <> '' and w <> '&';
   sql := 'select id from leads where ' || coalesce(conds,'false');
-  if length(d) >= 4 then
+  if length(d) >= 4 and qq ~ '^[0-9\s().+-]+$' then
     sql := sql || format(' union select id from leads where regexp_replace(coalesce(phone,'''')||'' ''||coalesce(phone2,'''')||'' ''||coalesce(phone3,''''),''\D'','''',''g'') like %L', '%'||d||'%');
   end if;
   sql := sql || format(' union select lead_id from campaign_records where upper(offer_code) = upper(%L) and lead_id is not null', qq);
