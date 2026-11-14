@@ -2103,7 +2103,7 @@ async function vProperties(){
   loadProps(true);
 }
 async function loadProps(byMap){
-  let q=sb.from('properties').select('id,apn,address,city,county,county_state,acres,lat,lng').limit(1000);
+  let q=sb.from('properties').select('id,apn,address,city,zip,county,county_state,acres,lat,lng').limit(1000);
   const c=$('pf_county').value.trim(),a=$('pf_apn').value.trim(),ad=$('pf_addr').value.trim(),t=$('pf_tag').value.trim();
   if(c)q=q.ilike('county',c+'%');if(a){const aa=a.replace(/[,()*:]/g,'');q=q.or(`apn.ilike.%${aa}%,fields->>alt_apn.ilike.%${aa}%,fields->>state_pin.ilike.%${aa}%`)}if(ad)q=q.ilike('address','%'+ad+'%');if(t)q=q.contains('tags',[t]);
   if(byMap&&!c&&!a&&!ad&&!t){const b=map.getBounds();q=q.gte('lat',b.getSouth()).lte('lat',b.getNorth()).gte('lng',b.getWest()).lte('lng',b.getEast())}
@@ -2111,7 +2111,7 @@ async function loadProps(byMap){
   const P=data||[];mapLayer.clearLayers();const pts=[];
   P.forEach(p=>{if(p.lat&&p.lng){const m=L.circleMarker([p.lat,p.lng],{radius:6,color:'#5C2977',weight:1,fillColor:'#D5A940',fillOpacity:.85}).bindTooltip(`${esc(p.apn||'')} ${esc(p.address||'')}`);m.on('click',()=>openProperty(p.id));m.addTo(mapLayer);pts.push([p.lat,p.lng])}});
   if(!byMap&&pts.length)map.fitBounds(pts,{maxZoom:15,padding:[20,20]});
-  $('plist').innerHTML=`<div class="small muted" style="padding:8px 12px">${P.length===1000?'1,000+':P.length.toLocaleString()} properties${byMap?' in this map area':''}</div>`+P.map(p=>`<div class="pitem" onclick="openProperty(${p.id})"><b>${esc(p.apn||'No APN')}</b><div class="small">${esc([p.address,p.city].filter(Boolean).join(', '))}</div><div class="small muted">${esc(p.county||'')}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' ac':''}</div></div>`).join('');
+  $('plist').innerHTML=`<div class="small muted" style="padding:8px 12px">${P.length===1000?'1,000+':P.length.toLocaleString()} properties${byMap?' in this map area':''}</div>`+P.map(p=>`<div class="pitem" onclick="openProperty(${p.id})"><b>${esc(p.apn||'No APN')}</b><div class="small">${esc([p.address,p.city,p.zip].filter(Boolean).join(', '))||'<span class="muted">No address on file</span>'}${p.address&&/\d/.test(p.address)?'':' <span class="muted">· no street on file, open it to look it up</span>'}</div><div class="small muted">${esc(p.county||'')}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' ac':''}</div></div>`).join('');
 }
 // Prayer carousel (replaced the due diligence / comps box on the property page). Swaps every 25 seconds.
 const PROP_PRAYERS=[
@@ -2150,6 +2150,17 @@ async function lotCheck(id){const o=$('lc_out');o.textContent='Checking… (abou
     const m=[r.acres!=null?r.acres+' acres':'',r.avgWft?'about '+r.avgWft+' ft wide':'',r.floodPct!=null?(r.floodPct?r.floodPct+'% in a flood zone':'no flood zone'):'',r.slope!=null?r.slope+'% slope':''].filter(Boolean).join(' · ');
     o.innerHTML=r.pass?`<b style="color:#1d7a3a">Passed</b>${m?' · '+m:''}`:r.error?`<b style="color:#b26a00">Couldn't check:</b> ${esc(r.error)}`:`<b style="color:var(--red)">${esc(r.fail)}</b>${m?' · '+m:''}`}
   catch(e){o.innerHTML=`<b style="color:var(--red)">${esc(e.message||e)}</b>`}}
+// Street address from the NC state map when a lot only has a city (old Pebble data). Saves it to the property.
+async function findPropAddr(id,quiet){const el=$('pr_find');if(el)el.textContent='Looking up…';try{const {data:p}=await sb.from('properties').select('id,apn,county,state,address,city,zip').eq('id',id).single();
+  if(!p||!p.apn||!p.county||(p.state&&p.state!=='NC')){if(el)el.textContent=p&&p.state&&p.state!=='NC'?'State map only covers NC':'Needs a parcel number and county';return}
+  const raw=String(p.apn).trim(),d=raw.replace(/\D/g,''),vs=[...new Set([raw,raw.toUpperCase(),raw.replace(/[^0-9A-Za-z.]/g,''),raw.replace(/[^0-9A-Za-z]/g,''),d])].filter(Boolean).map(v=>`'${v.replace(/'/g,"''")}'`).join(',');
+  const r=await fetch('https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query',{method:'POST',body:new URLSearchParams({where:`UPPER(cntyname)='${String(p.county).replace(/\s+county$/i,'').toUpperCase().replace(/'/g,'')}' AND (parno IN (${vs}) OR altparno IN (${vs}))`,outFields:'siteadd,scity,szip',returnGeometry:'false',f:'json',resultRecordCount:'1'})});
+  const a=(await r.json()).features?.[0]?.attributes;if(!a||!a.siteadd){if(el)el.textContent='No street address on the state map';return}
+  const tc=x=>String(x||'').toLowerCase().replace(/\b([a-z])/g,m=>m.toUpperCase()).replace(/\b(Nw|Ne|Sw|Se)\b/g,m=>m.toUpperCase());
+  const up={address:tc(a.siteadd)};if(!p.city&&a.scity)up.city=tc(a.scity);if(!p.zip&&a.szip)up.zip=String(a.szip).slice(0,5);
+  const {error}=await sb.from('properties').update(up).eq('id',id);if(error){if(el)el.textContent=error.message;return}
+  if($('pr_addr'))$('pr_addr').textContent=[up.address,up.city||p.city,p.state,up.zip||p.zip].filter(Boolean).join(', ');if(el)el.remove();if(!quiet)toast('Street address saved')}
+ catch(e){if(el)el.textContent='Lookup failed: '+(e.message||e)}}
 async function openProperty(id){
   const [{data:p},{data:own},{data:cr},{data:tx},{data:dl}]=await Promise.all([sb.from('properties').select('*').eq('id',id).single(),
     sb.from('property_owners').select('leads(*)').eq('property_id',id),
@@ -2157,13 +2168,13 @@ async function openProperty(id){
     sb.from('transactions').select('*').eq('property_id',id).order('tx_date'),sb.from('deals').select('id,board,stage_id,value').eq('property_id',id)]);
   const F=p.fields||{};const buy=(tx||[]).find(t=>t.kind==='purchase'),sell=(tx||[]).find(t=>t.kind==='sale');const cost=buy?+buy.price+ +(buy.costs||0):null;
   openDrawer(head(esc(apnText(p)))+`
-   <p class="muted" style="margin-top:-8px">${esc([p.address,p.city,p.state,p.zip].filter(Boolean).join(', '))}<br>${esc(p.county||'')}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' acres':''}${p.lat?` · <a target="_blank" href="https://www.google.com/maps?q=${p.lat},${p.lng}">${(+p.lat).toFixed(5)}, ${(+p.lng).toFixed(5)}</a>`:''}${p.fips?' · FIPS '+esc(p.fips):''}</p>${buildLine(F.buildable)}
+   <p class="muted" style="margin-top:-8px"><span id="pr_addr">${esc([p.address,p.city,p.state,p.zip].filter(Boolean).join(', '))||'No address on file'}</span>${!/\d/.test(p.address||'')?` <a href="#" class="small" id="pr_find" onclick="findPropAddr(${id});return false">Find street address</a>`:''}<br>${esc(p.county||'')}, ${esc(p.county_state||'')}${p.acres?' | '+(+p.acres).toFixed(2)+' acres':''}${p.lat?` · <a target="_blank" href="https://www.google.com/maps?q=${p.lat},${p.lng}">${(+p.lat).toFixed(5)}, ${(+p.lng).toFixed(5)}</a>`:''}${p.fips?' · FIPS '+esc(p.fips):''}</p>${buildLine(F.buildable)}
    <div class="card"><b>Owners</b>${(own||[]).map(o=>`<div style="margin-top:8px"><a href="#" onclick="openLead(${o.leads.id});return false">${esc(leadName(o.leads))}</a> ${o.leads.phone?phoneLine(o.leads.phone,o.leads.id,'seller'):''}<div class="small muted">${esc([o.leads.mail_address,o.leads.mail_city,o.leads.mail_state,o.leads.mail_zip].filter(Boolean).join(', '))}</div></div>`).join('')||'<div class="muted small">No owner linked.</div>'}</div>
    <div class="card" style="overflow-x:auto"><b>History</b><table style="margin-top:6px">${(cr||[]).map(r=>`<tr><td>${r.sent_at||r.campaigns?.drop_date||''}</td><td>Campaign</td><td>${esc(r.campaigns?.name||'')}</td><td><b>${esc(r.offer_code||'')}</b></td><td class="right">${money(r.offer_price)}</td></tr>`).join('')}
     ${(tx||[]).map(t=>`<tr><td>${t.tx_date||''}</td><td style="text-transform:capitalize">${t.kind}</td><td colspan="2">${esc(t.notes||'')}</td><td class="right"><b>${money(t.price)}</b></td></tr>`).join('')}</table>
     ${buy&&sell?`<p><b>Profit ${money(sell.price-cost)}</b> · ROI ${((sell.price-cost)/cost*100).toFixed(2)}%</p>`:''}
     <div class="row" style="margin-top:10px"><select id="tx_k" style="flex:0 0 120px"><option>offer</option><option>purchase</option><option>sale</option></select><input id="tx_d" type="date"><input id="tx_p" type="number" placeholder="Price"><input id="tx_c" type="number" placeholder="Costs"><button class="btn ghost" style="flex:0" onclick="addTx(${id})">Add</button></div></div>
-   <div class="card"><b>Lot check</b> <span class="small muted">road frontage, flood, slope, building on the lot, size and shape (free public maps)</span><div style="margin-top:6px"><button class="btn ghost sm" onclick="lotCheck(${id})">Check this lot</button></div><div id="lc_out" class="small" style="margin-top:6px"></div></div>
+   ${!/\d/.test(p.address||'')?`<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" style="display:none" onload="findPropAddr(${id},true)">`:''}<div class="card"><b>Lot check</b> <span class="small muted">road frontage, flood, slope, building on the lot, size and shape (free public maps)</span><div style="margin-top:6px"><button class="btn ghost sm" onclick="lotCheck(${id})">Check this lot</button></div><div id="lc_out" class="small" style="margin-top:6px"></div></div>
    <div class="card"><b>Deals</b> ${(dl||[]).map(d=>`<a href="#" onclick="openDeal(${d.id});return false">${d.board} deal · ${esc(STAGES.find(s=>s.id===d.stage_id)?.name||'')}</a>`).join(' · ')||'<span class="muted small">none</span>'}
      <div class="row" style="margin-top:8px"><button class="btn ghost sm" style="flex:0" onclick="dealFromProperty(${id},'seller')">+ Seller deal</button><button class="btn ghost sm" style="flex:0" onclick="dealFromProperty(${id},'buyer')">+ Buyer deal</button></div></div>
    ${prayerCard()}
