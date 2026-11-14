@@ -59,7 +59,7 @@
   async function getJSON(name) { const r = await fetch(`data/hub/${name}_${BH.mkt}.json?v=${DATA_V}`); if (!r.ok) throw new Error(name); return r.json(); }
   function D() { return BH.data[BH.mkt] || (BH.data[BH.mkt] = {}); }
   async function base() { const d = D(); if (!d.Z) { const [Z, CP, B] = await Promise.all([getJSON('zones'), getJSON('comps'), getJSON('builders')]); Object.assign(d, { Z, CP, B }); } return d; }
-  async function targets() { const d = await base(); if (!d.T) { const { data: tr, error: te } = await sb.from('hub_targets').select('data').eq('key', 'targets_' + BH.mkt).single(); if (te) throw new Error('targets: ' + te.message); const j = tr.data; d.T = j.r.map(r => Object.fromEntries(j.k.map((k, i) => [k, r[i]]))); } return d; }
+  async function targets() { const d = await base(); if (!d.T) { const { data: tr, error: te } = await sb.from('hub_targets').select('data').eq('key', 'targets_' + BH.mkt).maybeSingle(); if (te) throw new Error('targets: ' + te.message); if (!tr || !tr.data || !tr.data.r) { d.T = []; d.noTargets = true; return d; } const j = tr.data; d.T = j.r.map(r => Object.fromEntries(j.k.map((k, i) => [k, r[i]]))); } return d; }
   async function pins() { const d = D(); if (!d.P) { d.P = await getJSON('pins'); d.PI = new Map(Object.keys(d.P).map(k => [npin(k), k])); } return d; }
   async function bpts() { const d = D(); if (!d.BP) { try { d.BP = await getJSON('bpts'); } catch (e) { d.BP = {}; } } return d; }
   async function loadBuyers() { const all = []; for (let f = 0; ; f += 1000) { const r = await sb.from('buyers').select('*').order('name').range(f, f + 999); if (r.error) throw r.error; all.push(...(r.data || [])); if (!r.data || r.data.length < 1000) break; } return (BH.buyers = all); }
@@ -184,7 +184,7 @@
     return [...new Set(out.filter(Boolean))];
   }
   async function findPin(input) {
-    const d = await targets();
+    let d; try { d = await targets(); } catch (e) { d = await base(); d.T = d.T || []; }
     for (const pin of pinCands(input)) {
       const t = d.T.find(x => npin(x.pin) === pin);
       if (t) { const r = { pin: t.pin, addr: t.site, city: t.city, zip: t.zip, ac: t.ac, kind: 'Vacant', list: t.kind, land: t.land, bldg: t.bldg, yb: t.yb, owner: t.owner, la: t.la, lo: t.lo, sewer: t.sewer, zon: t.zoning };
@@ -239,7 +239,8 @@
     if (BH.matchPin) { $('bh_pin').value = BH.matchPin; BH.matchPin = ''; runMatch(); }
   };
 
-  async function runMatch() {
+  async function runMatch() { try { await runMatch0(); } catch (e) { $('bh_mout').innerHTML = msg(`<b>The match didn't finish:</b> ${E(e.message || String(e))}. Reload the page and try again.`); } }
+  async function runMatch0() {
     const out = $('bh_mout'), d = await base(), Z = d.Z, pinRaw = $('bh_pin').value.trim();
     let p = null;
     if (pinRaw) {
