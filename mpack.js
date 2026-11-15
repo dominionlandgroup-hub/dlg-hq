@@ -8,6 +8,31 @@
   const money = n => n == null || n === '' || isNaN(n) ? '' : '$' + Math.round(+n).toLocaleString();
   const low = s => String(s || '').toLowerCase().replace(/\bcounty\b|[^a-z ]/g, '').trim();
   const PHONE = '(980) 217-8806';
+  // Google Street View Static API key (restricted to landiq.land and to Street View Static only)
+  const GSV_KEY = 'AIzaSyCHG1JzCEQPljj9LSGtEQrubQl8VgX-GmU';
+  const bearing = (a, b) => { const r = Math.PI / 180, y = Math.sin((b.lng - a.lng) * r) * Math.cos(b.lat * r), x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lng - a.lng) * r); return Math.round((Math.atan2(y, x) / r + 360) % 360); };
+  // find the nearest street-side photo and point the camera at the lot; saves it to the deal's files
+  async function streetPhoto(dealId, propId, label, lot) {
+    const m = await (await fetch(`https://maps.googleapis.com/maps/api/streetview/metadata?location=${lot.lat},${lot.lng}&radius=120&source=outdoor&key=${GSV_KEY}`)).json();
+    if (m.status !== 'OK') return { ok: false, why: m.status };
+    const h = bearing(m.location, lot);
+    const blob = await (await fetch(`https://maps.googleapis.com/maps/api/streetview?size=640x420&scale=2&pano=${m.pano_id}&heading=${h}&fov=80&key=${GSV_KEY}`)).blob();
+    const name = `${label} - Google Street View${m.date ? ' (' + m.date + ')' : ''}`, path = `${dealId}/${Date.now()}-${name.replace(/[^\w.\- ()]+/g, '_')}.jpg`;
+    const up = await sb.storage.from('deal-files').upload(path, blob, { contentType: 'image/jpeg' }); if (up.error) return { ok: false, why: up.error.message };
+    await sb.from('deal_files').insert({ deal_id: dealId, property_id: propId, name, storage_path: path, source: 'hq' });
+    return { ok: true, name };
+  }
+  async function addStreetView(dealId) {
+    const { data: d } = await sb.from('deals').select('property_id,extra_property_ids,as_meta,properties(id,apn,address,lat,lng,county,state)').eq('id', dealId).single();
+    const ps = [d.properties, ...((d.extra_property_ids || []).length ? ((await sb.from('properties').select('id,apn,address,lat,lng,county,state').in('id', d.extra_property_ids)).data || []) : [])].filter(Boolean);
+    const msg = []; for (const p of ps) {
+      let lot = p.lat && p.lng ? { lat: +p.lat, lng: +p.lng } : null;
+      if (!lot && p.apn && (p.state || 'NC') === 'NC') { const raw = String(p.apn).replace(/[^0-9A-Za-z]/g, ''); const q = await (await fetch('https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query', { method: 'POST', body: new URLSearchParams({ where: `UPPER(cntyname)='${String(p.county || '').replace(/\s+county$/i, '').toUpperCase().replace(/'/g, '')}' AND (parno='${raw}' OR altparno='${String(p.apn).replace(/'/g, '')}')`, returnGeometry: 'true', returnCentroid: 'true', outSR: '4326', outFields: 'parno', f: 'json', resultRecordCount: '1' }) })).json(); const g = q.features?.[0]; const ring = g?.geometry?.rings?.[0]; if (ring) lot = { lat: ring.reduce((s, c) => s + c[1], 0) / ring.length, lng: ring.reduce((s, c) => s + c[0], 0) / ring.length }; }
+      if (!lot) { msg.push((p.address || p.apn) + ': no map location'); continue; }
+      const r = await streetPhoto(dealId, p.id, p.address || ('Parcel ' + p.apn), lot); msg.push((p.address || p.apn) + ': ' + (r.ok ? 'saved' : 'no Street View here (' + r.why + ')'));
+    }
+    return msg;
+  }
 
   // pull the Land id facts out of the "Claude Land id DD" note (first parcel block = the main lot)
   function ddFacts(notes, apn) {
@@ -83,7 +108,7 @@ ${x.street ? `<p>📍 <a href="${E(x.street)}">See it on Google Street View</a><
     const street = center ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${center.lat},${center.lng}` : (addr ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr) : '');
     const { data: files } = await sb.from('deal_files').select('id,name,storage_path').eq('deal_id', dealId).order('created_at');
     const imgs = (files || []).filter(x => /\.(jpe?g|png|webp)$/i.test(x.storage_path));
-    const pick = mp.images || imgs.filter(x => /Land id/i.test(x.name)).map(x => x.id);
+    const pick = mp.images || imgs.filter(x => /Land id|Street View/i.test(x.name)).map(x => x.id);
     const signed = {}; for (const x of imgs) { const s = await sb.storage.from('deal-files').createSignedUrl(x.storage_path, 3600); if (s.data) signed[x.id] = s.data.signedUrl; }
     // full buyer rows (buy-box fields) for the BCC lists
     const buyers = []; for (let o = 0; ; o += 1000) { const r = await sb.from('buyers').select('id,name,company,email,kind,bb_status,bb_submitted_at,counties,cities,price_ranges,lot_sizes,lot_type,utilities').order('id').range(o, o + 999); if (r.error || !r.data?.length) break; buyers.push(...r.data); if (r.data.length < 1000) break; }
@@ -96,7 +121,7 @@ ${x.street ? `<p>📍 <a href="${E(x.street)}">See it on Google Street View</a><
       <label class="f">Quick highlights (one per line, start each with an emoji)</label><textarea id="mp_hl" style="min-height:120px" oninput="MP.preview()">${E(hl)}</textarea>
       <label class="f">Land id tour link</label><input id="mp_tour" value="${E(mp.tour || f.tours?.[0] || '')}" placeholder="https://id.land/tour/..." oninput="MP.preview()">
       ${(f.tours || []).length > 1 ? `<div class="small muted">Other tours in the notes: ${f.tours.slice(1).map(t => `<a href="${E(t)}" target="_blank" rel="noopener">${E(t.slice(-8))}</a>`).join(' · ')}</div>` : ''}
-      <label class="f">Street View</label><div class="small">${street ? `<a href="${E(street)}" target="_blank" rel="noopener">📍 Open Street View</a> (goes in the email as a link)` : 'No location on file'}</div>
+      <label class="f">Street View</label><div class="small">${street ? `<a href="${E(street)}" target="_blank" rel="noopener">📍 Open Street View</a> (goes in the email as a link)` : 'No location on file'} · <a href="#" onclick="MP.sv(${dealId});return false">📷 Add Street View photos to the pictures</a> <span id="mp_sv" class="muted"></span></div>
       <label class="f">Pictures in the email</label>${imgs.length ? imgs.map(x => `<label class="small" style="display:flex;gap:8px;align-items:center;margin:4px 0"><input type="checkbox" style="width:auto" class="mp_img" value="${x.id}" ${pick.includes(x.id) ? 'checked' : ''} onchange="MP.preview()">${signed[x.id] ? `<img src="${E(signed[x.id])}" style="width:80px;height:56px;object-fit:cover;border-radius:4px">` : ''} ${E(x.name)}</label>`).join('') : '<div class="small muted">No pictures on this deal yet. Run DD / Comps saves the Land id pictures here.</div>'}
       <div id="mp_bcc" class="small" style="margin-top:12px"></div>
       <div class="row" style="margin-top:12px;gap:8px"><button class="btn" id="mp_save" onclick="MP.save(${dealId})">Save package &amp; ask Claude for the drafts</button><button class="btn ghost" onclick="MP.copy()">Copy email</button></div>
@@ -140,5 +165,6 @@ ${x.street ? `<p>📍 <a href="${E(x.street)}">See it on Google Street View</a><
     try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([document.getElementById('mp_prev').innerText], { type: 'text/plain' }) })]); toast('Email copied. Paste it into Gmail.'); }
     catch (e) { toast('Copy failed: ' + e.message); }
   }
-  window.MP = { open, preview, save, copy, ddFacts, firstLook };
+  async function sv(dealId) { const el = $('mp_sv'); if (el) el.textContent = 'Getting Street View…'; try { const m = await addStreetView(dealId); toast(m.join(' · ')); open(dealId); } catch (e) { if (el) el.textContent = 'Street View failed: ' + e.message; } }
+  window.MP = { open, preview, save, copy, ddFacts, firstLook, sv, addStreetView };
 })();
