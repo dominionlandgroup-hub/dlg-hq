@@ -72,7 +72,9 @@
 
   function emailHTML(x, first) {
     const hl = x.highlights.split('\n').map(s => s.trim()).filter(Boolean);
-    const pics = x.pics.map((u, i) => `<p style="margin:10px 0"><img src="${E(u.url)}" alt="${E(u.name)}" style="max-width:100%;border-radius:8px"><br><span style="font-size:12px;color:#666">${E(u.name.replace(/^.* - /, ''))}</span></p>`).join('');
+    // one lot: caption is just the picture type; several lots: say which lot ("6291 Partridge Rd SW: Google Street View")
+    const cap = n => x.multi ? n.replace(/^(.*?) - /, '$1: ') : n.replace(/^.* - /, '');
+    const pics = x.pics.map((u, i) => `<p style="margin:10px 0"><img src="${E(u.url)}" alt="${E(u.name)}" style="max-width:100%;border-radius:8px"><br><span style="font-size:12px;color:#666">${E(cap(u.name))}</span></p>`).join('');
     return `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#222">
 <p>Hi there,</p>
 ${first ? '<p>Because you took the time to fill out our buy-box form, you\'re getting a 24-hour first look at this lot before it goes out to our full buyers list.</p>' : ''}
@@ -82,7 +84,7 @@ ${first ? '<p>Because you took the time to fill out our buy-box form, you\'re ge
 <p><b>✅ Quick Highlights</b></p><ul>${hl.map(h => `<li>${E(h)}</li>`).join('')}</ul>
 ${pics}
 ${x.tour ? `<p>🗺️ Full property details, boundaries &amp; maps:<br>👉 <a href="${E(x.tour)}">View the Land id property tour</a></p>` : ''}
-${x.street ? `<p>📍 <a href="${E(x.street)}">See it on Google Street View</a></p>` : ''}
+${(x.streets || []).length > 1 ? `<p>📍 Google Street View:<br>${x.streets.map(v => `👉 <a href="${E(v.url)}">${E(v.label)}</a>`).join('<br>')}</p>` : x.street ? `<p>📍 <a href="${E(x.street)}">See it on Google Street View</a></p>` : ''}
 <p>📲 Interested? Reply to this email or call/text ${PHONE}.</p>
 <p>Warm regards,<br>Damien Dupee<br>Dominion Land Group<br>1235 East Boulevard, C1 #424<br>Charlotte, NC 28203<br>📞 ${PHONE}</p></div>`;
   }
@@ -91,7 +93,7 @@ ${x.street ? `<p>📍 <a href="${E(x.street)}">See it on Google Street View</a><
     const { data: d, error } = await sb.from('deals').select('*, properties(*)').eq('id', dealId).single(); if (error) return toast(error.message);
     const p = d.properties || {}; const mp = d.as_meta?.mp || {};
     const f = ddFacts(d.notes, p.apn);
-    const xp = (d.extra_property_ids || []).length ? ((await sb.from('properties').select('id,apn,address,acres').in('id', d.extra_property_ids)).data || []) : [];
+    const xp = (d.extra_property_ids || []).length ? ((await sb.from('properties').select('id,apn,address,acres,lat,lng').in('id', d.extra_property_ids)).data || []) : [];
     const price = d.as_meta?.marketing_price ?? mp.price ?? d.assignment_price ?? ''; // Deal terms → Marketing price first
     const acres = [p.acres, ...xp.map(x => x.acres)].filter(Boolean).reduce((s, a) => s + +a, 0);
     const hl = mp.highlights || [
@@ -112,7 +114,10 @@ ${x.street ? `<p>📍 <a href="${E(x.street)}">See it on Google Street View</a><
     const signed = {}; for (const x of imgs) { const s = await sb.storage.from('deal-files').createSignedUrl(x.storage_path, 3600); if (s.data) signed[x.id] = s.data.signedUrl; }
     // full buyer rows (buy-box fields) for the BCC lists
     const buyers = []; for (let o = 0; ; o += 1000) { const r = await sb.from('buyers').select('id,name,company,email,kind,bb_status,bb_submitted_at,counties,cities,price_ranges,lot_sizes,lot_type,utilities').order('id').range(o, o + 999); if (r.error || !r.data?.length) break; buyers.push(...r.data); if (r.data.length < 1000) break; }
-    window._MP = { d, p, xp, imgs, signed, buyers, street, f };
+    // several lots: one Street View link per lot, labeled with its address
+    const pano = v => `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${v.lat},${v.lng}`;
+    const streets = xp.length ? [p, ...xp].filter(q => q.lat && q.lng).map(q => ({ label: q.address || ('Parcel ' + q.apn), url: pano(q) })) : [];
+    window._MP = { d, p, xp, imgs, signed, buyers, street, streets, f };
     window._wideNext = true; openDrawer(`<div class="dhead"><h2 style="margin:0">📣 Marketing package</h2><div class="row" style="flex:0 0 auto;gap:8px"><button class="btn ghost" onclick="openDeal(${dealId})">← Back to deal</button><button class="btn ghost" onclick="closeDrawer()">Close</button></div></div>
       <div class="card"><div class="small muted" style="margin-bottom:8px">Fill or fix anything below, then Save. Claude turns this into two Gmail drafts (24-hour First Look, then the full list) with the pictures inside the email. Nothing is sent until you press Send in Gmail.</div>
       <label class="f">Asking price to builders $ <span class="small muted">(from Deal terms → Marketing price)</span></label><input id="mp_price" type="number" value="${E(price)}" placeholder="e.g. 25000" oninput="MP.preview()">
@@ -135,8 +140,8 @@ ${x.street ? `<p>📍 <a href="${E(x.street)}">See it on Google Street View</a><
     const pics = [...document.querySelectorAll('.mp_img:checked')].map(c => { const x = M.imgs.find(i => String(i.id) === c.value); return { id: x.id, name: x.name, url: M.signed[x.id] || '' }; });
     const price = $('mp_price').value === '' ? null : +$('mp_price').value;
     const isHouse = M.f.house && !M.xp.length;
-    return { price, address: $('mp_addr').value.trim(), city: $('mp_city').value.trim(), highlights: $('mp_hl').value, tour: $('mp_tour').value.trim(), street: M.street, pics,
-      kindWord: isHouse ? 'teardown lot' : 'infill lot', countyLine: [p.county ? p.county + ' County' : '', p.apn ? 'Parcel ' + p.apn : '', ...M.xp.map(x => 'Parcel ' + x.apn)].filter(Boolean).join(' · ') };
+    return { price, address: $('mp_addr').value.trim(), city: $('mp_city').value.trim(), highlights: $('mp_hl').value, tour: $('mp_tour').value.trim(), street: M.street, streets: M.streets, pics,
+      multi: M.xp.length > 0, kindWord: isHouse ? 'teardown lot' : 'infill lot', countyLine: [p.county ? p.county + ' County' : '', p.apn ? 'Parcel ' + p.apn : '', ...M.xp.map(x => 'Parcel ' + x.apn)].filter(Boolean).join(' · ') };
   }
   function preview() {
     const M = window._MP; if (!M || !$('mp_prev')) return; const x = state();
@@ -155,7 +160,7 @@ ${x.street ? `<p>📍 <a href="${E(x.street)}">See it on Google Street View</a><
     const x = state(); if (!x.price) return toast('Add the asking price first');
     const btn = $('mp_save'); btn.disabled = true;
     const { data: cur } = await sb.from('deals').select('as_meta').eq('id', dealId).single();
-    const mp = { price: x.price, address: x.address, city: x.city, highlights: x.highlights, tour: x.tour, street: x.street, images: x.pics.map(p => p.id), first_look: window._MP.fl, requested_at: new Date().toISOString() };
+    const mp = { price: x.price, address: x.address, city: x.city, highlights: x.highlights, tour: x.tour, street: x.street, streets: x.streets, images: x.pics.map(p => p.id), first_look: window._MP.fl, requested_at: new Date().toISOString() };
     const { error } = await sb.from('deals').update({ as_meta: { ...(cur?.as_meta || {}), mp } }).eq('id', dealId);
     btn.disabled = false; if (error) return toast(error.message);
     $('mp_msg').innerHTML = `<b style="color:#1d7a3a">Saved.</b> Tell Claude "make the marketing drafts for ${E(x.address)}". You'll get the First Look draft (${window._MP.fl.length} BCC) and the full-list draft in Gmail with the pictures in the email. Nothing sends until you press Send.`;

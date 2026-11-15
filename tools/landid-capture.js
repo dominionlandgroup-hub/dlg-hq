@@ -5,6 +5,8 @@
 //      on Terrain and Floodplain, scroll-wheel up over the red lot outline until the lot fills the middle
 //      (Fit on Floodplain jumps to the flood features, and a second Zoom out can fly away; check a screenshot)
 //   3. const url = await LIDCAP.shot()   -> JPEG data URL: Land id panel in a left column + the full map (nothing covers the lot)
+//      mapbox only hands over a frame while it is drawing: if shot()/grab() returns null, start it and
+//      scroll the wheel one tick over the lot while it waits (that redraws the map)
 //   4. upload: in the DLG HQ tab (use #dashboard; board views sometimes block scripts) create
 //      sb.storage.from('deal-files').createSignedUploadUrl('<dealId>/<ts>-<Street> - Land id <Tab> (close-up).jpg'),
 //      read each signedUrl on its own (long output gets cut off), PUT the blob to it from this tab
