@@ -234,7 +234,10 @@
       return { b, rank: byZip ? 0 : byCity ? 1 : 2, why: byZip ? 'Buys in ' + zip : byCity ? 'Buys in ' + tcase(p.city) : 'Buys in ' + MARKETS[BH.mkt].county + ' County', util: utilNote(b, u) };
     }).filter(Boolean).sort((a, b) => a.rank - b.rank || (!!b.b.bb_submitted_at) - (!!a.b.bb_submitted_at) || String(a.b.name || '').localeCompare(String(b.b.name || '')));
   }
-  function buyerHit(name) { const k = coKey(name); if (k.length < 4) return null; return (BH.buyers || []).find(b => coKey(b.company) === k || coKey(b.name) === k) || null; }
+  // match a builder to your Buyers by its name or any of its LLC names (years like "2025" ignored), so saved phones/emails show
+  const coKey2 = s => coKey(String(s || '').replace(/\b(19|20)\d\d\b/g, ''));
+  function buyerHit(name, ents) { const keys = [...new Set([name, ...String(ents || '').split(';')].map(coKey2).filter(k => k.length >= 4))]; if (!keys.length) return null;
+    const L = BH.buyers || []; return L.find(b => keys.includes(coKey2(b.company)) || keys.includes(coKey2(b.name)) || keys.includes(coKey2(b.represents))) || null; }
 
   window.vHubMatch = async function () {
     addCss();
@@ -291,6 +294,7 @@
     if (geo) { const same = withD.filter(c => c.kind === p.kind && c.pin !== p.pin && c.d != null);
       rings = `<div class="boxes">${[0.25, 0.5, 1, 2].map(r => { const n = same.filter(c => c.d <= r), mm = med(n.map(c => c.price)); return `<div><div class="k">${p.kind === 'Vacant' ? 'Lot sales' : 'Teardown buys'} within ${r === 0.25 ? '¼' : r === 0.5 ? '½' : r} mi</div><div class="v">${n.length}</div><div class="small muted">${mm ? 'median ' + money0(mm) : 'no sales'}</div></div>`; }).join('')}</div>`; }
     // builders building closest (permit locations), else the zip's builder list
+    try { if (!BH.buyers) await loadBuyers(); } catch (e) { }
     let bl = [], bmode = 'zip';
     if (geo) { const BP = (await bpts()).BP, RR = R || 1;
       bl = d.B.map(b => { const pts = (BP[b.id] || []).filter(q => q[0] != null).map(q => ({ la: q[0], lo: q[1], dt: q[2] || '', d: miles(p.la, p.lo, q[0], q[1]) })); if (!pts.length) return null;
@@ -313,9 +317,9 @@
       <div><div class="card" id="bh_bb"><h3 class="sec">Whose buy box fits</h3><div class="muted small">Loading buyers…</div></div>
       ${geo ? `<div class="card"><h3 class="sec">Map · ${mapR} mi around the lot</h3>${mapSVG(p, C, bl, mapR)}</div>` : ''}
       <div class="card"><h3 class="sec">${bmode === 'dist' ? 'Builders building closest to this lot' : 'Builders active in ' + E(p.zip)}</h3>
-      ${bl.map(b => { const h = buyerHit(b.name); const ph = h?.phone || b.phone, em = h?.email || String(b.email || '').split(';')[0].trim();
+      ${bl.map(b => { const h = buyerHit(b.name, b.entities); const ph = h?.phone || b.phone, em = String(h?.email || b.email || '').split(/[;,\s]+/)[0].trim();
         return `<div class="who"><div><b>${E(b.name)}</b><br><span class="small muted">${bmode === 'dist' ? `<b>Nearest build ${fmtMi(b.near)}</b> · ${b.n1} within 1 mi · ` : ''}${E(b.tier || '')} · ${b.infill || 0} infill permits${h ? ' · in your Buyers' : ''}</span></div>
-        <div class="r">${ph ? `<a href="tel:${E(ph)}">${E(ph)}</a><br>` : ''}${em ? `<a href="mailto:${E(em)}">${E(em)}</a>` : '<span class="muted small">No contact on file</span>'}</div></div>`; }).join('') || '<p class="muted small">No builders have permits near this lot yet.</p>'}</div></div></div>`;
+        <div class="r">${ph ? `<a href="tel:${E(ph)}">${E(ph)}</a><br>` : ''}${em ? `<a href="mailto:${E(em)}">${E(em)}</a>` : ''}${!ph && !em ? `<span class="muted small">Not in your Buyers yet</span><br>${b.office ? `<span class="small muted">Office: ${E(String(b.office).replace(/\s+\d{3}$/, ''))}</span><br>` : ''}<a class="small" href="https://www.google.com/search?q=${encodeURIComponent(b.name + ' ' + (String(b.office || '').split(',')[1] || '') + ' builder phone email')}" target="_blank" rel="noopener">Look up contact</a>` : ''}</div></div>`; }).join('') || '<p class="muted small">No builders have permits near this lot yet.</p>'}</div></div></div>`;
     wireMap(out);
     drawBuyers(p);
   }
@@ -331,7 +335,7 @@
       <div class="row" style="gap:6px;margin-bottom:6px">${em.length ? `<button class="btn ghost sm" style="flex:0 0 auto" data-cp="${E(em.join(', '))}">Copy ${em.length} email${em.length > 1 ? 's' : ''}</button>` : ''}${ph.length ? `<button class="btn ghost sm" style="flex:0 0 auto" data-cp="${E(ph.join(', '))}">Copy ${ph.length} phone${ph.length > 1 ? 's' : ''}</button>` : ''}</div>` : ''}
       ${F.map(({ b, why, util }) => `<div class="who"><div><b>${E(b.name || b.company || '(no name)')}</b>${b.company && b.company !== b.name ? ` · ${E(b.company)}` : ''}${b.kind === 'agent' ? ' <span class="pill">agent</span>' : ''}
         <br><span class="fit">${E(why)}</span>${util ? `<br><span class="${util.ok ? 'fit' : 'warn'}">${E(util.t)}</span>` : ''}<br><span class="small muted">${b.bb_submitted_at ? 'Buy box filled out ' + fmtDate(b.bb_submitted_at) : 'No buy-box form yet'}</span></div>
-        <div class="r">${b.phone ? `<a href="tel:${E(b.phone)}">${E(b.phone)}</a><br>` : ''}${b.email ? `<a href="mailto:${E(String(b.email).split(/[;,\s]+/)[0])}">${E(String(b.email).split(/[;,\s]+/)[0])}</a>` : ''}</div></div>`).join('')
+        <div class="r">${b.phone ? `<a href="tel:${E(b.phone)}">${E(b.phone)}</a><br>` : ''}${b.email ? `<a href="mailto:${E(String(b.email).split(/[;,\s]+/)[0])}">${E(String(b.email).split(/[;,\s]+/)[0])}</a>` : ''}${!b.phone && !b.email ? '<span class="muted small">No phone or email saved</span>' : ''}</div></div>`).join('')
       || `<p class="muted small">No buyer in DLG HQ covers ${E(p.zip || '')}${p.city ? ', ' + E(tcase(p.city)) : ''} or ${MARKETS[BH.mkt].county} County yet. Call the builders below.</p>`}`;
     el.querySelectorAll('[data-cp]').forEach(x => x.onclick = () => { navigator.clipboard.writeText(x.dataset.cp); toast('Copied'); });
   }
