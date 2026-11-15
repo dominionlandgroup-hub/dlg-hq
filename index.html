@@ -657,6 +657,9 @@ async function rsSweep(){if(RS_CHECKED.has('sweep'))return;RS_CHECKED.add('sweep
     for(const k of jobs){RS_CHECKED.add(d.id+':'+k);try{await sb.functions.invoke('rabbitsign/status',{body:{deal_id:d.id,remind:false,kind:k}})}catch(e){}}}}
 // every buyer (paged past the 1,000-row limit) for the buyer pickers
 async function loadBuyers(){return (await pageAll(()=>sb.from('buyers').select('id,name,company,email').order('name').order('id'))).data||[]}
+// Prev / Next through the deals in the same board column, in the order shown on the board
+function dealNav(id){if(!id)return null;const c=document.querySelector(`.dcard[data-id="${id}"]`);const col=c&&c.parentElement;if(!col)return null;const ids=[...col.querySelectorAll(':scope > .dcard')].map(e=>+e.dataset.id);const i=ids.indexOf(+id);if(i<0||ids.length<2)return null;return {prev:ids[i-1]||null,next:ids[i+1]||null,pos:i+1,total:ids.length}}
+document.addEventListener('keydown',e=>{if($('drawer')?.style.display!=='block'||/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''))return;const n=window._dl&&dealNav(window._dl.id);if(!n)return;if(e.key==='ArrowRight'&&n.next)openDeal(n.next);if(e.key==='ArrowLeft'&&n.prev)openDeal(n.prev)});
 async function openDealForm(d){
   const xp=(d?.extra_property_ids||[]).length?((await sb.from('properties').select('id,apn,address,city,county,acres').in('id',d.extra_property_ids)).data||[]):[];
   if(!BUYERS)BUYERS=await loadBuyers();
@@ -682,6 +685,7 @@ async function openDealForm(d){
      <div class="row" style="flex:0 0 auto;gap:8px;align-items:center">
        <select id="d_priority" style="width:auto"><option value="">No priority</option>${['hot','warm','cold'].map(x=>`<option value="${x}" ${x===d.priority?'selected':''}>${x[0].toUpperCase()+x.slice(1)}</option>`).join('')}</select>
        <select id="d_stage_id" style="width:auto">${st.map(s=>`<option value="${s.id}" ${s.id===d.stage_id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+       ${(()=>{const n=dealNav(d.id);return n?`<span class="small muted" style="white-space:nowrap">${n.pos} of ${n.total}</span><button class="btn ghost" ${n.prev?'':'disabled'} onclick="openDeal(${n.prev})" title="Previous deal in this column">◀ Prev</button><button class="btn ghost" ${n.next?'':'disabled'} onclick="openDeal(${n.next})" title="Next deal in this column">Next ▶</button>`:''})()}
        <button class="btn ghost" onclick="closeDrawer()">Close</button></div></div>
    <div class="card dsum"><div><div class="l">Estimated value</div><div class="v">${d.value!=null&&d.value!==''?money(d.value):'—'}</div></div>
      <div><div class="l">Campaign</div><div class="v">${esc(camp?.name||(/replysmart|sms/i.test(d.source||'')?'ReplySmart (SMS)':'—'))}</div></div><div><div class="l">Source</div><div class="v">${esc(d.source||'—')}</div></div>
