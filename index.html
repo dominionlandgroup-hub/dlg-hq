@@ -552,7 +552,7 @@ async function vBoard(board){
     const list=_deals.filter(d=>(!pr||d.priority===pr)&&(!f||[d.property_label,leadName(d.leads),d.properties?.address,d.properties?.apn].join(' ').toLowerCase().includes(f)));
     const st=STAGES.filter(s=>s.board===board);
     $('view').innerHTML=`<div class="board">${st.map(s=>{const ds=list.filter(d=>d.stage_id===s.id),tot=ds.reduce((a,d)=>a+(+d.value||0),0);
-      return `<div class="col" data-stage="${s.id}"><div class="hd" draggable="true" title="Drag to move this stage" style="cursor:grab;display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${esc(s.name)}</span><span style="white-space:nowrap"><button class="btn ghost sm" title="Move left" onclick="moveStage(${s.id},'${board}',-1)">◀</button><button class="btn ghost sm" title="Move right" onclick="moveStage(${s.id},'${board}',1)">▶</button><button class="btn ghost sm" title="Rename stage" onclick="renameStage(${s.id},'${board}')">✎</button><button class="btn ghost sm" title="Delete stage" onclick="deleteStage(${s.id},'${board}')">🗑</button></span></div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
+      return `<div class="col" data-stage="${s.id}"><div class="hd" draggable="true" title="Drag to move this stage" style="cursor:grab;display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${esc(s.name)}</span><span style="white-space:nowrap"><button class="btn ghost sm" title="Rename stage" onclick="renameStage(${s.id},'${board}')">✎</button><button class="btn ghost sm" title="Delete stage" onclick="deleteStage(${s.id},'${board}')">🗑</button></span></div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
       <div class="cards">${ds.map(card).join('')}</div><button class="addcard" onclick="newDeal('${board}',${s.id})">+ Add Deal</button></div>`}).join('')}</div>`;
     wireDnD(board);};
   $('bf').oninput=draw;$('bp').onchange=draw;draw();
@@ -658,7 +658,15 @@ async function rsSweep(){if(RS_CHECKED.has('sweep'))return;RS_CHECKED.add('sweep
 // every buyer (paged past the 1,000-row limit) for the buyer pickers
 async function loadBuyers(){return (await pageAll(()=>sb.from('buyers').select('id,name,company,email').order('name').order('id'))).data||[]}
 // Prev / Next through the deals in the same board column, in the order shown on the board
-function dealNav(id){if(!id)return null;const c=document.querySelector(`.dcard[data-id="${id}"]`);const col=c&&c.parentElement;if(!col)return null;const ids=[...col.querySelectorAll(':scope > .dcard')].map(e=>+e.dataset.id);const i=ids.indexOf(+id);if(i<0||ids.length<2)return null;return {prev:ids[i-1]||null,next:ids[i+1]||null,pos:i+1,total:ids.length}}
+function dealNav(id){if(!id)return null;const me=document.querySelector(`.dcard[data-id="${id}"]`);if(!me)return null;
+  const cols=[...document.querySelectorAll('.board .cards')];const myCol=me.parentElement;
+  const colName=c=>(c.closest('.col')?.querySelector('.hd > span')?.textContent||'').trim();
+  const dead=c=>/dead/i.test(colName(c));
+  const use=cols.filter(c=>c===myCol||!dead(c));
+  const all=use.flatMap(c=>[...c.querySelectorAll(':scope > .dcard')].map(e=>({id:+e.dataset.id,col:c,name:(e.querySelector('.t > span')?.textContent||'').trim()})));
+  const i=all.findIndex(x=>x.id===+id);if(i<0||all.length<2)return null;
+  const inCol=all.filter(x=>x.col===myCol),pos=inCol.findIndex(x=>x.id===+id)+1;
+  return {prev:all[i-1]?.id||null,next:all[i+1]?.id||null,nextName:all[i+1]?.name||'',where:`${pos} of ${inCol.length} in this stage`}}
 document.addEventListener('keydown',e=>{if($('drawer')?.style.display!=='block'||/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''))return;const n=window._dl&&dealNav(window._dl.id);if(!n)return;if(e.key==='ArrowRight'&&n.next)openDeal(n.next);if(e.key==='ArrowLeft'&&n.prev)openDeal(n.prev)});
 async function openDealForm(d){
   const xp=(d?.extra_property_ids||[]).length?((await sb.from('properties').select('id,apn,address,city,county,acres').in('id',d.extra_property_ids)).data||[]):[];
@@ -681,11 +689,10 @@ async function openDealForm(d){
   const ph=l?.phone,cp=t=>`<button class="ico" title="Copy" onclick="navigator.clipboard.writeText('${jsa(t)}');toast('Copied')">⧉</button>`;
   const notes=parseNotes(d.notes);
   window._wideNext=true;
-  openDrawer(`<div class="dhead"><div><div class="small muted">${board==='buyer'?'Buyer Deals':'Seller Deals'}</div><h2 style="margin:2px 0 0">${esc(leadName(l)||d.property_label||'New deal')}</h2></div>
+  openDrawer(`<div class="dhead"><div><div class="small muted">${board==='buyer'?'Buyer Deals':'Seller Deals'}</div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:2px 0 0">${esc(leadName(l)||d.property_label||'New deal')}</h2>${(()=>{const n=dealNav(d.id);return n?`<button class="btn ghost sm" ${n.prev?'':'disabled'} onclick="openDeal(${n.prev})" title="Previous lead">◀ Prev</button><button class="btn sm" ${n.next?'':'disabled'} onclick="openDeal(${n.next})" title="Next lead${n.nextName?': '+esc(n.nextName):''}">Next ▶</button><span class="small muted">${esc(n.where)}</span>`:''})()}</div></div>
      <div class="row" style="flex:0 0 auto;gap:8px;align-items:center">
        <select id="d_priority" style="width:auto"><option value="">No priority</option>${['hot','warm','cold'].map(x=>`<option value="${x}" ${x===d.priority?'selected':''}>${x[0].toUpperCase()+x.slice(1)}</option>`).join('')}</select>
        <select id="d_stage_id" style="width:auto">${st.map(s=>`<option value="${s.id}" ${s.id===d.stage_id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
-       ${(()=>{const n=dealNav(d.id);return n?`<span class="small muted" style="white-space:nowrap">${n.pos} of ${n.total}</span><button class="btn ghost" ${n.prev?'':'disabled'} onclick="openDeal(${n.prev})" title="Previous deal in this column">◀ Prev</button><button class="btn ghost" ${n.next?'':'disabled'} onclick="openDeal(${n.next})" title="Next deal in this column">Next ▶</button>`:''})()}
        <button class="btn ghost" onclick="closeDrawer()">Close</button></div></div>
    <div class="card dsum"><div><div class="l">Estimated value</div><div class="v">${d.value!=null&&d.value!==''?money(d.value):'—'}</div></div>
      <div><div class="l">Campaign</div><div class="v">${esc(camp?.name||(/replysmart|sms/i.test(d.source||'')?'ReplySmart (SMS)':'—'))}</div></div><div><div class="l">Source</div><div class="v">${esc(d.source||'—')}</div></div>
