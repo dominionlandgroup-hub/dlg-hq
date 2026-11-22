@@ -32,7 +32,9 @@ button:disabled{background:#cfd6d1;cursor:default}
 </div>
 <script>
 const sb=supabase.createClient('https://gdejlpdltnstbwtdpggm.supabase.co','sb_publishable_E9jIHC9hz6oleR4Qd-68bA_ZWEVcAQ_');
-const t=new URLSearchParams(location.search).get('t');
+// One link can cover several campaigns (one mailing split across campaigns): ?t=code1,code2,...
+const T=String(new URLSearchParams(location.search).get('t')||'').split(',').map(s=>s.trim()).filter(Boolean);
+const t=T[0];
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const when=v=>v?new Date(v).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
 const ORDER=['received','processing','sent'];
@@ -43,11 +45,21 @@ function draw(c){
    <div class="steps">${steps.map(([k,l,d],i)=>{const done=i<=at;return `<div class="step ${done?'done':''}"><div class="dot">${done?'✓':''}</div><div class="t"><b>${l}</b><span>${done?when(c[k]):d}</span></div>
      ${done?'':`<button ${i!==at+1?'disabled':''} onclick="mark('${k}',this)">Mark ${l.toLowerCase()}</button>`}</div>`}).join('')}</div>`;
 }
-async function load(){if(!t){document.getElementById('app').innerHTML='<div class="err">This link is missing its code. Please use the link from the email.</div>';return}
-  const {data,error}=await sb.rpc('mailhouse_campaign',{t});
-  if(error||!data){document.getElementById('app').innerHTML='<div class="err">This link was not found. Please use the link from the email.</div>';return}draw(data)}
-async function mark(s,btn){btn.disabled=true;btn.textContent='Saving…';const {data,error}=await sb.rpc('mailhouse_update',{t,s});
-  if(error){btn.disabled=false;btn.textContent='Try again';alert('Could not save: '+error.message);return}draw(data)}
+// Several campaigns show as one job: total records, and a step counts as done only when every campaign has it
+// (the date shown is the latest one). Each tap updates every campaign on the link.
+function combine(list){if(list.length===1)return list[0];
+  const idx=c=>ORDER.indexOf(c.status);const lo=list.reduce((a,c)=>idx(c)<idx(a)?c:a,list[0]);
+  const out={name:list.map(c=>c.name).join(' + '),records:list.reduce((a,c)=>a+(c.records||0),0),status:lo.status};
+  ORDER.forEach(k=>{const v=list.map(c=>c[k]).filter(Boolean);out[k]=v.length===list.length?v.sort().pop():null});
+  if(list.length>1)out.name=`${list.length} lists in this mailing`;out._names=list.map(c=>`${esc(c.name)} (${(c.records||0).toLocaleString()})`);return out}
+const drawAll=list=>{const c=combine(list);draw(c);if(c._names)document.querySelector('#app .muted').insertAdjacentHTML('afterend',`<div class="muted" style="margin-top:6px">${c._names.join('<br>')}</div>`)};
+async function load(){if(!T.length){document.getElementById('app').innerHTML='<div class="err">This link is missing its code. Please use the link from the email.</div>';return}
+  const res=await Promise.all(T.map(x=>sb.rpc('mailhouse_campaign',{t:x})));
+  const list=res.map(r=>r.data).filter(Boolean);
+  if(!list.length||res.some(r=>r.error||!r.data)){document.getElementById('app').innerHTML='<div class="err">This link was not found. Please use the link from the email.</div>';return}drawAll(list)}
+async function mark(s,btn){btn.disabled=true;btn.textContent='Saving…';
+  const res=await Promise.all(T.map(x=>sb.rpc('mailhouse_update',{t:x,s})));const bad=res.find(r=>r.error);
+  if(bad){btn.disabled=false;btn.textContent='Try again';alert('Could not save: '+bad.error.message);return}drawAll(res.map(r=>r.data))}
 load();
 </script>
 </body>
