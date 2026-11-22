@@ -15,7 +15,7 @@
     for (let i = WEEKS - 1; i >= 0; i--) { const d = new Date(now); d.setDate(d.getDate() - 7 * i); weeks.push(weekStart(d)); }
     const since = weeks[0];
     const [camps, msgs, leads, tx, deals, splits, props] = await Promise.all([
-      all(() => sb.from('campaigns').select('channel,records,drop_date,cost').gte('drop_date', since)),
+      all(() => sb.from('campaigns').select('id,name,template,channel,records,drop_date,cost').gte('drop_date', since)),
       all(() => sb.from('messages').select('channel,direction,duration_s,inbox,created_at').gte('created_at', since).or('channel.eq.call,and(direction.eq.in,inbox.eq.seller)')),
       all(() => sb.from('leads').select('status,created_at').gte('created_at', since).neq('status', 'record')),
       all(() => sb.from('transactions').select('kind,price,costs,tx_date,deal_id')),
@@ -50,7 +50,7 @@
     const sp = {}; for (const r of splits) sp[r.k] = r.count;
 
     const rows = [
-      ['Pieces mailed', 'mail', v => v.toLocaleString()], ['4-week average (goal 5,000)', 'avg4', v => v ? v.toLocaleString() : ''], ['Mail cost', 'mailCost', money],
+      ['Pieces mailed', 'mail', v => v.toLocaleString()], ['4-week average (goal 10,000)', 'avg4', v => v ? v.toLocaleString() : ''], ['Mail cost', 'mailCost', money],
       ['Calls', 'calls'], ['Real conversations (1 min+)', 'convos'], ['Seller texts / emails in', 'replies'],
       ['New seller leads', 'leads'], ['Offers sent (contract sent)', 'offers'], ['Contracts signed', 'contracts'],
       ['Closings', 'closings'], ['Profit closed', 'profit', money],
@@ -59,19 +59,18 @@
     const cur = weeks[weeks.length - 1], prev = weeks[weeks.length - 2];
     const sum = k => Object.values(R[k]).reduce((a, b) => a + b, 0);
     const tile = (t, v, s) => `<div class="card" style="flex:1;min-width:150px;margin:0"><div class="small muted">${t}</div><div style="font-size:24px;font-weight:700">${v}</div><div class="small muted">${s || ''}</div></div>`;
-    const GOAL = 5000, last4 = weeks.slice(-4).reduce((a, w) => a + R.mail[w], 0), avg4 = Math.round(last4 / 4), gap = last4 - GOAL * 4;
+    const GOAL = 10000, last4 = weeks.slice(-4).reduce((a, w) => a + R.mail[w], 0), avg4 = Math.round(last4 / 4), gap = last4 - GOAL * 4;
     R.avg4 = Object.fromEntries(weeks.map((w, i) => [w, i < 3 ? 0 : Math.round(weeks.slice(i - 3, i + 1).reduce((a, x) => a + R.mail[x], 0) / 4)]));
     const fmt = (r, v) => r[2] ? r[2](v) : (v || 0).toLocaleString();
     $('view').innerHTML = `
       <div class="card" style="border-left:4px solid #5c2977">
-        <b>My plan (set Oct 31, 2026)</b> <a href="#checklist" onclick="go('checklist');return false" class="small" style="margin-left:8px">Open my checklist →</a>
+        <b>My plan (updated Nov 22, 2026)</b> <a href="#checklist" onclick="go('checklist');return false" class="small" style="margin-left:8px">Open my checklist →</a>
         <div class="small" style="margin-top:6px;line-height:1.7">
-          <b>Mail:</b> ${GOAL.toLocaleString()} pieces every week, core 6 counties only (Mecklenburg, Gaston, Union, Cabarrus, Iredell, Rowan), paid from the business account, never a card. Step up to 4,000 then 6,000 a week only from closing money.<br>
-          <b>Deals:</b> 2 to 3 closings a month. <b>Every closing:</b> 15% tithes · 20% taxes · $5,000 to me · the rest half to debt, half to mail.<br>
-          <b>Debt (0% ends May/June 2027):</b> ~$95,700 → about $13,700 a month. Order: South State ($8,554) → Emprise ($15,500) → Chase ($71,667).<br>
-          <b>Pay myself the right way:</b> find a CPA → set a reasonable salary → run it through payroll (Gusto/QuickBooks/ADP): monthly direct deposit with income tax + Social Security/Medicare withheld; the rest of the $5,000 as an owner distribution.<br>
+          <b>Mail:</b> about 10,000 letters a week (never under 5,000). NC first, Carolinas only. Same owner every 60 days, up to 6 letters a year. Paid from the business account, never a card.<br>
+          <b>Deals:</b> $9K–$30K spreads only. No $2K–$3K deals. Line up a builder in a new market before mailing it.<br>
+          <b>Every closing:</b> 15% tithes · 20% taxes · $5,000 to me · the rest half to debt, half to mail. <b>Debt:</b> about $80,000 left (Nov 2026).<br>
           <b>Weekly:</b> Monday scorecard + approve the next 2 weeks of lists · call back every lead same day · contract within 48 hours of a real conversation · Friday follow-up block.
-        </div></div>
+        </div></div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
         ${tile('Mail: last 4 weeks', avg4.toLocaleString() + '/wk', 'goal ' + GOAL.toLocaleString() + '/wk · ' + (gap >= 0 ? 'on pace' : 'behind ' + (-gap).toLocaleString() + ' pieces') + ' · this week ' + R.mail[cur].toLocaleString())}
         ${tile('Conversations this week', R.convos[cur], 'last week ' + R.convos[prev])}
@@ -81,8 +80,31 @@
       <div class="card" style="padding:0;overflow-x:auto"><table class="ctable"><tr><th>Week of</th>${weeks.map(w => `<th class="right">${lbl(w)}</th>`).join('')}<th class="right">12 wks</th></tr>
         ${rows.map(r => `<tr><td>${r[0]}</td>${weeks.map(w => `<td class="right"${w === cur ? ' style="font-weight:700"' : ''}>${fmt(r, R[r[1]][w])}</td>`).join('')}<td class="right"><b>${fmt(r, sum(r[1]))}</b></td></tr>`).join('')}
       </table></div>
-      <div class="small muted">Calls only count what's logged in DLG HQ from Quo. Offers = purchase contracts sent from DLG HQ (plus any offer logged on a property); contracts = signed (RabbitSign); profit = sale price − costs − purchase price on the same deal.</div>`;
+      <div class="small muted">Calls only count what's logged in DLG HQ from Quo. Offers = purchase contracts sent from DLG HQ (plus any offer logged on a property); contracts = signed (RabbitSign); profit = sale price − costs − purchase price on the same deal.</div>
+      <div class="card"><h3 class="sec" style="margin-top:0">Which letter is working (last 12 weeks)</h3><div id="sc_letters" class="small muted">Loading…</div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm ghost" onclick="IST.by='county';go('insights')">Results by county</button><button class="btn sm ghost" onclick="IST.by='template';go('insights')">Results by letter (all time)</button><button class="btn sm ghost" onclick="letterReport()">Calls by letter #</button></div></div>`;
+    scLetters(camps.filter(c => c.channel === 'mail'));
   };
+
+  // Letter type from the campaign name / template (Neutral, Neighborhood, House, Teardown, Letter 1/2, other)
+  const letterOf = c => { const t = ((c.name || '') + ' ' + (c.template || '')).toLowerCase();
+    return /neighborhood/.test(t) ? 'Neighborhood Land Letter' : /neutral/.test(t) ? 'Neutral Land Letter' : /teardown/.test(t) ? 'Teardown Letter'
+      : /house|as-is/.test(t) ? 'House Letter' : /letter 2/.test(t) ? 'DLG Letter 2' : /letter 1/.test(t) ? 'DLG Letter 1' : 'Other'; };
+  async function scLetters(camps) {
+    const el = $('sc_letters'); if (!el) return;
+    try {
+      const dc = await campDealCounts(); const G = {};
+      for (const c of camps) { if (/^(POOL|HOLD)/i.test(c.name || '')) continue; const s = campStats(c, dc), k = letterOf(c);
+        const g = G[k] || (G[k] = { mail: 0, cost: 0, resp: 0, offers: 0, uc: 0, closed: 0 });
+        g.mail += c.records || 0; g.cost += Number(c.cost) || 0; g.resp += s.deals; g.offers += s.offers; g.uc += s.purchases; g.closed += s.sales; }
+      const rows = Object.entries(G).sort((a, b) => b[1].mail - a[1].mail);
+      if (!rows.length) { el.textContent = 'No letters mailed in the last 12 weeks.'; return; }
+      el.className = ''; el.style.overflowX = 'auto';
+      el.innerHTML = `<table class="ctable"><tr><th>Letter</th><th class="right">Mailed</th><th class="right">Cost</th><th class="right">Responses</th><th class="right">Response rate</th><th class="right">Offers</th><th class="right">Under contract</th><th class="right">Closed</th><th class="right">Cost per response</th></tr>
+        ${rows.map(([k, v]) => `<tr><td><b>${esc(k)}</b></td><td class="right">${v.mail.toLocaleString()}</td><td class="right">${money(v.cost)}</td><td class="right">${v.resp}</td><td class="right">${v.mail ? (100 * v.resp / v.mail).toFixed(2) : '0.00'}%</td><td class="right">${v.offers}</td><td class="right">${v.uc}</td><td class="right">${v.closed}</td><td class="right">${v.resp ? money(v.cost / v.resp) : '–'}</td></tr>`).join('')}</table>
+        <div class="small muted" style="margin-top:6px">Response = a card on the deal board from that campaign. Split test: give a letter 4 weeks before calling a winner. Held pools are left out.</div>`;
+    } catch (e) { el.textContent = 'Could not load: ' + (e.message || e); }
+  }
 
   window.scAdd = async function () {
     const kind = $('sc_kind').value, a = $('sc_addr').value.trim(); if (!a) return alert('Add an address or parcel.');
