@@ -34,7 +34,7 @@ begin
     if pid is null and coalesce(x.apn,x.address) is not null then
       insert into properties (apn,address,city,state,zip,county,county_state,acres,lat,lng,source)
       values (x.apn,x.address,x.city,coalesce(x.state,x.mail_state),x.zip,x.county,
-              case when x.county is not null then x.county||', '||coalesce(x.state,'') end,x.acres,x.lat,x.lng,src)
+              coalesce(x.state,x.mail_state),x.acres,x.lat,x.lng,src)
       returning id into pid; np:=np+1;
     end if;
     if lid is not null and pid is not null then insert into property_owners values (pid,lid) on conflict do nothing; end if;
