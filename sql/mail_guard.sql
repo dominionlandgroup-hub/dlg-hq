@@ -8,7 +8,7 @@
 --   1. Matching keys that ignore those differences: same parcel (county + parcel number with dashes, dots, spaces and
 --      leading zeros removed) and same household (mailing address + 5-digit zip, or + city when the zip is missing).
 --   2. mail_guard(campaign ids, mail date): Start Mailing calls it and holds every letter that
---        - goes to a person, household or parcel that is in another campaign mailing within 90 days (already sent,
+--        - goes to a person, household or parcel that is in another campaign mailing within 60 days (already sent,
 --          at the mail house, or scheduled earlier), or
 --        - matches anyone marked Do Not Mail, Due Diligence, not interested / not selling, dead or with a seller deal.
 --   3. Tags carry to every copy: tagging Due Diligence (any spelling of the tag) or Do Not Mail now marks every copy
@@ -56,7 +56,7 @@ begin
   win as materialized (
     select c.id, c.name, c.drop_date from campaigns c
     where c.channel = 'mail' and not (c.id = any($1)) and c.drop_date < '2099-01-01'
-      and c.drop_date > $2 - 90 and c.drop_date < $2 + 90
+      and c.drop_date > $2 - 60 and c.drop_date < $2 + 60
       and (c.drop_date <= $2 or coalesce(c.mail_status,'not_sent') <> 'not_sent')),
   -- every other copy of the person: same lead, same household (index), same parcel (index)
   sib_leads as materialized (
@@ -70,7 +70,7 @@ begin
     union all
     select s.id, w.name, w.drop_date from sib_props s join campaign_records r on r.property_id = s.pid join win w on w.id = r.campaign_id),
   recent as (
-    select distinct on (h.id) h.id, 'mailed within 90 days'::text as reason, h.name, h.drop_date
+    select distinct on (h.id) h.id, 'mailed within 60 days'::text as reason, h.name, h.drop_date
     from hits h order by h.id, h.drop_date desc),
   bad as (
     select s.id, 'do not mail / Due Diligence (this or another copy of the owner)'::text as reason, l.full_name as name, null::date as drop_date
@@ -85,7 +85,7 @@ begin
     select s.id, 'has a seller deal', l.full_name, null::date
       from sib_leads s join deals d on d.lead_id = s.lid and coalesce(d.board,'seller') = 'seller' join leads l on l.id = s.lid)
   select distinct on (x.id) x.id::bigint, x.reason::text, x.name::text, x.drop_date::date from (select * from bad union all select * from recent) x
-  order by x.id, (x.reason = 'mailed within 90 days')
+  order by x.id, (x.reason = 'mailed within 60 days')
   $q$ using cids, md;
 end $$;
 revoke execute on function public.mail_guard(bigint[], date) from public, anon;
@@ -107,7 +107,7 @@ begin
   win as materialized (
     select c.id, c.name, c.drop_date from campaigns c, cids0
     where c.channel = 'mail' and not (c.id = any(cids0.cids)) and c.drop_date < '2099-01-01'
-      and c.drop_date > $2 - 90 and c.drop_date < $2 + 90
+      and c.drop_date > $2 - 60 and c.drop_date < $2 + 60
       and (c.drop_date <= $2 or coalesce(c.mail_status,'not_sent') <> 'not_sent')),
   -- every other copy of the person: same lead, same household (index), same parcel (index)
   sib_leads as materialized (
@@ -121,7 +121,7 @@ begin
     union all
     select s.id, w.name, w.drop_date from sib_props s join campaign_records r on r.property_id = s.pid join win w on w.id = r.campaign_id),
   recent as (
-    select distinct on (h.id) h.id, 'mailed within 90 days'::text as reason, h.name, h.drop_date
+    select distinct on (h.id) h.id, 'mailed within 60 days'::text as reason, h.name, h.drop_date
     from hits h order by h.id, h.drop_date desc),
   bad as (
     select s.id, 'do not mail / Due Diligence (this or another copy of the owner)'::text as reason, l.full_name as name, null::date as drop_date
@@ -136,7 +136,7 @@ begin
     select s.id, 'has a seller deal', l.full_name, null::date
       from sib_leads s join deals d on d.lead_id = s.lid and coalesce(d.board,'seller') = 'seller' join leads l on l.id = s.lid)
   select distinct on (x.id) x.id::bigint, x.reason::text, x.name::text, x.drop_date::date from (select * from bad union all select * from recent) x
-  order by x.id, (x.reason = 'mailed within 90 days')
+  order by x.id, (x.reason = 'mailed within 60 days')
   $q$ using rids, md;
 end $$;
 revoke execute on function public.mail_guard_ids(bigint[], date) from public, anon;

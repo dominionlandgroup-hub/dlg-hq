@@ -23,7 +23,7 @@
 <script src="owner-check.js?v=4"></script>
 <script src="followups.js?v=5"></script>
 <script src="split.js?v=28"></script>
-<script src="scorecard.js?v=12"></script>
+<script src="scorecard.js?v=13"></script>
 <script src="checklist.js?v=1"></script>
 <script src="builderhub.js?v=1"></script>
 <script src="checker.js?v=7"></script>
@@ -243,7 +243,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <a class="nav" data-v="buyers">Buyers</a>
     <a class="nav" data-v="prospects">Buyer Prospects</a>
     <a class="nav" data-v="match">Deal matcher</a>
-    <a class="nav" data-v="scorecard" style="display:none">Weekly Scorecard</a>
+    <a class="nav" data-v="scorecard">Weekly Scorecard</a>
     <a class="nav" data-v="tasks" style="display:none">Tasks</a>
     <a class="nav" data-v="split" style="display:none">Split Finder</a>
     <a class="nav" data-v="targets" style="display:none">Targets</a>
@@ -721,6 +721,7 @@ async function openDealForm(d){
        <details style="margin-top:8px"><summary><b>Conversations</b> <span class="small muted">${(msgs||[]).length} recent</span></summary>${(msgs||[]).map(m=>`<div class="small" style="border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span class="muted">${new Date(m.created_at).toLocaleString()} · ${m.channel} · ${m.direction==='in'?'from them':'from you'}</span><br>${esc(m.body||'')}</div>`).join('')||'<div class="muted small">No messages yet.</div>'}</details></div>`
      :`<div class="row" style="margin-top:8px"><input id="d_lq" placeholder="Search contact by name, phone or APN" onkeydown="if(event.key==='Enter'){event.preventDefault();pickLead(${d.id})}"><button class="btn ghost" style="flex:0" onclick="pickLead(${d.id})">Find</button></div><div id="d_lres"></div>`}</div>
    <div class="card"><div class="row" style="align-items:center"><h3 class="sec" style="margin:0;flex:1">Property</h3><span class="small" style="flex:0 0 auto;white-space:nowrap">${p?`<a href="#" onclick="editPropertyDetails(${p.id},${d.id});return false">Edit property</a> · <a href="#" onclick="addPropertyFor(${d.lead_id||'null'},${d.id},true);return false">+ Add another parcel</a>`:`<a href="#" onclick="addPropertyFor(${d.lead_id||'null'},${d.id});return false">+ Link property</a>`}</span></div>${p?`<div style="float:right;display:flex;flex-direction:column;gap:6px;align-items:flex-end">${board!=='buyer'?`<button class="btn sm" onclick="lotCheck(${p.id},${d.id})">🔎 Run DD / Comps</button>`:''}<button class="btn sm" style="background:var(--accent)" onclick="MP.open(${d.id})">📣 Create Marketing Package</button>${(()=>{const c=d.as_meta?.lot_center||(p.lat&&p.lng?{lat:p.lat,lng:p.lng}:null);const a=[p.address,p.city,p.state,p.zip].filter(Boolean).join(', ');const u=c?`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${c.lat},${c.lng}`:(a?'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a):'');return u?`<a class="small" href="${u}" target="_blank" rel="noopener">📍 Street View</a>`:''})()}</div><div><a href="#" onclick="editPropertyDetails(${p.id},${d.id});return false"><b>${esc(apnText(p))}</b></a></div><div>${esc([p.address,p.city,p.state,p.zip].filter(Boolean).join(', ')||d.property_label||'')}</div><div class="small muted">${esc([p.county,cst(p.county_state)].filter(Boolean).join(', '))}${p.acres?' · '+(+p.acres).toFixed(2)+' acres':''}</div><div id="lc_out" class="small" style="margin-top:6px"></div><div class="small" style="margin-top:4px">${(()=>{const m=d.as_meta||{};if(m.dd_done&&(!m.dd_requested||m.dd_done>=m.dd_requested))return `✅ <b>Land id DD done</b> <span class="muted">${fmtDate(m.dd_done)} · see Notes and Files</span>`;if(m.dd_requested)return m.dd_error?`⚠️ <b>Land id DD couldn't finish:</b> ${esc(m.dd_error)}`:`🟡 <b>Land id DD requested</b> <span class="muted">${fmtDate(m.dd_requested)} · runs on its own within the hour</span>`;return ''})()}</div>${xp.map(x=>`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)"><a href="#" onclick="openProperty(${x.id});return false"><b>+ ${esc(apnText(x))}</b></a> <a href="#" class="small muted" onclick="dealDropParcel(${d.id},${x.id});return false">remove</a><div class="small">${esc([x.address,x.city].filter(Boolean).join(', ')||'')}</div><div class="small muted">${esc(x.county||'')}${x.acres?' · '+(+x.acres).toFixed(2)+' acres':''}</div></div>`).join('')}`:`<div>${esc(d.property_label||'')}</div><div class="muted small">No parcel linked.</div>`}</div>
+   ${p&&p.id?`<div class="card"><div class="row" style="align-items:center"><h3 class="sec" style="margin:0;flex:1">Builders buying nearby</h3><button class="btn ghost sm" style="flex:0 0 auto" onclick="nearbyBuilders(${p.id})">Find builders within ½ mile</button></div><div id="nb_out" class="small muted" style="margin-top:6px">Companies (LLCs, builders, investors) that bought lots or new homes within half a mile since Jan 2024, with their mailing address so you can skip trace them.</div></div>`:''}
    <div class="card"><h3 class="sec" style="margin-top:0">Contracts &amp; documents</h3>
      <button class="btn" style="margin-bottom:8px" onclick="contractsFor(${d.id},'psa',true)">✍ Send agreement for e-signature</button>${d.rs_folder_id?`<div class="small muted" style="margin:-4px 0 8px">Last sent ${d.rs_sent_at?new Date(d.rs_sent_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''}</div>`:''}
      <button class="btn ghost" style="margin-bottom:8px" onclick="contractsFor(${d.id},'asg',true)">✍ Send assignment for e-signature</button>${d.as_folder_id?`<div class="small muted" style="margin:-4px 0 8px">Assignment last sent ${d.as_sent_at?new Date(d.as_sent_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''}</div>`:''}
@@ -1542,7 +1543,7 @@ async function weeklyGo(){const btn=$('wl_go');btn.disabled=true;btn.textContent
     $('wl_out').innerHTML=`<b>Done.</b> ${esc(LB.status.report)}<br><br>${(r.campaigns||[{campaign:r.campaign,name:'List'}]).map(x=>`<div style="margin:6px 0"><b>${esc(x.name)}</b><br><button class="btn" onclick="closeDrawer();startMailing(${x.campaign})">Review &amp; Start Mailing</button> <button class="btn ghost" onclick="LB.pebbleCSV(${x.campaign}).then(n=>toast(n+' records saved for Pebble'))">Download for Pebble</button></div>`).join('')} <button class="btn ghost" onclick="closeDrawer();go('campaigns')">See campaigns</button>`;toast('Weekly list ready')}
   catch(e){clearInterval(tick);$('wl_out').textContent='Stopped: '+e.message+'\n'+(LB.status?.log||[]).slice(-6).join('\n');btn.disabled=false;btn.textContent='Try again'}}
 async function vCampaigns(){
-  $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn ghost" id="sendTog" onclick="sendTogether()" disabled title="Check 2 or more campaigns">Send together</button><button class="btn ghost" onclick="buildWeek()" title="Make next week's send from the pools">Build next week</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;
+  $('actions').innerHTML=`<button class="btn ghost" onclick="go('insights')">See Insights</button><button class="btn ghost" onclick="letterReport()" title="Which letter number sellers respond on">Calls by letter #</button><button class="btn ghost" id="sendTog" onclick="sendTogether()" disabled title="Check 2 or more campaigns">Send together</button><button class="btn ghost" onclick="buildWeek()" title="Make next week's send from the pools">Build next week</button><button class="btn" onclick="editCampaign()">+ Add Campaign</button>`;
   window._csel=window._csel||new Set();
   const [{data:c},dc,lvr]=await Promise.all([sb.from('campaigns').select('*').limit(2000),campDealCounts(),sb.from('letter_versions').select('id,template,version,note,body,created_at')]);
   window._lv=Object.fromEntries(((lvr&&lvr.data)||[]).map(v=>[v.id,v]));
@@ -1680,7 +1681,7 @@ async function startMailing(idOrIds){
    <div class="card"><p style="margin-top:0"><b>${C.length>1?C.map(x=>esc(x.name)+` <span class="small muted">(${(x.records||0).toLocaleString()})</span>`).join('<br>'):esc(c.name)}</b>${C.length>1?`<br><span class="small">${c.records.toLocaleString()} records total. They go to the mail house as <b>one list, one letter, one email</b>.</span>`:''}</p>
    <label class="f">Letter template</label><select id="m_tpl">${(()=>{const L=tpls||[];const nm=(c.name||'').toLowerCase();const pick=L.find(t=>t.file_name===c.template)||L.find(t=>{const n=t.name.toLowerCase();return /letter 2/.test(nm)?/letter 2/.test(n):/teardown/.test(nm)?(/nashville/.test(nm)?/nashville/.test(n):/teardown/.test(n)&&!/nashville/.test(n)):/neutral/.test(nm)?/neutral/.test(n):/church/.test(nm)?/church/.test(n):/attorney/.test(nm)?/attorney/.test(n):/estate pr/.test(nm)?/estate pr/.test(n):/house/.test(nm)?/as-is house/.test(n):/letter 1/.test(n)});return L.map(t=>`<option value="${esc(t.file_name)}" ${pick&&pick.file_name===t.file_name?'selected':''}>${esc(t.name)}</option>`).join('')})()}</select><div class="small" style="margin-top:4px"><a href="#" onclick="window.open(location.origin+'/mail-templates/'+encodeURIComponent($('m_tpl').value),'_blank');return false">Open this letter to check it</a></div>
    <label class="f"><input type="checkbox" id="m_tu" checked style="width:auto"> Keep this send at ${MAIL_MIN.toLocaleString()}–${MAIL_MAX.toLocaleString()} letters: top it up from the next campaign with the same letter, and move extras and held records to a later campaign. Over ${MAIL_FILE_MAX.toLocaleString()} goes to the mail house as two files.</label>
-   <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Hold anyone mailed in the last 90 days (same property or same owner). Remove opt-outs, do-not-mail, "not selling" / dead, Due Diligence and negative tags, and anyone with an open deal</label>
+   <label class="f"><input type="checkbox" id="m_sup" checked style="width:auto"> Hold anyone mailed in the last 60 days (same property or same owner). Remove opt-outs, do-not-mail, "not selling" / dead, Due Diligence and negative tags, and anyone with an open deal</label>
    <p class="small muted"><b>Before anything is sent, every record is checked against the county's current owner records.</b> Anyone who sold or whose owner changed is taken off and marked do-not-mail. Saves the mail-house list (no download) and opens a draft email to Brandon, cc Paul, with a link to the list. Every merge field (Owner name, first and last name, mailing address, city, state, zip, property address, city, state, zip, county, FIPS, APN, acres, offer code), then opens an email to Brandon, cc Paul, at Impact Mailing with this campaign's status link. The list is in the draft as a link. The email includes download links for the letter and the handwriting font, so nothing to attach. Just send it (works from your phone too).</p>
    <div class="card" id="m_pray" style="margin:12px 0;background:#f7f3ea;border-left:4px solid #b8963e"><b>Pray before you send</b>
     <p style="font-style:italic;line-height:1.6;margin:8px 0">${esc(PRAYERS[(id||0)%PRAYERS.length].replace('{n}',(c.records||0).toLocaleString()))}</p>
@@ -1754,7 +1755,63 @@ const campUnit=c=>/house/i.test((c.template||'')+' '+(c.name||''))?'houses':'lot
 const lettersLots=c=>`${campLetters(c).toLocaleString()} letters <span class="small muted">(${(c.records||0).toLocaleString()} ${campUnit(c)})</span>`;
 // ---------- POOLS (Nov 2026): checked lots wait in POOL campaigns (dated 2099-12-31) until a week's send is built ----------
 // "Build next week" takes up to 5,000 letters (whole owners, oldest records first), skips anyone (owner or property) in
-// another campaign mailing within 90 days before or after the chosen date (sent or not), makes the campaign with a new
+// CALLS BY LETTER # (Nov 22 2026): which letter (1st, 2nd, 3rd...) an owner was on when they responded, went under
+// contract or closed. An owner = one mailing address (all copies of a person in DLG HQ count as one). A letter = one
+// mail date that owner was in (SMS campaigns, pools and holds do not count). Response rate = responses on letter N
+// divided by owners who got at least N letters, so later letters are judged fairly even though fewer owners get them.
+async function letterReport(){
+  openDrawer(head('Calls by letter #')+`<div class="card"><p class="small muted" id="lr_msg" style="margin-top:0">Loading every letter mailed… this takes about a minute.</p><div id="lr_out"></div></div>`);
+  const msg=t=>{const e=$('lr_msg');if(e)e.textContent=t};
+  const key=(a,z)=>{const zz=String(z||'').replace(/\D/g,'').slice(0,5);return String(a||'').toUpperCase().replace(/[^A-Z0-9]/g,'')+'|'+zz};
+  try{
+    const today=new Date().toISOString().slice(0,10);const camps=new Map();
+    for(let f=0;;f+=1000){const {data,error}=await sb.from('campaigns').select('id,drop_date,channel').order('id').range(f,f+999);if(error)throw error;data.forEach(c=>camps.set(c.id,c));if(data.length<1000)break}
+    const ok=[...camps.values()].filter(c=>c.drop_date&&c.drop_date<=today&&c.channel!=='sms').map(c=>c.id);
+    const own=new Map(),leadOwner=new Map();let n=0;
+    for(let i=0;i<ok.length;i+=8)for(let last=0;;){const {data,error}=await sb.from('campaign_records').select('id,lead_id,campaign_id,leads(mail_address,mail_zip)').in('campaign_id',ok.slice(i,i+8)).gt('id',last).order('id').limit(1000);if(error)throw error;
+      for(const r of data){if(!r.lead_id)continue;const k=r.leads&&r.leads.mail_address?key(r.leads.mail_address,r.leads.mail_zip):'L'+r.lead_id;leadOwner.set(r.lead_id,k);let st=own.get(k);if(!st){st=new Set();own.set(k,st)}st.add(camps.get(r.campaign_id).drop_date)}
+      n+=data.length;msg(`Loading letters mailed: ${n.toLocaleString()}…`);if(data.length<1000)break;last=data[data.length-1].id}
+    msg('Loading responses and deals…');const D=[];
+    for(let f=0;;f+=1000){const {data,error}=await sb.from('deals').select('id,board,status,created_at,lead_id,leads(mail_address,mail_zip)').in('board',['seller','buyer']).not('lead_id','is',null).order('id').range(f,f+999);if(error)throw error;D.push(...data);if(data.length<1000)break}
+    const B=k=>k>=7?'7+':String(k);const rows={};const add=(b,f)=>{rows[b]=rows[b]||{resp:0,uc:0,closed:0};rows[b][f]++};
+    for(const d of D){const k=leadOwner.get(d.lead_id)||(d.leads&&d.leads.mail_address?key(d.leads.mail_address,d.leads.mail_zip):null);const dates=k&&own.get(k)?[...own.get(k)]:[];const at=String(d.created_at).slice(0,10);const b=B(dates.filter(x=>x<=at).length);
+      add(b,'resp');if(d.board==='buyer'){add(b,'uc');if(d.status==='won')add(b,'closed')}}
+    const ge={};for(const st of own.values())for(let k=1;k<=Math.min(st.size,7);k++)ge[k]=(ge[k]||0)+1;
+    const order=['1','2','3','4','5','6','7+','0'];const pct=(a,b)=>b?(100*a/b).toFixed(2)+'%':'–';
+    const tr=b=>{const r=rows[b]||{resp:0,uc:0,closed:0};const exp=b==='0'?null:ge[b==='7+'?7:+b]||0;
+      return `<tr><td>${b==='0'?'No letter on record':b==='7+'?'7th or later':['','1st','2nd','3rd','4th','5th','6th'][+b]}</td><td>${exp==null?'–':exp.toLocaleString()}</td><td>${r.resp.toLocaleString()}</td><td>${exp==null?'–':pct(r.resp,exp)}</td><td>${r.uc}</td><td>${r.closed}</td></tr>`};
+    $('lr_out').innerHTML=`<table><thead><tr><th>Letter #</th><th>Owners who got this many</th><th>Responded on it</th><th>Response rate</th><th>Went under contract</th><th>Closed</th></tr></thead><tbody>${order.map(tr).join('')}</tbody></table>
+      <p class="small muted">Response rate = responses on that letter ÷ owners who got at least that many letters. "No letter on record" = the response came from a text, MLS or a mailing from before DLG HQ (Aug 2025). Under contract = deals moved to the buyer board; closed = buyer deals marked won.</p>`;
+    msg(`${own.size.toLocaleString()} owners mailed, ${n.toLocaleString()} letters, ${D.length.toLocaleString()} responses.`);
+  }catch(e){msg('Could not build the report: '+(e.message||e))}
+}
+// BUILDERS BUYING NEARBY (Nov 22 2026): on a deal, list the companies that bought parcels within half a mile since
+// Jan 2024 (from the county parcel records), grouped by owner, with mailing address, so Damien can skip trace the
+// LLC behind them. NC uses NC OneMap (Wake and Cabarrus use their county layers because OneMap has no owners
+// there); York SC uses the York County layer.
+async function nearbyBuilders(pid){const out=$('nb_out');out.innerHTML='Looking up sales within ½ mile…';
+  try{const {data:p}=await sb.from('properties').select('id,county,state,county_state,lat,lng,apn').eq('id',pid).single();
+    if(!p||!p.lat||!p.lng){out.textContent='This property has no map location yet, so nearby sales can’t be looked up.';return}
+    const co=String(p.county||'').replace(/\s*county\s*$/i,'').trim();const st=String(p.state||p.county_state||'NC').replace(/^.*,\s*/,'').trim().toUpperCase();
+    const COMP=/\b(LLC|L L C|INC|CORP|CORPORATION|COMPANY|CO|LP|LLP|LTD|HOMES|HOME|BUILDERS?|BUILDING|CONSTRUCTION|CONTRACTORS?|DEVELOPMENT|DEVELOPERS?|PROPERTIES|INVESTMENTS?|HOLDINGS|GROUP|PARTNERS|ENTERPRISES|CAPITAL|VENTURES|REALTY|COMMUNITIES|LAND)\b/i;
+    const GOVT=/\b(CITY OF|COUNTY OF|TOWN OF|STATE OF|HOUSING AUTHORITY|BOARD OF EDUCATION|CHURCH|MINISTR|HOMEOWNERS|HOA\b|ASSOCIATION|ASSN)\b/i;
+    const geo={geometry:`${p.lng},${p.lat}`,geometryType:'esriGeometryPoint',inSR:'4326',spatialRel:'esriSpatialRelIntersects',distance:'0.5',units:'esriSRUnit_StatuteMile',returnGeometry:'false',f:'json'};
+    let src;if(st==='SC'&&/york/i.test(co))src={u:'https://services1.arcgis.com/2AGLxyiJoNiVHKwq/arcgis/rest/services/Parcels/FeatureServer/0/query',w:"DateSold >= DATE '2024-01-01'",of:'Owner1,MailAddr1,MailCity,MailState,MailZip,PropertyAddress,DateSold,AprBldgVal',m:a=>({o:a.Owner1,ma:[a.MailAddr1,[a.MailCity,a.MailState].filter(Boolean).join(', '),a.MailZip].filter(Boolean).join(' '),ad:a.PropertyAddress,d:a.DateSold,b:+a.AprBldgVal>0})};
+    else if(/^wake$/i.test(co))src={u:'https://maps.wakegov.com/arcgis/rest/services/Property/Parcels/MapServer/0/query',w:"SALE_DATE >= DATE '2024-01-01'",of:'OWNER,ADDR1,ADDR2,SITE_ADDRESS,SALE_DATE,BLDG_VAL',m:a=>({o:a.OWNER,ma:[a.ADDR1,a.ADDR2].filter(Boolean).join(', '),ad:a.SITE_ADDRESS,d:a.SALE_DATE,b:+a.BLDG_VAL>0})};
+    else if(/^cabarrus$/i.test(co))src={u:'https://location.cabarruscounty.us/arcgisservices/rest/services/opendata/MapServer/46/query',w:'SaleYear >= 2024',of:'AcctName1,MailAddr1,MailCity,MailState,MailZipCode,SaleYear,BuildingValue',m:a=>({o:a.AcctName1,ma:[a.MailAddr1,[a.MailCity,a.MailState].filter(Boolean).join(', '),a.MailZipCode].filter(Boolean).join(' '),ad:'',d:a.SaleYear?Date.UTC(a.SaleYear,0,1):null,b:+a.BuildingValue>0,yr:a.SaleYear})};
+    else if(st==='NC')src={u:'https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1/query',w:"(saledate >= DATE '2024-01-01' OR saledatetx LIKE '%2024%' OR saledatetx LIKE '%2025%' OR saledatetx LIKE '%2026%')",of:'ownname,mailadd,mcity,mstate,mzip,siteadd,saledate,saledatetx,improvval',m:a=>({o:a.ownname,ma:[a.mailadd,[a.mcity,a.mstate].filter(Boolean).join(', '),a.mzip].filter(Boolean).join(' '),ad:a.siteadd,d:a.saledate||a.saledatetx,b:+a.improvval>0})};
+    else{out.textContent='Nearby sales lookup covers NC counties and York County, SC.';return}
+    const j=await fetch(src.u,{method:'POST',body:new URLSearchParams({...geo,where:src.w,outFields:src.of,resultRecordCount:'2000'})}).then(r=>r.json());
+    if(j.error){out.textContent='County lookup failed: '+(j.error.message||'error');return}
+    const by={};for(const f of (j.features||[])){const r=src.m(f.attributes);const o=String(r.o||'').trim();if(!o||!COMP.test(o)||GOVT.test(o))continue;const k=o.toUpperCase().replace(/[^A-Z0-9 ]/g,'').replace(/\s+/g,' ');const g=by[k]=by[k]||{o,ma:r.ma,n:0,lots:0,homes:0,last:null,ads:[]};g.n++;r.b?g.homes++:g.lots++;const dt=typeof r.d==='number'?new Date(r.d).toISOString().slice(0,r.yr?4:10):String(r.d||'').slice(0,10);if(!g.last||dt>g.last)g.last=dt;if(r.ad&&g.ads.length<2)g.ads.push(r.ad)}
+    const L=Object.values(by).sort((a,b)=>b.n-a.n||String(b.last).localeCompare(String(a.last)));
+    if(!L.length){out.textContent=`No company purchases within ½ mile since Jan 2024 (${(j.features||[]).length} total sales checked).`;return}
+    out.classList.remove('muted');
+    out.innerHTML=`<table><thead><tr><th>Company</th><th>Bought</th><th>Last purchase</th><th>Mailing address (for skip trace)</th><th>Example</th></tr></thead><tbody>${L.slice(0,25).map(g=>`<tr><td><b>${esc(tc(g.o))}</b> <button class="btn ghost sm" onclick="navigator.clipboard.writeText(${esc(JSON.stringify(g.o))});toast('Copied')">copy</button></td><td>${g.n} (${g.lots} lot${g.lots===1?'':'s'}, ${g.homes} home${g.homes===1?'':'s'})</td><td>${esc(g.last||'')}</td><td>${esc(tc(g.ma||''))}</td><td>${esc(tc(g.ads.join('; ')))}</td></tr>`).join('')}</tbody></table><div class="muted" style="margin-top:6px">${L.length} companies, from ${(j.features||[]).length} sales within ½ mile since Jan 2024. "Homes" = parcels that now have a building on them.</div>`;
+  }catch(e){out.textContent='Could not look up nearby sales: '+(e.message||e)}}
+// MAIL GAP (Nov 22 2026): Damien moved the gap between letters from 90 to 60 days (and the yearly cap to 6, in listbuilder.js).
+const MAIL_GAP=60;
+// another campaign mailing within 60 days before or after the chosen date (sent or not), makes the campaign with a new
 // offer code prefix and moves the records there (new codes, leads.offer_code updated). Buttons only; nothing runs on its own.
 const POOL_TPL='DLG Neutral Land Letter (Blessings).docx',WEEK_MAX=5000;
 const isPool=x=>/^POOL\b/i.test(x.name||'')&&String(x.drop_date||'')>='2099-01-01';
@@ -1766,7 +1823,7 @@ async function buildWeek(){let ps;try{ps=await poolCamps()}catch(e){return toast
   const [{data:wk},{data:tpls}]=await Promise.all([sb.from('campaigns').select('name').ilike('name','Week %').limit(2000),sb.from('templates').select('name,file_name').eq('kind','mail').order('name')]);
   window._bwN=1+Math.max(0,...(wk||[]).map(x=>+((/^Week\s+(\d+)/i.exec(x.name)||[])[1]||0)));
   const d=new Date();d.setDate(d.getDate()+((8-d.getDay())%7||7));const md=localISO(d),tpl=ps[0].template||POOL_TPL;
-  openDrawer(head('Build next week')+`<div class="card"><p class="small muted" style="margin-top:0">Takes up to ${WEEK_MAX.toLocaleString()} letters from the pool (whole owners, oldest first), skips anyone mailed or scheduled within 90 days of the mail date, and moves them into a new campaign with its own offer codes. The rest stays in the pool. You'll see the count before anything moves.</p>
+  openDrawer(head('Build next week')+`<div class="card"><p class="small muted" style="margin-top:0">Takes up to ${WEEK_MAX.toLocaleString()} letters from the pool (whole owners, oldest first), skips anyone mailed or scheduled within 60 days of the mail date, and moves them into a new campaign with its own offer codes. The rest stays in the pool. You'll see the count before anything moves.</p>
    <label class="f">From</label><select id="bw_pool"><option value="all">All pools</option>${ps.map(p=>`<option value="${p.id}">${esc(p.name)} (${(p.records||0).toLocaleString()} lots)</option>`).join('')}</select>
    <label class="f">Mail date</label><input id="bw_date" type="date" value="${md}" onchange="if(!window._bwEd)$('bw_name').value=bwName()">
    <label class="f">Campaign name</label><input id="bw_name" value="${esc('')}" oninput="window._bwEd=true">
@@ -1778,16 +1835,16 @@ async function bwPreview(){const msg=t=>$('bw_msg').innerHTML=t,v=$('bw_pool').v
   if(!md)return toast('Pick a mail date');if(!name)return toast('Name the campaign');if(/^(POOL|HOLD)\b/i.test(name))return toast("The new campaign's name can't start with POOL or HOLD");
   const ps=window._bwPools||[],ids=v==='all'?ps.map(p=>p.id):[+v];$('bw_prev').disabled=true;
   try{const recs=await poolRecs(ids,k=>msg(`Loading the pool (${k.toLocaleString()} lots)…`));if(!recs.length)return msg('That pool is empty.');
-    const t=new Date(md+'T12:00:00'),lo=new Date(t.getTime()-90*864e5).toISOString().slice(0,10),hi=new Date(t.getTime()+90*864e5).toISOString().slice(0,10),bad=new Set();
+    const t=new Date(md+'T12:00:00'),lo=new Date(t.getTime()-MAIL_GAP*864e5).toISOString().slice(0,10),hi=new Date(t.getTime()+MAIL_GAP*864e5).toISOString().slice(0,10),bad=new Set();
     const lids=[...new Set(recs.map(r=>r.lead_id).filter(Boolean))],pids=[...new Set(recs.map(r=>r.property_id).filter(Boolean))];
-    for(const [col,list] of [['lead_id',lids],['property_id',pids]])for(let i=0;i<list.length;i+=200){msg(`90-day check (${col==='lead_id'?'owners':'properties'} ${Math.min(i+200,list.length).toLocaleString()} of ${list.length.toLocaleString()})…`);
+    for(const [col,list] of [['lead_id',lids],['property_id',pids]])for(let i=0;i<list.length;i+=200){msg(`60-day check (${col==='lead_id'?'owners':'properties'} ${Math.min(i+200,list.length).toLocaleString()} of ${list.length.toLocaleString()})…`);
       for(let f=0;;f+=1000){const r=await sb.from('campaign_records').select('id,'+col+',campaign_id,campaigns!inner(drop_date)').in(col,list.slice(i,i+200)).not('campaign_id','in','('+ids.join(',')+')').gt('campaigns.drop_date',lo).lt('campaigns.drop_date',hi).lt('campaigns.drop_date','2099-01-01').order('id').range(f,f+999);
         if(r.error)throw r.error;(r.data||[]).forEach(x=>bad.add(col[0]+x[col]));if((r.data||[]).length<1000)break}}
     ownIndex(recs);const G=new Map();recs.forEach(r=>{const k=ownKey(r);if(!G.has(k))G.set(k,[]);G.get(k).push(r)}); // records are in id order: owners come out oldest first
     const pick=[];let letters=0,skip=0,skipLots=0;for(const g of G.values()){if(g.some(r=>bad.has('l'+r.lead_id)||bad.has('p'+r.property_id))){skip++;skipLots+=g.length;continue}if(letters<WEEK_MAX){pick.push(...g);letters++}}
     window._bw={ids,md,name,tpl:$('bw_tpl').value,pick,letters};const leftL=G.size-letters,leftLots=recs.length-pick.length;
     msg(`<b>${letters.toLocaleString()} letters (${pick.length.toLocaleString()} lots)</b> will move to "${esc(name)}", mail date ${fmtDate(md)}.`
-      +`<br>${skip.toLocaleString()} owners (${skipLots.toLocaleString()} lots) skipped: in another campaign mailing within 90 days of ${fmtDate(md)}. They stay in the pool.`
+      +`<br>${skip.toLocaleString()} owners (${skipLots.toLocaleString()} lots) skipped: in another campaign mailing within 60 days of ${fmtDate(md)}. They stay in the pool.`
       +`<br>The pool keeps ${leftL.toLocaleString()} letters (${leftLots.toLocaleString()} lots).`+(letters<MAIL_MIN?`<br><b style="color:#b26a00">Under ${MAIL_MIN.toLocaleString()} letters.</b> Start Mailing can top it up, or import more lots first.`:'')
       +(letters?`<br><br><button class="btn" id="bw_go" onclick="bwGo()">Create campaign and move ${letters.toLocaleString()} letters</button>`:''))}
   catch(e){msg(`<b style="color:var(--red)">${esc(e.message||e)}</b> Nothing was moved.`)}finally{if($('bw_prev'))$('bw_prev').disabled=false}}
@@ -1817,20 +1874,20 @@ async function _buildMailList(idOrIds,opt={}){
     for(const [col,ids,set] of [['lead_id',lids,dealL],['property_id',pids,dealP]])for(let i=0;i<ids.length;i+=200){const r=await LB.openDeals(sb.from('deals').select(col).in(col,ids.slice(i,i+200)));if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not check open deals: '+esc(r.error.message)+'</b> Nothing was sent.'}(r.data||[]).forEach(d=>set.add(d[col]))}}
   const supPh=l=>[l?.phone,l?.phone2,l?.phone3].some(x=>sup.has(p10(x)));
   const kept0=all.filter(r=>!on||(!r.leads?.do_not_mail&&!noMailWhy(r.leads,r.properties)&&!dealL.has(r.lead_id)&&!dealP.has(r.property_id)&&!supPh(r.leads)&&!(r.properties?.apn&&sup.has('A'+LB.apnKey(r.properties.apn)))));
-  // 90-DAY CHECK (Nov 2026): nobody gets two letters within 90 days. A record is held if the same property or the same
-  // owner is in another campaign whose mail date is within the 90 days before this campaign's mail date (sent or not),
-  // or in a campaign that already went to the mail house with a mail date within 90 days AFTER this one.
+  // 60-DAY CHECK (Nov 2026): nobody gets two letters within 60 days. A record is held if the same property or the same
+  // owner is in another campaign whose mail date is within the 60 days before this campaign's mail date (sent or not),
+  // or in a campaign that already went to the mail house with a mail date within 60 days AFTER this one.
   // Held records are left out of this list but stay in the campaign; the message shows the date each one can be mailed.
   const held=[];if(on){const {data:_d}=await sb.from('campaigns').select('drop_date').in('id',ids);const _md=(_d||[]).map(x=>x.drop_date).filter(Boolean).sort()[0]||localISO();
-    const _t=new Date(_md+'T12:00:00'),_lo=new Date(_t.getTime()-90*864e5).toISOString().slice(0,10),_hi=new Date(_t.getTime()+90*864e5).toISOString().slice(0,10),last={};
+    const _t=new Date(_md+'T12:00:00'),_lo=new Date(_t.getTime()-MAIL_GAP*864e5).toISOString().slice(0,10),_hi=new Date(_t.getTime()+MAIL_GAP*864e5).toISOString().slice(0,10),last={};
     const _went=c=>c.drop_date<=_md||(c.mail_status&&c.mail_status!=='not_sent');
     const lids=[...new Set(kept0.map(r=>r.lead_id).filter(Boolean))],pids=[...new Set(kept0.map(r=>r.property_id).filter(Boolean))];
-    for(const [col,list] of [['lead_id',lids],['property_id',pids]])for(let i=0;i<list.length;i+=200){$('m_msg').textContent=`Checking who was mailed in the last 90 days (${col==='lead_id'?'owners':'properties'} ${Math.min(i+200,list.length).toLocaleString()} of ${list.length.toLocaleString()})…`;
+    for(const [col,list] of [['lead_id',lids],['property_id',pids]])for(let i=0;i<list.length;i+=200){$('m_msg').textContent=`Checking who was mailed in the last 60 days (${col==='lead_id'?'owners':'properties'} ${Math.min(i+200,list.length).toLocaleString()} of ${list.length.toLocaleString()})…`;
       for(let f=0;;f+=1000){const r=await sb.from('campaign_records').select('id,'+col+',campaign_id,campaigns!inner(name,drop_date,mail_status)').in(col,list.slice(i,i+200)).not('campaign_id','in','('+ids.join(',')+')').gt('campaigns.drop_date',_lo).lt('campaigns.drop_date',_hi).order('id').range(f,f+999);
-        if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not run the 90-day check: '+esc(r.error.message)+'</b> Nothing was sent.'}
+        if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not run the 60-day check: '+esc(r.error.message)+'</b> Nothing was sent.'}
         (r.data||[]).forEach(x=>{if(!_went(x.campaigns))return;const k=col[0]+x[col],o=last[k];if(!o||x.campaigns.drop_date>o.d)last[k]={d:x.campaigns.drop_date,n:x.campaigns.name}});if((r.data||[]).length<1000)break}}
     // SAME HOUSEHOLD (Nov 2026): a different contact at the same mailing address is the same household - one letter per
-    // household, so an address already in another campaign inside the 90 days is held too (caught 4 in Week 3 by hand)
+    // household, so an address already in another campaign inside the 60 days is held too (caught 4 in Week 3 by hand)
     const _hk=l=>{const a=String(l&&l.mail_address||'').toUpperCase().replace(/[^A-Z0-9]/g,''),z=zipFix(l&&l.mail_zip,l&&l.mail_state).slice(0,5);return a&&/^\d{5}$/.test(z)?a+'|'+z:''};
     const mine=new Set(kept0.map(r=>_hk(r.leads)).filter(Boolean)),zips=[...new Set(kept0.flatMap(r=>{const z=String(r.leads?.mail_zip||'').trim();return z?[z,z.slice(0,5)]:[]}))];
     for(let i=0;i<zips.length;i+=50){$('m_msg').textContent=`Checking households at the same mailing address (zips ${Math.min(i+50,zips.length).toLocaleString()} of ${zips.length.toLocaleString()})…`;
@@ -1838,22 +1895,22 @@ async function _buildMailList(idOrIds,opt={}){
         if(r.error){$('m_send').disabled=false;return $('m_msg').innerHTML='<b style="color:var(--red)">Could not run the household check: '+esc(r.error.message)+'</b> Nothing was sent.'}
         (r.data||[]).forEach(x=>{if(!_went(x.campaigns))return;const k=_hk(x.leads);if(!k||!mine.has(k))return;const o=last['h'+k];if(!o||x.campaigns.drop_date>o.d)last['h'+k]={d:x.campaigns.drop_date,n:x.campaigns.name}});if((r.data||[]).length<1000)break}}
     for(let i=kept0.length-1;i>=0;i--){const r=kept0[i],h=[last['l'+r.lead_id],last['p'+r.property_id],last['h'+_hk(r.leads)]].filter(Boolean).sort((a,b)=>b.d.localeCompare(a.d))[0];
-      if(h){const ok=new Date(new Date(h.d+'T12:00:00').getTime()+90*864e5).toISOString().slice(0,10);r._held={...h,ok};held.push(r);kept0.splice(i,1)}}}
+      if(h){const ok=new Date(new Date(h.d+'T12:00:00').getTime()+MAIL_GAP*864e5).toISOString().slice(0,10);r._held={...h,ok};held.push(r);kept0.splice(i,1)}}}
   window._held=held;
   // MAIL GUARD (Nov 2026, sql/mail_guard.sql): the same owner is often in DLG HQ 2-3 times (Pebble, GHL, a misspelled
   // copy, the parcel number written two ways, no zip). This matches by person, household (address + zip, or + city) and
-  // parcel (dashes / zeros removed) against everything mailing within 90 days, and against anyone marked Do Not Mail,
-  // Due Diligence, not selling / dead or with a seller deal on ANY copy. 90-day hits are held; do-not-mail hits come off.
-  const guarded=[],soft=[];{try{ // always on, even if the 90-day box is unticked
+  // parcel (dashes / zeros removed) against everything mailing within 60 days, and against anyone marked Do Not Mail,
+  // Due Diligence, not selling / dead or with a seller deal on ANY copy. 60-day hits are held; do-not-mail hits come off.
+  const guarded=[],soft=[];{try{ // always on, even if the 60-day box is unticked
     const {data:_d2,error:_e2}=await sb.from('campaigns').select('drop_date').in('id',ids);if(_e2)throw _e2;const md=(_d2||[]).map(x=>x.drop_date).filter(Boolean).sort()[0]||localISO();
-    const t=new Date(md+'T12:00:00'),lo=new Date(t-90*864e5).toISOString().slice(0,10),hi=new Date(t.getTime()+90*864e5).toISOString().slice(0,10);
+    const t=new Date(md+'T12:00:00'),lo=new Date(t-MAIL_GAP*864e5).toISOString().slice(0,10),hi=new Date(t.getTime()+MAIL_GAP*864e5).toISOString().slice(0,10);
     const HH=l=>{const a=String(l?.mail_address||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(!a)return null;const z=zipFix(l?.mail_zip,l?.mail_state);if(/^\d{5}/.test(z))return a+'|'+z.slice(0,5);const c=String(l?.mail_city||'').toUpperCase().replace(/[^A-Z]/g,'');return c?a+'|'+c:null};
     const AK=p=>{const a=String(p?.apn||'').toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/^0+/,'');if((a.match(/\d/g)||[]).length<4)return null;return String(p?.county||'').toLowerCase().replace(/\bcounty\b|\bco\b|[^a-z]/g,'')+'|'+a};
-    // a) everything mailing within 90 days (already sent / at the mail house, or scheduled earlier)
+    // a) everything mailing within 60 days (already sent / at the mail house, or scheduled earlier)
     const {data:cs,error:_e3}=await sb.from('campaigns').select('id,name,drop_date,mail_status').eq('channel','mail').gt('drop_date',lo).lt('drop_date',hi);if(_e3)throw _e3;
     const win=(cs||[]).filter(c=>!ids.includes(c.id)&&c.drop_date<'2099-01-01'&&(c.drop_date<=md||(c.mail_status&&c.mail_status!=='not_sent')));const cn=Object.fromEntries(win.map(c=>[c.id,c]));
     const seen=new Map();const put=(k,c)=>{if(!k)return;const o=seen.get(k);if(!o||c.drop_date>o.drop_date)seen.set(k,c)};
-    for(let i=0;i<win.length;i+=5)for(let last=0;;){$('m_msg').textContent=`Mail guard: loading what mailed in the last 90 days (${Math.min(i+5,win.length)} of ${win.length} campaigns)…`;
+    for(let i=0;i<win.length;i+=5)for(let last=0;;){$('m_msg').textContent=`Mail guard: loading what mailed in the last 60 days (${Math.min(i+5,win.length)} of ${win.length} campaigns)…`;
       const r=await sb.from('campaign_records').select('id,campaign_id,lead_id,property_id,leads(mail_address,mail_zip,mail_city),properties(county,apn)').in('campaign_id',win.slice(i,i+5).map(c=>c.id)).gt('id',last).order('id').limit(1000);if(r.error)throw r.error;
       for(const x of r.data){const c=cn[x.campaign_id];put('L'+x.lead_id,c);put('P'+x.property_id,c);put('H'+HH(x.leads),c);put('A'+AK(x.properties),c)}if(r.data.length<1000)break;last=r.data[r.data.length-1].id}
     // b) every household and parcel of anyone Do Not Mail / Due Diligence / not selling / being worked
@@ -1887,7 +1944,7 @@ async function _buildMailList(idOrIds,opt={}){
       const ba=badA.get('A'+AK(r.properties));if(ba&&ba.id!==r.lead_id){r._chk={status:'guard',reason:`this parcel had an owner marked Do Not Mail / Due Diligence (${ba.full_name||'earlier owner'}) - kept in the campaign, check the current owner`};soft.push(r);kept0.splice(i,1);continue}
       const bh=keys.map(k=>badH.get(k)).find(Boolean);if(bh){r._chk={status:'guard',reason:`same mailing address as ${bh.full_name||'a Do Not Mail owner'} (kept in the campaign, left off this list)`};soft.push(r);kept0.splice(i,1);continue}
       const c=keys.map(k=>seen.get(k)).filter(Boolean).sort((x,y)=>y.drop_date.localeCompare(x.drop_date))[0];
-      if(c){const ok=new Date(new Date(c.drop_date+'T12:00:00').getTime()+90*864e5).toISOString().slice(0,10);r._held={n:c.name,d:c.drop_date,ok};held.push(r);kept0.splice(i,1)}}
+      if(c){const ok=new Date(new Date(c.drop_date+'T12:00:00').getTime()+MAIL_GAP*864e5).toISOString().slice(0,10);r._held={n:c.name,d:c.drop_date,ok};held.push(r);kept0.splice(i,1)}}
     if(guarded.length){const gid=guarded.map(r=>r.id);for(let i=0;i<gid.length;i+=200)await sb.from('campaign_records').delete().in('id',gid.slice(i,i+200));for(const i of ids){try{await recountCampaign(i)}catch(e){}}}
   }catch(e){$('m_send').disabled=false;return $('m_msg').innerHTML=`<b style="color:var(--red)">BLOCKED: the mail guard failed (${esc(e.message||String(e))}).</b> Nothing was sent. Try again.`}}
   window._guarded=[...guarded,...soft];
@@ -1925,7 +1982,7 @@ async function _buildMailList(idOrIds,opt={}){
   const ok=kept.length-unv.length;
   $('m_msg').innerHTML=`<b>Owner check done.</b> ${ok.toLocaleString()} confirmed with the county${kept.filter(r=>r._chk.status==='heir').length?` (${kept.filter(r=>r._chk.status==='heir').length} addressed to an heir / PR)`:''}.`
    +((window._notTd||[]).length?`<br><b style="color:var(--red)">${window._notTd.length} removed: house too new or recently renovated for a teardown.</b><details><summary class="small">See which</summary><ul class="small">${window._notTd.map(line).join('')}</ul></details>`:'')+((window._guarded||[]).length?`<br><b style="color:var(--red)">${window._guarded.length} left off this list: Do Not Mail, Due Diligence or already being worked (on this copy or another copy of the same owner).</b> Clear matches were taken out of the campaign; same-address matches stay in the campaign for you to look at.<details><summary class="small">See who</summary><ul class="small">${window._guarded.slice(0,500).map(line).join('')}</ul></details>`:'')+(gone.length?`<br><b style="color:var(--red)">${gone.length} removed: sold or a different owner now.</b> Marked Sold and do-not-mail.<details><summary class="small">See who</summary><ul class="small">${gone.map(line).join('')}</ul></details>`:'<br>Nobody on this list has sold.')
-   +(held.length?`<br><b style="color:#b26a00">${held.length} held: mailed in the last 90 days.</b> They stay in the campaign but are not on this list. Mail them on or after the date shown.<details><summary class="small">See who</summary><ul class="small">${held.slice(0,500).map(r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: in "${esc(r._held.n)}" (${fmtDate(r._held.d)}), OK after ${fmtDate(r._held.ok)}</li>`).join('')}</ul></details>`:'')
+   +(held.length?`<br><b style="color:#b26a00">${held.length} held: mailed in the last 60 days.</b> They stay in the campaign but are not on this list. Mail them on or after the date shown.<details><summary class="small">See who</summary><ul class="small">${held.slice(0,500).map(r=>`<li>${esc(r.leads?.full_name||'')} – ${esc(r.properties?.address||r.properties?.apn||'')}: in "${esc(r._held.n)}" (${fmtDate(r._held.d)}), OK after ${fmtDate(r._held.ok)}</li>`).join('')}</ul></details>`:'')
    +(unv.length?`<br><b style="color:#b26a00">${unv.length} couldn't be checked.</b><details><summary class="small">See why</summary><ul class="small">${unv.slice(0,300).map(line).join('')}</ul></details><label class="small"><input type="checkbox" id="m_unv" style="width:auto" ${(opt.auto&&window._tuUnv!=null?window._tuUnv:unv.every(r=>/connected to the owner check|only publishes qualified sales/.test(r._chk?.reason||'')))?'checked':''}> Mail these ${unv.length} anyway</label>`:'')
    +(letterCount(kept)<kept.length?`<br><b>${kept.length.toLocaleString()} lots go out as ${letterCount(kept).toLocaleString()} letters</b> (owners with more than one lot get one letter listing all their parcels).`:'')+`<br><br><button class="btn" onclick='finishMailList(${JSON.stringify(ids)},this)'>Draft email with the checked list</button>`;
   if(opt.auto)return _finishMailList(ids);
@@ -1943,11 +2000,11 @@ async function _finishMailList(idOrIds){
     const tpl=$('m_tpl').value,{data:_dd}=await sb.from('campaigns').select('id,name,drop_date').in('id',ids);const me=(_dd||[]).find(x=>x.id===id)||{name:'campaign'};const md=(_dd||[]).map(x=>x.drop_date).filter(Boolean).sort()[0]||localISO();
     const log=window._tuLog=window._tuLog||[];
     try{
-    // a) held (mailed in the last 90 days): move each to the first later campaign that mails on or after its OK date
+    // a) held (mailed in the last 60 days): move each to the first later campaign that mails on or after its OK date
     const held=(window._held||[]).filter(r=>ids.includes(r.campaign_id));
     if(held.length){$('m_msg').innerHTML+='<br>Moving held records to a later campaign…';let later=await laterCampaigns(ids,tpl,md,{dest:true});const by={};
       for(const r of held){let t=later.find(c=>c.drop_date>=r._held.ok);if(!t){t=await newLaterCampaign(me,tpl,held.map(x=>x._held.ok).sort().pop(),'Held');later.push(t);later.sort((a,b)=>a.drop_date.localeCompare(b.drop_date))}(by[t.id]=by[t.id]||{c:t,r:[]}).r.push(r)}
-      for(const g of Object.values(by)){await moveRecords(g.r,g.c.id);log.push(`${g.r.length.toLocaleString()} held (mailed in the last 90 days) moved to "${g.c.name}"`)}
+      for(const g of Object.values(by)){await moveRecords(g.r,g.c.id);log.push(`${g.r.length.toLocaleString()} held (mailed in the last 60 days) moved to "${g.c.name}"`)}
       window._held=[]}
     // b) short of the minimum: pull records from the next campaign(s) with the same letter, then re-check everything
     if(letterCount(kept)<MAIL_MIN&&(window._tuPass||0)<3){const need=MAIL_MIN-letterCount(kept),want=Math.ceil(need*1.15)+25;
@@ -1982,7 +2039,7 @@ async function _finishMailList(idOrIds){
   // DOUBLED NAMES (Nov 2026): some imports repeat the owner ("Jolu inc Jolu inc"); keep one copy
   const dedupName=x=>{x=String(x||'').replace(/\s+/g,' ').trim();const w=x.split(' ');if(w.length%2===0){const h=w.length/2;if(w.slice(0,h).join(' ').toLowerCase()===w.slice(h).join(' ').toLowerCase())return w.slice(0,h).join(' ')}return x};
   const rows=src
-   .map(r=>{const l0=r.leads||{},l={...l0,full_name:dedupName(l0.full_name)},p=r.properties||{},f=p.fields||{};const nm=splitName(l);return {Salutation:f.Salutation||(/attorney/i.test(tplName)&&l.last_name?'Attorney '+tc(l.last_name):null)||(/\b(llc|inc|corp|co|company|church|ministries|trust|trustees?|estate|bank|association|partners|lp|ltd|holdings)\b/i.test(l.full_name||'')||!nm.first?'Property Owner':tc(nm.first)),Property_Address:paddr(p),Ownership_Line:f.Ownership_Line||'',Neighborhood:f.Neighborhood||f.Subdivision||f.neighborhood||f.subdivision||tc(/^\d{5}$/.test(p.city||'')?'':p.city)||'your neighborhood',Other_Property_Line:perOwner?otherLine(r):(f.Other_Property_Line||''),Owner:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),Greeting:l.first_name||l.full_name||'Property Owner',
+   .map(r=>{const l0=r.leads||{},l={...l0,full_name:dedupName(l0.full_name)},p=r.properties||{},f=p.fields||{};const nm=splitName(l);return {Salutation:f.Salutation||(/attorney/i.test(tplName)&&l.last_name?'Attorney '+tc(l.last_name):null)||(/\b(llc|inc|corp|co|company|church|ministries|trust|trustees?|estate|bank|association|partners|lp|ltd|holdings)\b/i.test(l.full_name||'')||!nm.first?'Property Owner':tc(nm.first)),Property_Address:paddr(p),Ownership_Line:f.Ownership_Line||'',Neighborhood:f.Neighborhood||f.Subdivision||f.neighborhood||f.subdivision||tc(/^\d{5}$/.test(p.city||'')?'':p.city)||'your neighborhood',Lot_Line:(()=>{const st=String(p.address||'').replace(/^\s*0*\d+[A-Z]?\s+/i,'').trim();return st&&!/N\/A|\?/.test(st)&&/[A-Za-z]{2}/.test(st)?'on '+tc(st):'(parcel '+(p.apn||'')+')'})(),Other_Property_Line:perOwner?otherLine(r):(f.Other_Property_Line||''),Owner:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),Greeting:l.first_name||l.full_name||'Property Owner',
      Mail1:l.mail_address||'',Mail2:'',Mail3:[l.mail_city,[l.mail_state,l.mail_zip].filter(Boolean).join(' ')].filter(Boolean).join(', '),PropertyAddress:p.address||'',PropertyCity:/^\d{5}$/.test(p.city||'')?'':(p.city||''),APN:perOwner?(p.apn||''):joinList([...new Set((byOwner[ownKey(r)]||[r]).map(x=>x.properties?.apn).filter(Boolean))]),Parcels:parcelsText((byOwner[ownKey(r)]||[r]).map(x=>x.properties?.apn)),Lots:String((byOwner[ownKey(r)]||[r]).length),OfferCode:r.offer_code||'',
      OwnerName:l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' '),FirstName:l.first_name||'',LastName:l.last_name||'',MailAddress:l.mail_address||'',MailCity:l.mail_city||'',MailState:l.mail_state||'',MailZip:l.mail_zip||'',
      PropertyState:p.state||'',PropertyZip:p.zip||(/^\d{5}$/.test(p.city||'')?p.city:''),County:p.county||'',FIPS:p.fips||'',Acres:perOwner?(p.acres!=null?String(+(+p.acres).toFixed(2)):''):joinList((byOwner[ownKey(r)]||[r]).map(x=>x.properties?.acres!=null?String(+(+x.properties.acres).toFixed(2)):'').filter(Boolean)),MailDate:_mdate}});
@@ -2001,7 +2058,7 @@ async function _finishMailList(idOrIds){
   const sl={signedUrl:links.length>1?'\n'+links.map((x,k)=>`File ${k+1} of ${links.length} (${x.n.toLocaleString()} records): ${x.url}`).join('\n'):links[0].url};
   // ONLY WHAT WENT TO THE MAIL HOUSE STAYS IN THE CAMPAIGN (Nov 2026): anything in these campaigns that is not in the
   // file (couldn't be checked, held, extras) moves to a later campaign, so the campaign's count, cost, response rate and
-  // the 90-day check all match the letters actually mailed.
+  // the 60-day check all match the letters actually mailed.
   {const md=_c0.drop_date||localISO(),tpl=$('m_tpl').value,inFile=new Set(kept.map(r=>r.id)),left=[];
     for(const i of ids)for(let f=0;;f+=1000){const {data}=await sb.from('campaign_records').select('id,campaign_id,lead_id,property_id').eq('campaign_id',i).order('id').range(f,f+999);(data||[]).forEach(r=>{if(!inFile.has(r.id))left.push(r)});if(!data||data.length<1000)break}
     const _fixIds=new Set((window._guarded||[]).filter(r=>r._chk&&/^(bad mailing address|outside buy box|this parcel had an owner|already being worked|same mailing address)/.test(r._chk.reason||'')).map(r=>r.id));
@@ -2638,7 +2695,7 @@ async function vImport(){IMP={step:1,counties:[],cols:[],rows:[],map:{}};const {
    <div class="small" style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:12px 0"><b>Leave off:</b>
     <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skDnm" checked style="width:auto"> Do not mail</label>
     <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skNi" checked style="width:auto"> People who said no</label>
-    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skRec" checked style="width:auto"> Mailed in the last <input id="skDays" type="number" value="90" min="1" style="width:70px;padding:4px 6px"> days</label></div>
+    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skRec" checked style="width:auto"> Mailed in the last <input id="skDays" type="number" value="60" min="1" style="width:70px;padding:4px 6px"> days</label></div>
    <button class="btn" id="impSave" onclick="impSave()">Save</button><div id="impMsg" class="small" style="margin-top:10px"></div></div>
   <div class="card"><h3 style="margin-top:0">Before you mail 🙏</h3><p class="muted small" style="margin:0">Lord, I give You this list. Lead me to the families You want me to serve, give me wisdom in every offer, and let every deal honor You.</p></div>${recToolCard()}`;
   $('icName').oninput=()=>impStep()}
