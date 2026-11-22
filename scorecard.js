@@ -89,12 +89,13 @@
   // Letter type from the campaign name / template (Neutral, Neighborhood, House, Teardown, Letter 1/2, other)
   const letterOf = c => { const t = ((c.name || '') + ' ' + (c.template || '')).toLowerCase();
     return /neighborhood/.test(t) ? 'Neighborhood Land Letter' : /neutral/.test(t) ? 'Neutral Land Letter' : /teardown/.test(t) ? 'Teardown Letter'
-      : /house|as-is/.test(t) ? 'House Letter' : /letter 2/.test(t) ? 'DLG Letter 2' : /letter 1/.test(t) ? 'DLG Letter 1' : 'Other'; };
+      : /house|as-is|new western/.test(t) ? 'House Letter' : /letter 2/.test(t) ? 'DLG Letter 2' : /letter 1/.test(t) ? 'DLG Letter 1' : /church|estate pr|forclosure|foreclosure/.test(t) ? 'Church / estate / foreclosure' : c.template ? 'Other' : 'Older letters (before templates)'; };
   async function scLetters(camps) {
     const el = $('sc_letters'); if (!el) return;
     try {
       const dc = await campDealCounts(); const G = {};
-      for (const c of camps) { if (/^(POOL|HOLD)/i.test(c.name || '')) continue; const s = campStats(c, dc), k = letterOf(c);
+      const today = new Date().toISOString().slice(0, 10);
+      for (const c of camps) { if (/^(POOL|HOLD)/i.test(c.name || '') || !c.drop_date || c.drop_date > today) continue; const s = campStats(c, dc), k = letterOf(c);
         const g = G[k] || (G[k] = { mail: 0, cost: 0, resp: 0, offers: 0, uc: 0, closed: 0 });
         g.mail += c.records || 0; g.cost += Number(c.cost) || 0; g.resp += s.deals; g.offers += s.offers; g.uc += s.purchases; g.closed += s.sales; }
       const rows = Object.entries(G).sort((a, b) => b[1].mail - a[1].mail);
@@ -102,7 +103,7 @@
       el.className = ''; el.style.overflowX = 'auto';
       el.innerHTML = `<table class="ctable"><tr><th>Letter</th><th class="right">Mailed</th><th class="right">Cost</th><th class="right">Responses</th><th class="right">Response rate</th><th class="right">Offers</th><th class="right">Under contract</th><th class="right">Closed</th><th class="right">Cost per response</th></tr>
         ${rows.map(([k, v]) => `<tr><td><b>${esc(k)}</b></td><td class="right">${v.mail.toLocaleString()}</td><td class="right">${money(v.cost)}</td><td class="right">${v.resp}</td><td class="right">${v.mail ? (100 * v.resp / v.mail).toFixed(2) : '0.00'}%</td><td class="right">${v.offers}</td><td class="right">${v.uc}</td><td class="right">${v.closed}</td><td class="right">${v.resp ? money(v.cost / v.resp) : '–'}</td></tr>`).join('')}</table>
-        <div class="small muted" style="margin-top:6px">Response = a card on the deal board from that campaign. Split test: give a letter 4 weeks before calling a winner. Held pools are left out.</div>`;
+        <div class="small muted" style="margin-top:6px">Response = a card on the deal board from that campaign. Split test: give a letter 4 weeks before calling a winner. Held pools and letters not mailed yet are left out.</div>`;
     } catch (e) { el.textContent = 'Could not load: ' + (e.message || e); }
   }
 
