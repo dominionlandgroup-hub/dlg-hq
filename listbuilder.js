@@ -16,7 +16,7 @@ LB.RULES = {
   // Damien (Oct 18): if a buy-box ZIP outline won't load, pull the parcels whose site city matches (no city boundary file needed)
   zipCityFallback: { '28002': { county: 'Stanly', city: 'ALBEMARLE' }, '28145': { county: 'Rowan', city: 'SALISBURY' } },
   recentDays: 90,         // skip anyone mailed in the last 90 days
-  maxTouchesPerYear: 3,   // 3 letters in 12 months, then they rest until a year has passed
+  maxTouchesPerYear: 4,   // 4 letters in 12 months, then they rest until a year has passed (raised from 3, Nov 22 2026)
   costPerPiece: 0.55,     // postage + print per letter
   rampSize: 500, rampUntil: '2026-10-01', // ramp finished: full 1,000 a week (Damien, Oct 11)
   countyCapPct: 0.30,     // no county gets more than 30% of a list
