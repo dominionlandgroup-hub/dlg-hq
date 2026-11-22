@@ -15,8 +15,8 @@ LB.RULES = {
   stateOnly: 'NC',        // Damien (Oct 17): North Carolina only for now
   // Damien (Oct 18): if a buy-box ZIP outline won't load, pull the parcels whose site city matches (no city boundary file needed)
   zipCityFallback: { '28002': { county: 'Stanly', city: 'ALBEMARLE' }, '28145': { county: 'Rowan', city: 'SALISBURY' } },
-  recentDays: 90,         // skip anyone mailed in the last 90 days
-  maxTouchesPerYear: 4,   // 4 letters in 12 months, then they rest until a year has passed (raised from 3, Nov 22 2026)
+  recentDays: 60,         // skip anyone mailed in the last 60 days (was 90, Nov 22 2026)
+  maxTouchesPerYear: 6,   // 6 letters in 12 months, then they rest until a year has passed (3 -> 4 -> 6, Nov 22 2026)
   costPerPiece: 0.55,     // postage + print per letter
   rampSize: 500, rampUntil: '2026-10-01', // ramp finished: full 1,000 a week (Damien, Oct 11)
   countyCapPct: 0.30,     // no county gets more than 30% of a list
@@ -252,7 +252,7 @@ const normAddr = (a, z) => stripZip(a, z).toUpperCase().replace(/[^A-Z0-9]/g, ''
 LB.ownerBlocks = async function (days, log) {
   const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10), yearAgo = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
   const block = new Map(); const touches = new Map();
-  // 1) letters that went to the mail house: last 90 days = skip; 3+ in 12 months = resting
+  // 1) letters that went to the mail house: last 60 days = skip; 6+ in 12 months = resting
   const { data: camps } = await sb.from('campaigns').select('id,mail_status,drop_date').gte('drop_date', yearAgo).or('mail_status.is.null,mail_status.neq.not_sent').limit(1000); // blank status counts as mailed (same as workedSet)
   for (const c of camps || []) for (let o = 0; ; o += 1000) { const { data } = await sb.from('campaign_records').select('leads(mail_address,mail_zip)').eq('campaign_id', c.id).order('id').range(o, o + 999);
     (data || []).forEach(x => { const k = normAddr(x.leads?.mail_address, x.leads?.mail_zip); if (k.length <= 8) return; touches.set(k, (touches.get(k) || 0) + 1); if (c.drop_date >= since && !block.has(k)) block.set(k, 'same owner mailed in the last ' + days + ' days'); });
