@@ -24,7 +24,7 @@
     const add = p ? `<div class="card" style="border-left:4px solid var(--acc,#d9601a)">
       <h3 style="margin:0 0 6px">Start texts to ${esc(p.company || '')}?</h3>
       ${have ? `<p>This number is already in Builder Texts (${esc(LABEL[have.status] || have.status)}).</p><button class="btn" onclick="dripSkip()">OK</button>` : `
-      <p class="muted" style="margin:0 0 8px">4 texts from (980) 217-8806: today, then day 3, day 7 and day 14, weekdays 9-6. Stops when they reply, text STOP or fill out the buy box.</p>
+      <p class="muted" style="margin:0 0 8px">4 texts from (980) 217-8806: today, then day 3, day 7 and day 14, weekdays 9-6. Stops when they reply, text STOP or fill out the buy box. More than one person at this builder? Start texts again with the other number; when anyone at the company replies, every number stops.</p>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
         <label>First name<br><input id="dpFirst" value="${esc(p.first || '')}" placeholder="blank = Hi there"></label>
         <label>Phone<br><input id="dpPhone" value="${esc(fmt(p.phone))}"></label>

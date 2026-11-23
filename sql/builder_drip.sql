@@ -41,3 +41,27 @@ select cron.schedule('builder-drip', '*/30 * * * *', $$
   select net.http_post(url := 'https://gdejlpdltnstbwtdpggm.supabase.co/functions/v1/builder-drip',
     body := '{}'::jsonb, headers := '{"Content-Type":"application/json"}'::jsonb);
 $$);
+
+-- Release held markets (Nov 2026): when a buy box comes in, check every HOLD campaign for lots in that builder's
+-- counties (or cities) and add a task: "Buy box in Moore: 500 lots on hold - release them to a mailing".
+-- Nothing is moved automatically; Damien decides when to mail.
+create or replace function hold_release_task() returns trigger language plpgsql security definer set search_path=public as $$
+declare r record; cts text[]; cis text[];
+begin
+  if new.bb_submitted_at is null or new.bb_submitted_at is not distinct from old.bb_submitted_at then return new; end if;
+  cts := array(select lower(trim(regexp_replace(x,'\s+county\.?$','','i'))) from unnest(coalesce(new.counties,'{}')) x where trim(x) <> '');
+  cis := array(select lower(trim(x)) from unnest(coalesce(new.cities,'{}')) x where trim(x) <> '');
+  for r in
+    select p.county, count(*) n, string_agg(distinct c.name, ', ') camps
+    from campaign_records cr join campaigns c on c.id = cr.campaign_id join properties p on p.id = cr.property_id
+    where c.name ilike 'HOLD%'
+      and (lower(p.county) = any(cts) or lower(coalesce(p.city,'')) = any(cis))
+    group by p.county
+  loop
+    insert into tasks (title, due_at, status)
+    values ('Buy box in ' || r.county || ' (' || coalesce(nullif(new.company,''), new.name) || '): ' || r.n || ' lots on hold in ' || r.camps || ' - release them to a mailing', now(), 'todo');
+  end loop;
+  return new;
+end $$;
+drop trigger if exists hold_release on buyers;
+create trigger hold_release after update of bb_submitted_at on buyers for each row execute function hold_release_task();

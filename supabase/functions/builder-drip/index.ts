@@ -52,6 +52,9 @@ async function stopReason(d: any): Promise<[string, string] | null> {
     if (/^\s*(stop|unsubscribe|cancel|end|quit|stop all)\b/i.test(b)) return ["stopped", "Texted STOP"];
     return ["replied", "Replied: " + b.slice(0, 120)];
   }
+  // another number at the same company already replied, filled out the buy box or texted STOP: stop this one too
+  const { data: sib } = await sb.from("builder_drip").select("id,status,stop_reason").ilike("company", d.company).neq("id", d.id).in("status", ["replied", "buybox", "stopped"]).limit(1);
+  if (sib?.length) return ["stopped", "Another number at " + d.company + ": " + (sib[0].stop_reason || sib[0].status)];
   // filled out the buy box form (same phone)
   const { data: bb } = await sb.from("buyers").select("id,bb_submitted_at,phone").not("bb_submitted_at", "is", null).ilike("phone", "%" + ph.slice(-4) + "%").limit(20);
   if ((bb || []).some(x => d10(x.phone) === ph)) return ["buybox", "Filled out the buy box"];
