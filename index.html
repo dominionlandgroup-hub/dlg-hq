@@ -1299,7 +1299,8 @@ async function threadCodeCheck(t,msgs){try{const all=(msgs||[]).map(m=>m.body||'
     const [{data:o},{data:cp}]=await Promise.all([sb.from('leads').select('id,full_name').eq('id',r.lead_id).single(),sb.from('campaigns').select('name').eq('id',r.campaign_id).single()]);
     const el=document.createElement('div');el.className='card';el.style.cssText='border:1px solid var(--accent);margin:8px 0';el.innerHTML=`<b>Offer code ${esc(c)}${guess?` (probably ${esc(r.offer_code)})`:''} belongs to ${esc(o?.full_name||'another owner')}</b> <span class="small muted">${esc(cp?.name||'')}</span><div class="small">This conversation is filed under ${esc(t.leads?.full_name||'this number')} because of the phone number.</div><div style="margin-top:6px"><button class="btn sm" onclick="threadMoveTo(${t.id},${r.lead_id})">Move this conversation to ${esc(o?.full_name||'that owner')}</button> <a href="#" class="small" onclick="openLead(${r.lead_id});return false">Open ${esc(o?.full_name||'owner')}</a></div>`;
     if(IST2.tid!==t.id)return;const m=$('msgs');if(m)m.parentNode.insertBefore(el,m);return}}catch(e){}}
-async function threadMoveTo(tid,lid){if(!confirm('Move this conversation to the owner of that offer code?'))return;const {error}=await sb.from('threads').update({lead_id:lid}).eq('id',tid);if(error)return toast(error.message);await sb.from('messages').update({lead_id:lid}).eq('thread_id',tid).then(()=>{},()=>{});toast('Moved');openThreadT(tid)}
+// Same as picking the contact: saves the caller's number on the owner and retires the blank caller record
+async function threadMoveTo(tid,lid){return linkThread(tid,lid)}
 async function openThreadT(tid){IST2.tid=tid;document.querySelectorAll('.titem').forEach(e=>e.classList.toggle('on',e.getAttribute('onclick')===`openThreadT(${tid})`));
   const [{data:t},{data:msgs},{data:tpl},{data:obx}]=await Promise.all([sb.from('threads').select('*, leads(*)').eq('id',tid).single(),sb.from('messages').select('*').eq('thread_id',tid).order('created_at'),sb.from('templates').select('id,name,body').eq('kind','text').order('name'),sb.from('email_outbox').select('id,subject,body,status,error,created_at').eq('thread_id',tid).in('status',['pending','sending','failed']).order('id')]);
   if(IST2.tid!==tid||!t)return; // you clicked another conversation while this one loaded
@@ -1358,7 +1359,7 @@ let _cpT,_cpSeq=0;function cpLinkSearch(tid,now){clearTimeout(_cpT);const q0=$('
   box.innerHTML=(data||[]).map(c=>`<div class="pitem" onclick="linkThread(${tid},${c.id})"><b>${esc(leadName(c))}</b><div class="small muted">${esc([c.phone,c.prop_address||c.apn,c.county].filter(Boolean).join(' · ')||'no phone or address')}</div></div>`).join('')||'<div class="pitem muted small">No match. Fill in the form below to save them as a new contact.</div>'},now?0:400)}
 const p10=x=>String(x||'').replace(/\D/g,'').slice(-10);
 async function linkThread(tid,newId){const {data:t}=await sb.from('threads').select('*, leads(*)').eq('id',tid).single();const old=t.leads;
-  if(old&&old.id===newId){$('cp_linkres').innerHTML='';return toast('Already linked to this contact')}
+  if(old&&old.id===newId){if($('cp_linkres'))$('cp_linkres').innerHTML='';return toast('Already linked to this contact')}
   const {data:n,error:e0}=await sb.from('leads').select('*').eq('id',newId).single();if(e0)return toast(e0.message);
   if(!confirm(`Link this conversation to ${leadName(n)}?`))return;
   const now=new Date().toISOString(),upd={updated_at:now},ph=t.phone||old?.phone;
@@ -2169,7 +2170,7 @@ async function vRecord(id){const {data:r,error}=await sb.from('campaign_records'
      <div class="card"><h3 class="sec" style="margin-top:0">Other mailings to this owner</h3>${(others||[]).map(o=>`<div class="small" style="padding:4px 0"><a href="#" onclick="go('record:${o.id}');return false"><b>${esc(o.offer_code||'')}</b></a> · ${esc(o.campaigns?.name||'')} · ${fmtDate(o.campaigns?.drop_date)}</div>`).join('')||'<div class="muted small">None.</div>'}</div>
    </div></div>`}
 // stage options for the Add Deal drawer's board picker (a named function: an inlined function's quotes broke the onchange)
-function adStages(b){return STAGES.filter(s=>s.board===b).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}
+function adStages(b){const d=defaultStage(b)?.id;return STAGES.filter(s=>s.board===b).sort((x,y)=>isDuetStage(x)-isDuetStage(y)||x.position-y.position).map(s=>`<option value="${s.id}"${s.id===d?' selected':''}>${esc(s.name)}</option>`).join('')}
 async function addDealFromRecord(id){const {data:r}=await sb.from('campaign_records').select('*, campaigns(id,name), leads(id,full_name), properties(id,apn,address,city,county,county_state,fields)').eq('id',id).single();
   const p=r.properties,l=r.leads;const st=adStages;
   openDrawer(head('Add Deal')+`<div class="card"><label class="f">Deal Title</label><input id="ad_t" value="${esc(l?.full_name||p?.address||'')}">
