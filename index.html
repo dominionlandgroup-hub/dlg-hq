@@ -238,6 +238,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <div class="grp">Sellers</div>
     <a class="nav" data-v="inbox-seller">Seller Inbox <span class="badge hidden" id="b_seller"></span></a>
     <a class="nav" data-v="board-seller">Seller Deals</a>
+    <a class="nav" data-v="board-duet">Duet Leads</a>
     <div class="grp">Buyers</div>
     <a class="nav" data-v="inbox-buyer">Buyer Inbox <span class="badge hidden" id="b_buyer"></span></a>
     <a class="nav" data-v="board-buyer">Buyer Deals</a>
@@ -259,7 +260,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <a class="nav" data-v="import">Import</a>
     </details>
     <a class="nav" data-v="checker">List Checker</a>
-    <a class="nav" data-v="checklist">My Checklist</a>
+    <a class="nav" data-v="checklist" style="display:none">My Checklist</a>
     <div class="foot"><div id="verse" class="verse" style="margin-bottom:12px"></div><span id="who"></span><br><button onclick="sb.auth.signOut().then(boot)">Sign out</button></div>
   </aside>
   <main>
@@ -353,9 +354,9 @@ async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=
 
 // ---------- router ----------
 const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox('seller'),'inbox-buyer':()=>vInbox('buyer'),
- 'board-seller':()=>vBoard('seller'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,prospects:vProspects,
+ 'board-seller':()=>vBoard('seller'),'board-duet':()=>vBoard('seller','duet'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,prospects:vProspects,
  followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit(),scorecard:()=>vScorecard(),drip:()=>vDrip(),checklist:()=>vChecklist(),checker:()=>vChecker(),targets:()=>vHubTargets(),match:()=>vHubMatch()};
-const TITLES={prospects:'Buyer Prospects',checker:'List Checker',dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',drip:'Builder Texts',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
+const TITLES={prospects:'Buyer Prospects',checker:'List Checker',dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-duet':'Duet Leads','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',drip:'Builder Texts',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
 function go(v){try{const _vw=document.getElementById('view');if(_vw)_vw.style.opacity='';if(document.getElementById('gq')){document.getElementById('gq').value='';const gx=document.getElementById('gx');if(gx)gx.classList.add('hidden')}}catch(e){}try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||'')){IST2.status=INBOX_DEFAULT(String(v).slice(6));IST2.term=''}}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch((()=>{try{return decodeURIComponent(m[2])}catch(e){return m[2]}})());return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
@@ -415,7 +416,7 @@ let _dashSeq=0;async function vDashboard(){
     sb.from('pebble_history').select('*'),
     pageAll(()=>sb.from('transactions').select('id,property_id,deal_id,kind,tx_date,price,costs,notes,properties(id,apn,address,city)').order('tx_date',{ascending:false}).order('id',{ascending:false})),
     pageAll(()=>sb.from('campaigns').select('id,name,drop_date,records,cost,channel,mail_status').order('id')),
-    pageAll(()=>sb.from('deals').select('id,board,created_at,source,campaign_id,lead_id,property_id,property_label').or('source.is.null,source.neq.pebble').gte('created_at',aUTC).lte('created_at',bUTC).order('id'))]);
+    pageAll(()=>sb.from('deals').select('id,board,stage_id,created_at,source,campaign_id,lead_id,property_id,property_label').or('source.is.null,source.neq.pebble').gte('created_at',aUTC).lte('created_at',bUTC).order('id'))]);
   const inR=d=>d&&d>=a&&d<=b;
   const h=histSum(H||[],a,b);
   // Activity: Pebble's own report covers every day through its last day; DLG HQ messages count only after that
@@ -426,7 +427,7 @@ let _dashSeq=0;async function vDashboard(){
   const msgs=[];if(liveFrom<=b){for(let off=0;off<100000;off+=1000){const {data:pg}=await sb.from('messages').select('lead_id,channel,direction,duration_s,created_at').gte('created_at',new Date(liveFrom+'T00:00:00').toISOString()).lte('created_at',new Date(end).toISOString()).order('id').range(off,off+999);if(!pg||!pg.length)break;msgs.push(...pg);if(pg.length<1000)break}}
   // Live numbers made in DLG HQ after the move
   // one lead per person per board; skip rows marked DUPLICATE and blank rows
-  const _seen=new Set();const dl=(dl0||[]).filter(d=>{if(/^duplicate/i.test(d.property_label||''))return false;if(!d.lead_id&&!d.property_label)return false;if(d.lead_id){const k=d.board+':'+d.lead_id+':'+(d.property_id||'');if(_seen.has(k))return false;_seen.add(k)}return true});
+  const _seen=new Set();const dl=(dl0||[]).filter(d=>{if(/^duplicate/i.test(d.property_label||''))return false;if(isDuetStage(STAGES.find(s=>s.id===d.stage_id)))return false;if(!d.lead_id&&!d.property_label)return false;if(d.lead_id){const k=d.board+':'+d.lead_id+':'+(d.property_id||'');if(_seen.has(k))return false;_seen.add(k)}return true});
   const liveDeals=dl.length,liveSeller=(dl||[]).filter(d=>d.board==='seller').length;
   // Conversations = people you actually traded words with that day (texts, calls, replies), counted per day like Pebble did.
   // Cold builder/agent emails nobody answered are left out; they still count under Emails sent.
@@ -544,15 +545,18 @@ let _dashSeq=0;async function vDashboard(){
 }
 
 // ---------- boards ----------
-async function vBoard(board){
-  $('actions').innerHTML=`<input id="bf" placeholder="Filter name / address / APN" style="width:210px"><select id="bp" style="width:auto"><option value="">Any priority</option><option>hot</option><option>warm</option><option>cold</option></select><button class="btn" onclick="newDeal('${board}')">+ Add Deal</button><button class="btn ghost" onclick="addStage('${board}')">+ Stage</button>`;
+// DUET LEADS (Nov 2026): leads found by Claude Duet live in seller-board stages named 'Duet - <county>'.
+// They get their own tab and stay off Seller Deals and the dashboard counts until they become real conversations.
+const isDuetStage=s=>/^Duet - /.test((s&&s.name)||'');
+async function vBoard(board,mode){
+  $('actions').innerHTML=`<input id="bf" placeholder="Filter name / address / APN" style="width:210px"><select id="bp" style="width:auto"><option value="">Any priority</option><option>hot</option><option>warm</option><option>cold</option></select><button class="btn" onclick="newDeal('${board}')">+ Add Deal</button><button class="btn ghost" onclick="addStage('${board}'${mode==='duet'?",'Duet - '":''})">+ Stage</button>`;
   let data=[],error=null;for(let f=0;;f+=1000){const r=await sb.from('deals').select('*, leads(id,full_name,first_name,last_name,phone), properties(apn,address,city,zip,county,county_state,acres,fields)').eq('board',board).order('position').order('id').range(f,f+999);if(r.error){error=r.error;break}data.push(...r.data);if(r.data.length<1000)break}
   if(error){$('view').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
   window._deals=data||[];
   const draw=()=>{
     const f=($('bf').value||'').toLowerCase(),pr=$('bp').value;
     const list=_deals.filter(d=>(!pr||d.priority===pr)&&(!f||[d.property_label,leadName(d.leads),d.properties?.address,d.properties?.apn].join(' ').toLowerCase().includes(f)));
-    const st=STAGES.filter(s=>s.board===board);
+    const st=STAGES.filter(s=>s.board===board&&(board!=='seller'||(mode==='duet'?isDuetStage(s):!isDuetStage(s))));
     $('view').innerHTML=`<div class="board">${st.map(s=>{const ds=list.filter(d=>d.stage_id===s.id),tot=ds.reduce((a,d)=>a+(+d.value||0),0);
       return `<div class="col" data-stage="${s.id}"><div class="hd" draggable="true" title="Drag to move this stage" style="cursor:grab;display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${esc(s.name)}</span><span style="white-space:nowrap"><button class="btn ghost sm" title="Rename stage" onclick="renameStage(${s.id},'${board}')">✎</button><button class="btn ghost sm" title="Delete stage" onclick="deleteStage(${s.id},'${board}')">🗑</button></span></div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
       <div class="cards">${ds.map(card).join('')}</div><button class="addcard" onclick="newDeal('${board}',${s.id})">+ Add Deal</button></div>`}).join('')}</div>`;
@@ -613,7 +617,7 @@ function wireDnD(board){let dragId=null,dragStage=null;
       const {error}=await sb.from('deals').update(upd).eq('id',dragId);
       if(error)toast(error.message);else{toast('Moved to '+s.name);await syncDealStage(dragId,sid,d.stage_id);if(d.lead_id)sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:'Deal moved to '+s.name})}
       vBoard(board)}});}
-async function addStage(board){const n=prompt('New stage name');if(!n)return;const pos=Math.max(0,...STAGES.filter(s=>s.board===board).map(s=>s.position))+1;
+async function addStage(board,prefix){let n=prompt(prefix?'New Duet county column (e.g. Rowan)':'New stage name');if(!n)return;if(prefix&&!n.startsWith(prefix))n=prefix+n;const pos=Math.max(0,...STAGES.filter(s=>s.board===board).map(s=>s.position))+1;
   const {data,error}=await sb.from('board_stages').insert({board,name:n,position:pos}).select().single();if(error)return toast(error.message);STAGES.push(data);vBoard(board)}
 
 async function moveStage(id,board,dir){const L=STAGES.filter(x=>x.board===board).sort((a,b)=>a.position-b.position||a.id-b.id);const i=L.findIndex(x=>x.id===id),j=i+dir;if(i<0||j<0||j>=L.length)return;
