@@ -126,7 +126,7 @@ begin
   select json_build_object(
     'deal_id', d.id, 'label', d.property_label, 'stage', s.name, 'notes', d.notes,
     'owner', coalesce(nullif(trim(l.full_name),''), trim(coalesce(l.first_name,'')||' '||coalesce(l.last_name,''))),
-    'first_name', l.first_name, 'phones', array_remove(array[l.phone, l.phone2, l.phone3], null),
+    'first_name', l.first_name, 'last_name', l.last_name, 'street', coalesce(p.address, l.prop_address), 'city', coalesce(p.city, l.prop_city), 'phones', array_remove(array[l.phone, l.phone2, l.phone3], null),
     'mail', concat_ws(', ', l.mail_address, l.mail_city, l.mail_state, l.mail_zip),
     'property', concat_ws(', ', coalesce(p.address, l.prop_address), coalesce(p.city, l.prop_city), coalesce(p.state, l.prop_state)),
     'county', coalesce(p.county, l.county), 'apn', coalesce(p.apn, l.apn), 'acres', coalesce(p.acres::text, l.acres::text),

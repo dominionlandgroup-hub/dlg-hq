@@ -239,6 +239,7 @@ h3.sec{margin:0 0 10px;font-size:14px}
     <a class="nav" data-v="inbox-seller">Seller Inbox <span class="badge hidden" id="b_seller"></span></a>
     <a class="nav" data-v="board-seller">Seller Deals</a>
     <a class="nav" data-v="board-duet">Duet Leads</a>
+    <a class="nav" data-v="callers">Callers</a>
     <div class="grp">Buyers</div>
     <a class="nav" data-v="inbox-buyer">Buyer Inbox <span class="badge hidden" id="b_buyer"></span></a>
     <a class="nav" data-v="board-buyer">Buyer Deals</a>
@@ -336,6 +337,7 @@ async function boot(){
   $('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=data.session.user.email;
   const {data:st}=await sb.from('board_stages').select('*').order('position');STAGES=st||[];
   if(!STAGES.length) toast('Database update needed: run schema_v2.sql in Supabase');
+  const dl=/^#deal-(\d+)$/.exec(location.hash);if(dl){history.replaceState(null,'',location.pathname);go('board-duet');setTimeout(()=>openDeal(+dl[1]),800)}else
   go(location.hash.slice(1)||store.get('view')||'dashboard');refreshBadges();setInterval(refreshBadges,60000);setInterval(livePoll,15000);livePoll();setTimeout(rsSweep,8000);
 }
 async function signIn(){const {error}=await sb.auth.signInWithPassword({email:$('email').value,password:$('pw').value});if(error){$('loginErr').textContent=error.message;return}boot()}
@@ -355,8 +357,8 @@ async function refreshBadges(){for(const b of ['seller','buyer']){const {count}=
 // ---------- router ----------
 const VIEWS={dashboard:vDashboard,campaigns:vCampaigns,'inbox-seller':()=>vInbox('seller'),'inbox-buyer':()=>vInbox('buyer'),
  'board-seller':()=>vBoard('seller'),'board-duet':()=>vBoard('seller','duet'),'board-buyer':()=>vBoard('buyer'),properties:vProperties,contacts:vContacts,buyers:vBuyers,prospects:vProspects,
- followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit(),scorecard:()=>vScorecard(),drip:()=>vDrip(),checklist:()=>vChecklist(),checker:()=>vChecker(),targets:()=>vHubTargets(),match:()=>vHubMatch()};
-const TITLES={prospects:'Buyer Prospects',checker:'List Checker',dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-duet':'Duet Leads','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',drip:'Builder Texts',checklist:'My Checklist',targets:'Targets',match:'Deal matcher'};
+ followup:vFollowup,templates:vTemplates,tasks:vTasks,import:vImport,insights:vInsights,testimonials:vTestimonials,course:vCourse,split:()=>vSplit(),scorecard:()=>vScorecard(),drip:()=>vDrip(),checklist:()=>vChecklist(),checker:()=>vChecker(),targets:()=>vHubTargets(),match:()=>vHubMatch(),callers:()=>vCallers()};
+const TITLES={prospects:'Buyer Prospects',checker:'List Checker',dashboard:'Dashboard',campaigns:'Campaigns','inbox-seller':'Seller Inbox','inbox-buyer':'Buyer Inbox','board-seller':'Seller Deals','board-duet':'Duet Leads','board-buyer':'Buyer Deals',properties:'Properties',contacts:'Contacts',buyers:'Buyers',followup:'Auto Followup',templates:'Templates',tasks:'Tasks',import:'Import',insights:'Mailing Insights',testimonials:'Testimonials',course:'WALS Course',split:'Split Finder',scorecard:'Weekly Scorecard',drip:'Builder Texts',checklist:'My Checklist',targets:'Targets',match:'Deal matcher',callers:'Callers'};
 document.querySelectorAll('a.nav').forEach(a=>a.onclick=()=>go(a.dataset.v));
 function go(v){try{const _vw=document.getElementById('view');if(_vw)_vw.style.opacity='';if(document.getElementById('gq')){document.getElementById('gq').value='';const gx=document.getElementById('gx');if(gx)gx.classList.add('hidden')}}catch(e){}try{if(/^inbox-/.test(v||'')&&!/^inbox-/.test(CUR||'')){IST2.status=INBOX_DEFAULT(String(v).slice(6));IST2.term=''}}catch(e){}const m=/^(campaign|record|search):(.*)$/.exec(v||'');if(m){CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);document.querySelectorAll('a.nav').forEach(a=>a.classList.toggle('on',a.dataset.v==='campaigns'&&m[1]!=='search'));$('actions').innerHTML='';$('view').innerHTML='<div class="muted">Loading…</div>';$('side').classList.remove('open');if(m[1]==='campaign')vCampaign(+m[2]);else if(m[1]==='record')vRecord(+m[2]);else vSearch((()=>{try{return decodeURIComponent(m[2])}catch(e){return m[2]}})());return}
   if(!VIEWS[v])v='dashboard';CUR=v;store.set('view',v);history.replaceState(null,'','#'+v);
@@ -2590,6 +2592,39 @@ async function saveTpl(id,kind){const r={kind,name:$('t_name').value||'Untitled'
 async function delTpl(id){if(!confirm('Delete template?'))return;await sb.from('templates').delete().eq('id',id);closeDrawer();vTemplates()}
 
 // ---------- tasks ----------
+// ---------- CALLERS (Nov 2026): VA caller logins (landiq.land/caller.html) and their KPIs ----------
+// Callers never get a DLG HQ login. They sign in on caller.html and only see Duet 📞 leads (sql/callers.sql).
+const CALL_LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Wrong number'};
+async function vCallers(){
+  const etDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date());
+  const since=new Date(Date.now()-7*86400000).toISOString();
+  const [{data:acc,error:e1},{data:calls}]=await Promise.all([
+    sb.from('caller_accounts').select('id,name,email,active,invite_token,invite_expires,last_login,created_at').order('id'),
+    sb.from('caller_calls').select('*, deals(id,property_label)').gte('created_at',since).order('created_at',{ascending:false}).limit(500)]);
+  if(e1){$('view').innerHTML=`<div class="card"><b>One-time setup needed.</b><p class="small">Run <code>sql/callers.sql</code> in Supabase (SQL Editor, paste, Run). Then reload this page.</p><p class="small muted">${esc(e1.message)}</p></div>`;return}
+  const C=calls||[],A=acc||[];
+  const day=c=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date(c.created_at));
+  const kp=list=>{const n=o=>list.filter(c=>o.includes(c.outcome)).length;return {calls:list.length,reached:n(['appointment','follow_up','not_interested']),appt:n(['appointment']),fu:n(['follow_up']),ni:n(['not_interested']),na:n(['no_answer','voicemail']),bad:n(['wrong_number'])}};
+  const krow=(lbl,k)=>`<tr><td>${lbl}</td><td><b>${k.calls}</b></td><td>${k.reached}${k.calls?` <span class="small muted">(${Math.round(100*k.reached/k.calls)}%)</span>`:''}</td><td><b>${k.appt}</b></td><td>${k.fu}</td><td>${k.ni}</td><td>${k.na}</td><td>${k.bad}</td></tr>`;
+  const link=a=>a.invite_token?`${location.origin}/caller.html?invite=${a.invite_token}`:'';
+  $('view').innerHTML=`
+  <div class="card"><b>Callers</b><p class="small muted" style="margin:4px 0 10px">Each caller signs in at <a href="caller.html" target="_blank">landiq.land/caller.html</a> and sees only the Caller screen: one 📞 Duet lead at a time, the notes, and the outcome buttons. Appointments text you and show up in Tasks and in the Duet - Appointment Set column.</p>
+   <table><tr><th>Name</th><th>Login</th><th>Last signed in</th><th></th></tr>${A.map(a=>`<tr><td>${esc(a.name)}</td><td class="small">${a.email?esc(a.email):a.invite_token?`<span class="muted">Invite not used yet</span><br><input readonly value="${esc(link(a))}" onclick="this.select()" style="font-size:12px;margin-top:4px"><button class="btn sm" style="margin-top:4px" onclick="navigator.clipboard.writeText('${jsa(link(a))}');toast('Invite link copied - send it to ${jsa(a.name)}')">Copy invite link</button>`:'—'}</td>
+     <td class="small">${a.last_login?new Date(a.last_login).toLocaleString():'—'}${a.active?'':' <b style="color:var(--red)">· turned off</b>'}</td>
+     <td class="small"><button class="btn sm ghost" onclick="callerInvite(${a.id})">New invite link</button> <button class="btn sm ghost" onclick="callerActive(${a.id},${!a.active})">${a.active?'Turn off':'Turn on'}</button></td></tr>`).join('')||'<tr><td colspan="4" class="muted">No callers yet.</td></tr>'}</table>
+   <div style="display:flex;gap:8px;margin-top:10px;max-width:460px"><input id="cl_name" placeholder="Caller's name (e.g. Salsabil Mohamed)"><button class="btn" onclick="callerAdd()">Add caller</button></div></div>
+  <div class="card" style="padding:0"><table><tr><th>KPIs</th><th>Calls</th><th>Reached</th><th>Appts</th><th>Follow-ups</th><th>Not int.</th><th>No answer / VM</th><th>Bad #</th></tr>
+   ${A.map(a=>{const mine=C.filter(c=>c.caller_id===a.id);return krow(esc(a.name)+' · today',kp(mine.filter(c=>day(c)===etDay)))+krow(esc(a.name)+' · last 7 days',kp(mine))}).join('')||'<tr><td colspan="8" class="muted">No calls yet.</td></tr>'}</table></div>
+  <div class="card" style="padding:0"><table><tr><th>Recent calls (7 days)</th><th>Outcome</th><th>Note</th></tr>${C.slice(0,150).map(c=>`<tr><td class="small" style="white-space:nowrap">${new Date(c.created_at).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}<br>${esc((A.find(a=>a.id===c.caller_id)||{}).name||'')}<br>${c.deals?`<a href="#" onclick="openDeal(${c.deals.id});return false">${esc(String(c.deals.property_label||'deal').slice(0,40))}</a>`:''}</td>
+     <td class="small"><b>${esc(CALL_LBL[c.outcome]||c.outcome)}</b><br>${esc(c.phone||'')}${c.talked_to?`<br>${esc(c.talked_to)}`:''}${c.appt_at?`<br>Appt: ${new Date(c.appt_at).toLocaleString('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} ET`:''}${c.follow_up_at&&c.outcome==='follow_up'?`<br>Call back: ${new Date(c.follow_up_at).toLocaleDateString()}`:''}</td>
+     <td class="small" style="white-space:pre-wrap">${esc(c.note||'')}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">No calls in the last 7 days.</td></tr>'}</table></div>`}
+const callerTok=()=>[...crypto.getRandomValues(new Uint8Array(18))].map(b=>b.toString(16).padStart(2,'0')).join('');
+async function callerAdd(){const n=$('cl_name').value.trim();if(!n)return toast('Type the caller\'s name');
+  const {error}=await sb.from('caller_accounts').insert({name:n,invite_token:callerTok(),invite_expires:new Date(Date.now()+7*86400000).toISOString()});
+  if(error)return toast(error.message);toast('Added '+n+' - copy the invite link and send it to them');vCallers()}
+async function callerInvite(id){const {error}=await sb.from('caller_accounts').update({invite_token:callerTok(),invite_expires:new Date(Date.now()+7*86400000).toISOString(),pw_hash:null}).eq('id',id);
+  if(error)return toast(error.message);await sb.from('caller_sessions').delete().eq('caller_id',id);toast('New invite link made - the old password no longer works');vCallers()}
+async function callerActive(id,on){const {error}=await sb.from('caller_accounts').update({active:on}).eq('id',id);if(error)return toast(error.message);if(!on)await sb.from('caller_sessions').delete().eq('caller_id',id);toast(on?'Turned on':'Turned off - signed out everywhere');vCallers()}
 async function vTasks(){const T=()=>sb.from('tasks').select('*, deals(id,property_label), leads(full_name)').not('title','like','CL|%');
   // every open task (paged), and the 30 most recently finished
   const {data:open0}=await pageAll(()=>T().eq('status','todo').order('due_at',{nullsFirst:false}).order('id'));
