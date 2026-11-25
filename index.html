@@ -578,7 +578,7 @@ async function fillAltApn(p){try{if(!p?.id||!p.apn||(p.fields||{}).alt_checked||
   if(alt)fields.alt_apn=String(alt).trim();await sb.from('properties').update({fields}).eq('id',p.id);p.fields=fields}catch(e){}}
 function card(d){const p=d.properties||{},l=d.leads;
   return `<div class="dcard" draggable="true" data-id="${d.id}" style="border-left-color:${d.priority==='hot'?'var(--hot)':d.priority==='warm'?'var(--accent)':'var(--brand2)'}" onclick="openDeal(${d.id})">
-   <div class="t"><span>${esc(leadName(l)||d.property_label||'Deal')}</span>${d.value?`<span class="val">${money(d.value)}</span>`:''}</div>
+   <div class="t"><span>${/^(📞|🔎) /u.test(d.property_label||'')?`<span title="${d.property_label.startsWith('📞')?'Has phone numbers - ready to call':'No usable numbers - look up in BeenVerified'}">${[...d.property_label][0]}</span> `:''}${esc(leadName(l)||d.property_label||'Deal')}</span>${d.value?`<span class="val">${money(d.value)}</span>`:''}</div>
    ${p.apn?`<div class="s">${esc(apnText(p))}</div>`:''}
    <div class="s">${esc([p.address||d.property_label,p.city].filter(Boolean).join(', '))}</div>
    ${d.as_meta?.esc_max?`<div class="s">Offer ${money(d.purchase_price)} escalating to ${money(d.as_meta.esc_max)}</div>`:''}
