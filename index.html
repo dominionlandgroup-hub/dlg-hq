@@ -548,6 +548,8 @@ let _dashSeq=0;async function vDashboard(){
 // DUET LEADS (Nov 2026): leads found by Claude Duet live in seller-board stages named 'Duet - <county>'.
 // They get their own tab and stay off Seller Deals and the dashboard counts until they become real conversations.
 const isDuetStage=s=>/^Duet - /.test((s&&s.name)||'');
+// Default stage for new/moved deals: first non-Duet stage, so inbox/lead deals land in New Lead, never a Duet column
+const defaultStage=b=>STAGES.filter(s=>s.board===b&&!isDuetStage(s)).sort((x,y)=>x.position-y.position||x.id-y.id)[0];
 async function vBoard(board,mode){
   $('actions').innerHTML=`<input id="bf" placeholder="Filter name / address / APN" style="width:210px"><select id="bp" style="width:auto"><option value="">Any priority</option><option>hot</option><option>warm</option><option>cold</option></select><button class="btn" onclick="newDeal('${board}')">+ Add Deal</button><button class="btn ghost" onclick="addStage('${board}'${mode==='duet'?",'Duet - '":''})">+ Stage</button>`;
   let data=[],error=null;for(let f=0;;f+=1000){const r=await sb.from('deals').select('*, leads(id,full_name,first_name,last_name,phone), properties(apn,address,city,zip,county,county_state,acres,fields)').eq('board',board).order('position').order('id').range(f,f+999);if(r.error){error=r.error;break}data.push(...r.data);if(r.data.length<1000)break}
@@ -644,7 +646,7 @@ const buyerOpt=(b,sel)=>`<option value="${b.id}" ${sel?'selected':''}>${esc((b.n
 const buyerSearch=sid=>`<input type="search" placeholder="Search buyers by name, company or email" oninput="filterBuyers('${sid}',this.value)" style="margin-bottom:4px">`;
 function filterBuyers(sid,q){const s=$(sid);if(!s)return;const cur=s.value;q=String(q||'').trim().toLowerCase();const L=(BUYERS||[]).filter(b=>String(b.id)===cur||!q||buyerQ(b).includes(q));
   s.innerHTML='<option value="">'+(q?L.filter(b=>String(b.id)!==cur).length+' match'+(L.filter(b=>String(b.id)!==cur).length===1?'':'es'):'—')+'</option>'+L.map(b=>buyerOpt(b,String(b.id)===cur)).join('');s.value=cur}
-function newDeal(board,stageId){openDealForm({board,stage_id:stageId||STAGES.find(s=>s.board===board)?.id})}
+function newDeal(board,stageId){openDealForm({board,stage_id:stageId||defaultStage(board)?.id})}
 async function dealSetByCode(id){const c=prompt('Offer code the seller gave (for example 364-6668)');if(!c)return;const r=await campaignByOfferCode(c);if(!r)return toast('No letter found with offer code '+c);
   const {data:d}=await sb.from('deals').select('lead_id,property_id').eq('id',id).single();const upd={campaign_id:r.campaign_id};if(!d.property_id&&r.property_id)upd.property_id=r.property_id;if(!d.lead_id&&r.lead_id)upd.lead_id=r.lead_id;
   const {error}=await sb.from('deals').update(upd).eq('id',id);if(error)return toast(error.message);await sb.from('activity').insert({lead_id:d.lead_id||r.lead_id,kind:'note',body:`Campaign set from offer code ${c}`}).then(()=>{},()=>{});toast('Campaign set from offer code '+c);openDeal(id)}
@@ -793,7 +795,7 @@ async function moveToBuyer(id){const s=STAGES.find(x=>x.board==='buyer');if(!s)r
   const {data:d,error}=await sb.from('deals').update({board:'buyer',stage_id:s.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id).select().single();if(error)return toast(error.message);
   await dealMilestone(id,'purchase');
   toast('Moved to Buyer Deals → '+s.name);closeDrawer();go('board-buyer')}
-async function moveToSeller(id){const s=STAGES.find(x=>x.board==='seller');const {error}=await sb.from('deals').update({board:'seller',stage_id:s.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id);if(error)return toast(error.message);await sb.from('transactions').delete().eq('deal_id',id).eq('kind','sale').like('notes','HQ:%');toast('Moved back to Seller Deals');closeDrawer();go('board-seller')}
+async function moveToSeller(id){const s=defaultStage('seller');const {error}=await sb.from('deals').update({board:'seller',stage_id:s.id,status:'open',updated_at:new Date().toISOString()}).eq('id',id);if(error)return toast(error.message);await sb.from('transactions').delete().eq('deal_id',id).eq('kind','sale').like('notes','HQ:%');toast('Moved back to Seller Deals');closeDrawer();go('board-seller')}
 async function saveDeal(id,board){_dDirty=false;
   const n=k=>{const v=$('d_'+k).value;return v===''?null:Number(v)};
   const r={board,stage_id:n('stage_id'),priority:$('d_priority').value||null,value:n('value'),property_label:$('d_property_label').value||null,campaign_id:$('d_campaign_id').value==='sms'?null:n('campaign_id'),
@@ -1496,7 +1498,7 @@ async function insertDealOnce(row,opt={}){const key=[row.board,row.lead_id||'',r
       if(same){toast('This contact already has an open '+(row.board==='buyer'?'buyer':'seller')+' deal, opened it');return {data:same,error:null,existed:true}}}
     return await sb.from('deals').insert(row).select().single()}
   finally{setTimeout(()=>_dealBusy.delete(key),2000)}}
-async function dealFromThread(tid){const {data:t}=await sb.from('threads').select('*, leads(id,full_name,prop_address)').eq('id',tid).single();const b=t.inbox==='buyer'?'buyer':'seller';const st=STAGES.find(s=>s.board===b);
+async function dealFromThread(tid){const {data:t}=await sb.from('threads').select('*, leads(id,full_name,prop_address)').eq('id',tid).single();const b=t.inbox==='buyer'?'buyer':'seller';const st=defaultStage(b);
   const {data:_msgs}=await sb.from('messages').select('body').eq('thread_id',tid).order('id',{ascending:false}).limit(50);
   const campaign_id=await guessCampaign(t.lead_id,null,null,(_msgs||[]).map(m=>m.body).join(' \n '));const {data,error}=await insertDealOnce({board:b,stage_id:st?.id,lead_id:t.lead_id,property_label:t.leads?.full_name||t.title,source:'inbox',status:'open',campaign_id});if(error)return toast(error.message);if(data)openDeal(data.id)}
 async function startConversation(box){const q=prompt('Phone number or contact name');if(!q)return;const {data}=await sb.rpc('global_search',{q,lim:5});const c=data?.contacts?.[0];
@@ -1512,7 +1514,7 @@ async function sendText(leadId,box){const b=$('reply').value.trim();if(!b)return
   await sb.from('messages').insert({lead_id:leadId,inbox:box,channel:'sms',direction:'out',body:b,is_read:true});
   await sb.from('followup_enrollments').update({status:'stopped',stopped_why:'manual reply'}).eq('lead_id',leadId).eq('status','active');
   toast('Saved to the conversation. Texts go out once Quo is connected.');openThread(leadId,box)}
-async function dealFromLead(leadId,board){const st=STAGES.find(s=>s.board===board);const {data:l}=await sb.from('leads').select('*').eq('id',leadId).single();
+async function dealFromLead(leadId,board){const st=defaultStage(board);const {data:l}=await sb.from('leads').select('*').eq('id',leadId).single();
   const campaign_id=await guessCampaign(leadId,null);const {data,error}=await insertDealOnce({board,stage_id:st?.id,lead_id:leadId,property_label:l.prop_address||null,source:l.lead_source||null,campaign_id});if(error)return toast(error.message);if(data)openDeal(data.id)}
 
 // ---------- campaigns ----------
@@ -2287,7 +2289,7 @@ async function openProperty(id){
 async function saveFields(id){const {error}=await sb.from('properties').update({tags:$('p_tags').value.split(',').map(s=>s.trim()).filter(Boolean),updated_at:new Date().toISOString()}).eq('id',id);toast(error?error.message:'Saved')}
 async function addTx(id){const p=$('tx_p').value;if(!p)return;await sb.from('transactions').insert({property_id:id,kind:$('tx_k').value,tx_date:$('tx_d').value||localISO(),price:+p,costs:+$('tx_c').value||0});openProperty(id)}
 async function dealFromProperty(pid,board){const {data:o}=await sb.from('property_owners').select('lead_id').eq('property_id',pid).limit(1);const {data:p}=await sb.from('properties').select('address,city').eq('id',pid).single();
-  const campaign_id=await guessCampaign(o?.[0]?.lead_id||null,pid);const {data,error}=await insertDealOnce({board,stage_id:STAGES.find(s=>s.board===board)?.id,property_id:pid,lead_id:o?.[0]?.lead_id||null,property_label:[p.address,p.city].filter(Boolean).join(', ')||null,campaign_id});if(error)return toast(error.message);if(data)openDeal(data.id)}
+  const campaign_id=await guessCampaign(o?.[0]?.lead_id||null,pid);const {data,error}=await insertDealOnce({board,stage_id:defaultStage(board)?.id,property_id:pid,lead_id:o?.[0]?.lead_id||null,property_label:[p.address,p.city].filter(Boolean).join(', ')||null,campaign_id});if(error)return toast(error.message);if(data)openDeal(data.id)}
 function editProperty(){openDrawer(head('New property')+`<div class="card">
   <div class="row"><input id="np_apn" placeholder="APN"><input id="np_county" placeholder="County"><input id="np_st" placeholder="State" style="flex:0 0 80px"></div><br>
   <div class="row"><input id="np_addr" placeholder="Address"><input id="np_city" placeholder="City"><input id="np_acres" placeholder="Acres" type="number"></div><br>
