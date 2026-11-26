@@ -2619,6 +2619,11 @@ async function vCallers(){
     sb.from('caller_calls').select('*, deals(id,property_label)').gte('created_at',since).order('created_at',{ascending:false}).limit(500),
     sb.from('caller_reviews').select('*').eq('week_of',callerWeek()),
     sb.from('board_stages').select('id').eq('board','seller').eq('name','Duet - Needs Skip Trace').maybeSingle()]);
+  // which problems turn into appointments (last 30 days of calls, by the PROBLEMS FOUND line on each lead)
+  const {data:pc}=await sb.from('caller_calls').select('deal_id,outcome,deals(notes)').gte('created_at',new Date(Date.now()-30*86400000).toISOString()).limit(2000);
+  const probKey=t=>/foreclos/i.test(t)?'Tax foreclosure':/back tax/i.test(t)?'Back taxes':/heir|estate|deceased/i.test(t)?'Heirs / estate / deceased':/out of state/i.test(t)?'Out of state':/multiple owner/i.test(t)?'Multiple owners':/code case/i.test(t)?'City code case':/mailing address/i.test(t)?'No good mailing address':'Other';
+  const PB={};for(const c of pc||[]){const m=String(c.deals?.notes||'').match(/PROBLEMS FOUND \(\d\): ([^\n]*)/);const keys=m?[...new Set(m[1].split(/,\s*(?![^()]*\))/).map(probKey))]:['No problem line'];for(const k of keys){const b=PB[k]=PB[k]||{leads:new Set(),calls:0,reached:0,appt:0};b.leads.add(c.deal_id);b.calls++;if(['appointment','follow_up','not_interested','transferred'].includes(c.outcome))b.reached++;if(['appointment','transferred'].includes(c.outcome))b.appt++}}
+  const probRows=Object.entries(PB).sort((a,b)=>b[1].appt-a[1].appt||b[1].calls-a[1].calls);
   let skipDeals=[];if(skipSt){const {data}=await sb.from('deals').select('id,property_label').eq('stage_id',skipSt.id).limit(200);skipDeals=data||[]}
   if(e1){$('view').innerHTML=`<div class="card"><b>One-time setup needed.</b><p class="small">Run <code>sql/callers.sql</code> in Supabase (SQL Editor, paste, Run). Then reload this page.</p><p class="small muted">${esc(e1.message)}</p></div>`;return}
   const C=calls||[],A=acc||[];
@@ -2633,6 +2638,8 @@ async function vCallers(){
      <td class="small">${a.last_login?new Date(a.last_login).toLocaleString():'—'}${a.active?'':' <b style="color:var(--red)">· turned off</b>'}</td>
      <td class="small"><a class="btn sm" href="caller.html?preview=${a.id}" target="_blank" rel="noopener">Preview</a> <button class="btn sm ghost" onclick="callerInvite(${a.id})">New invite link</button> <button class="btn sm ghost" onclick="callerActive(${a.id},${!a.active})">${a.active?'Turn off':'Turn on'}</button></td></tr>`).join('')||'<tr><td colspan="6" class="muted">No callers yet.</td></tr>'}</table>
    <div style="display:flex;gap:8px;margin-top:10px;max-width:620px"><input id="cl_name" placeholder="Real name (e.g. Salsabil Mohamed)"><input id="cl_call" placeholder="Calls as (e.g. Olivia)" style="max-width:150px"><button class="btn" onclick="callerAdd()">Add caller</button></div></div>
+  <div class="card" style="padding:0"><table><tr><th>Which problems book appointments (last 30 days)</th><th>Leads called</th><th>Calls</th><th>Reached</th><th>Appts</th><th>Appts per 100 calls</th></tr>
+   ${probRows.map(([k,b])=>`<tr><td>${esc(k)}</td><td>${b.leads.size}</td><td>${b.calls}</td><td>${b.reached}</td><td><b>${b.appt}</b></td><td>${b.calls?(100*b.appt/b.calls).toFixed(1):'0'}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No calls in the last 30 days yet. After a couple of weeks this shows which kind of lead to pull more of.</td></tr>'}</table></div>
   <div class="card" style="padding:0"><table><tr><th>KPIs</th><th>Calls</th><th>Reached</th><th>Appts</th><th>Follow-ups</th><th>Not int.</th><th>No answer / VM</th><th>Bad #</th></tr>
    ${A.map(a=>{const mine=C.filter(c=>c.caller_id===a.id);return krow(esc(a.name)+' · today',kp(mine.filter(c=>day(c)===etDay)))+krow(esc(a.name)+' · last 7 days',kp(mine))}).join('')||'<tr><td colspan="8" class="muted">No calls yet.</td></tr>'}</table></div>
   ${A.filter(a=>a.active).map(a=>{const mine=C.filter(c=>c.caller_id===a.id),k=kp(mine),r=(revs||[]).find(x=>x.caller_id===a.id)||{};
