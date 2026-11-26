@@ -68,6 +68,7 @@ main{padding:18px;max-width:1100px;overflow:auto;max-height:calc(100vh - 52px)}
 #lname{width:170px;padding:6px 10px}.line{font-size:18px;font-weight:600;margin:10px 0 0;line-height:1.4}
 .rules{font-size:13px;background:#fbf7ec;border:1px solid #efe1b8;border-radius:10px;padding:10px 12px;margin-bottom:16px}
 .hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:9px;padding:6px 12px;font-weight:700}
+.callb{background:var(--green);color:#fff;border-radius:7px;padding:3px 10px;font-size:12.5px;font-weight:700;text-decoration:none;white-space:nowrap}
 .avail{background:#e3f1e6;color:#1f4d29;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:700}
 .hbtn.hot{background:var(--gold);border-color:var(--gold);color:#231b30}
 .pv{background:#fbf1d8;color:#6b4a00;border-bottom:1px solid #efe1b8;padding:8px 16px;font-size:13.5px}
@@ -163,7 +164,7 @@ const FAQ=[
  ['Family members own it too.','"That\'s very common, and we can work with that. Who else is on it, and how can we reach them?" Write every name in your note.'],
  ['Back taxes, a lien, paperwork problems?','"We see that often and work with a real estate attorney to handle it. Damien will go over it with you."'],
  ['Is this a scam?','"I understand, you get a lot of calls. We\'re Dominion Land Group in Charlotte, our website is DominionLandGroup.land, and nothing gets signed until you\'ve talked with Damien and seen the offer in writing."'],
- ['I have a house, not land.','"Damien may still be able to help. Let me have him call you." Book it and note it\'s a house.'],
+ ['There\'s a house on it / I have a house.','"We can still help with that. A few quick questions so Damien can look at it: Is the house vacant, or is someone living there? On a scale of 1 to 10, 10 being excellent and 1 being poor, what condition would you say it\'s in? Do you have a price in mind?" Write all three answers in your note, then book the call with Damien.'],
  ['Take me off your list.','"I understand, we won\'t call again." Log Not interested and write "Asked not to be called."']];
 const TEMPLATE="Spoke with: \nRelationship to owner: \nWhat they said: \nPrice in mind: \nOther heirs / who must sign: \nNext step: ";
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
@@ -193,6 +194,7 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
   <h3>Your first day</h3><ol>
    <li>Sign in here with your own login. Never use anyone else's.</li>
    <li>Open Quo on your line (704) 275-5457 and check that it shows your name, ${me}.</li>
+   <li>Use the <b>Quo desktop app</b> (not the website) and make it your default calling app, so the green <b>Call</b> buttons open Quo with the number filled in. Windows: Settings → search "default apps" → "Choose default apps by protocol" → set <b>TEL</b> to Quo, then restart your browser. Mac: open FaceTime → Settings → "Default for calls" → Quo.</li>
    <li>Read the SOP, Seller FAQ and Pay tabs.</li>
    <li>Say the opening line out loud 3 times before your first call.</li>
    <li>Call from the top of your list down. Log every call before you open the next lead.</li>
@@ -238,8 +240,8 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
   <p>If Damien doesn't pick up, go back to the seller and book the appointment instead.</p>
   <h3>Texting</h3><ul>
    <li>Only text a number marked <b>mobile</b> (or Wireless on a search site). Never text a landline, a DO NOT USE number, or a deceased owner's number.</li>
-   <li>Send it right after the voicemail. Type their first name in the box, click <b>Copy text</b>, paste it in Quo on your line and send. Then tick <b>I sent the text</b> before you save.</li>
-   <li>The text: "Hi Gloria, this is ${me} with Dominion Land Group. I just tried calling about your vacant lot at 2364 Main Street, Monroe. Do you have any interest in selling? Reply STOP to unsubscribe." Don't change the opening or the STOP line.</li>
+   <li>Send it right after the voicemail. Check Mr./Ms. and the last name at the top, click <b>Copy text</b>, paste it in Quo on your line and send. Then tick <b>I sent the text</b> before you save.</li>
+   <li>The text: "Hi Ms. Johnson, this is ${me} with Dominion Land Group. I just tried calling about your vacant lot at 2364 Main Street, Monroe. Do you have any interest in selling? Reply STOP to unsubscribe." Don't change the opening or the STOP line.</li>
    <li>Send at most 2 texts per person: one after your first voicemail, one more on your next try if they still haven't answered. Never text after they say no or reply STOP.</li>
    <li>Replies come into your Quo inbox. Answer them like a call: ask "Do you have a price in mind?" and book the call with Damien. If they reply STOP, log Not interested and write "Replied STOP".</li>
    <li>Text between 10am and 7pm Eastern only.</li></ul>
@@ -349,7 +351,6 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
      <p class="small" style="margin:10px 0 0"><b>No answer?</b> Hang up and call right back, up to 3 times in a row. On the 3rd try leave this voicemail, then send the text if the number is a mobile.</p>
      <p class="small muted" id="vmLine" style="margin:6px 0 0"></p>
      <div class="tx"><div class="sh" style="margin-top:10px"><b class="small">Text</b> <span class="small muted">mobile numbers only, after the voicemail</span>
-       <input id="fname" type="text" aria-label="First name of the person you are texting" placeholder="First name" value="${esc(firstName(L))}" style="width:150px;padding:6px 10px;margin-left:auto">
        <button type="button" class="btn ghost" id="txCopy" style="padding:6px 12px">Copy text</button></div>
        <p class="small" id="txLine" style="margin:6px 0 0;background:#fff;border:1px solid #d9c8ea;border-radius:9px;padding:8px 10px"></p></div>
      <div class="faqq" aria-label="If the seller asks"><span class="small muted" style="align-self:center">If they ask:</span>${FAQ.map(([q],i)=>`<button type="button" class="fq" data-f="${i}" aria-pressed="false">${esc(q)}</button>`).join('')}</div>
@@ -365,7 +366,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
     ${L.stage===SKIP_STAGE?'<div class="card"><p>This lead is waiting on new numbers from Damien. It comes back to your list when they are added.</p></div>':`<form class="card" id="logForm">
      <h3 style="font-size:16px">Log this call</h3>
      <label>1. Which number did you call?</label>
-     ${!P.some(p=>!p.bad)?'<p class="small" style="background:#fbf1d8;border-radius:8px;padding:8px 10px;margin:0 0 6px"><b>No good numbers left.</b> Pick <b>Needs skip trace</b> below.</p>':''}<div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span><span class="ctx" title="${esc(p.ctx)}">${p.bad?'DO NOT CALL - ':''}${esc(p.ctx)}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
+     ${!P.some(p=>!p.bad)?'<p class="small" style="background:#fbf1d8;border-radius:8px;padding:8px 10px;margin:0 0 6px"><b>No good numbers left.</b> Pick <b>Needs skip trace</b> below.</p>':''}<div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span>${p.bad?'':`<a class="callb" href="tel:+1${p.d}" data-d="${p.d}">Call</a>`}<span class="ctx" title="${esc(p.ctx)}">${p.bad?'DO NOT CALL - ':''}${esc(p.ctx)}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
      <label for="other">Or type a number you found</label><input id="other" type="text" inputmode="tel" placeholder="(704) 555-0123">
      <label for="talk">2. Who did you talk to? <span class="muted">(name, or leave blank if nobody)</span></label><input id="talk" type="text" placeholder="e.g. Gloria Smith - daughter">
      <label>3. What happened?</label>
@@ -379,8 +380,9 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
    </div>
   </div>`;
   document.querySelectorAll('.tbtn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tbtn').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));drawLine()});
-  $('lname').oninput=drawLine;$('fname').oninput=drawLine;drawLine();
-  $('txCopy').onclick=async()=>{const f=$('fname').value.trim();if(!f){toast('Type their first name first');$('fname').focus();return}
+  $('lname').oninput=drawLine;drawLine();
+  document.querySelectorAll('.callb').forEach(a=>a.onclick=()=>{const r=a.closest('.ph').querySelector('input[type=radio]');if(r)r.checked=true});
+  $('txCopy').onclick=async()=>{if(!$('lname').value.trim()){toast('Type their last name first');$('lname').focus();return}
     const r=document.querySelector('input[name=ph]:checked'),ctx=r?r.closest('.ph').querySelector('.ctx').textContent:'';
     try{await navigator.clipboard.writeText($('txLine').textContent);toast(/mobile|wireless|cell/i.test(ctx)||$('other')?.value.trim()?'Copied - paste it in Quo, then tick "I sent the text"':'Copied - only send it if this number is a mobile')}catch(e){toast('Select the text and copy it')}};
   document.querySelectorAll('.fq').forEach(b=>b.onclick=()=>{const on=b.getAttribute('aria-pressed')!=='true';document.querySelectorAll('.fq').forEach(x=>x.setAttribute('aria-pressed',String(on&&x===b)));
@@ -396,8 +398,7 @@ function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')|
   const me=window.CALLNAME||'[your name]';
   const st=cap(String(CUR.street||'').trim())||'[property address]';const city=cap(String(CUR.city||'').trim());
   $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at ${st}${city?', '+city:''}. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to (704) 275-5457. Thank you."`;
-  const f=$('fname')?$('fname').value.trim():'';
-  if($('txLine'))$('txLine').textContent=`Hi ${f||'[first name]'}, this is ${me} with Dominion Land Group. I just tried calling about your vacant lot at ${st}${city?', '+city:''}. Do you have any interest in selling? Reply STOP to unsubscribe.`;
+  if($('txLine'))$('txLine').textContent=`Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I just tried calling about your vacant lot at ${st}${city?', '+city:''}. Do you have any interest in selling? Reply STOP to unsubscribe.`;
   $('line').textContent=`"Hello, ${t} ${ln}. This is ${me} with Dominion Land Group. I was inquiring if you had any interest in selling your vacant land at ${st}${city?', '+city:''}?"`}
 function pickOut(o){OUT=o;document.querySelectorAll('#logForm .out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
   const need=o==='appointment'||o==='follow_up';$('whenWrap').classList.toggle('hidden',!need);
