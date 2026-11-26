@@ -2632,6 +2632,7 @@ async function vCallers(){
       <tr><td>Reached</td><td>${rp}%</td><td>10%+</td><td>${k.calls?hit(rp>=10):''}</td></tr>
       <tr><td>Appointments set</td><td>${k.appt}</td><td>2+ per week</td><td>${hit(k.appt>=2)}</td></tr>
       <tr><td>Notes filled in</td><td>${k.calls?Math.round(100*noted/k.calls):0}%</td><td>100%</td><td>${k.calls?hit(noted===k.calls):''}</td></tr>
+      <tr><td>Texts sent</td><td>${mine.filter(c=>/^Texted:/m.test(c.note||'')).length}</td><td></td><td></td></tr>
       <tr><td>Sent to skip trace</td><td>${mine.filter(c=>c.outcome==='skip_trace').length}</td><td></td><td></td></tr></table>
      <p class="small muted" style="margin:10px 0 4px">Your 3 notes to her this week. She sees them under Guide → Notes from Damien.</p>
      <div style="display:grid;gap:6px;max-width:720px"><input id="rv_w_${a.id}" placeholder="Did well" value="${esc(r.did_well||'')}"><input id="rv_f_${a.id}" placeholder="To fix" value="${esc(r.fix||'')}"><input id="rv_o_${a.id}" placeholder="Focus next week" value="${esc(r.focus||'')}"></div>
