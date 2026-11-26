@@ -404,6 +404,23 @@ function buckets(a,b,n=6){const A=new Date(a+'T12:00:00'),B=new Date(b+'T12:00:0
   for(let d=new Date(A);d<=B;d.setDate(d.getDate()+step)){const e=new Date(d);e.setDate(e.getDate()+step-1);out.push([d.toISOString().slice(0,10),(e>B?B:e).toISOString().slice(0,10)])}return out}
 const lbl=s=>{const d=new Date(s+'T12:00:00');return `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`};
 let CHARTS=[];
+// Damien Deep Dive: leads Duet could not crack, in priority order (position), shown at the top of the Dashboard
+async function deepDiveCard(seq){
+  const st=(STAGES||[]).find(x=>x.name==='Duet - Damien Deep Dive');if(!st)return;
+  const {data}=await sb.from('deals').select('id,property_label,position,priority,notes').eq('stage_id',st.id).order('position',{ascending:true,nullsFirst:false}).order('id').limit(200);
+  if(seq!==_dashSeq||!data||!data.length)return;
+  const why=d=>{const m=String(d.notes||'').match(/^DEEP DIVE PRIORITY #\d+ of \d+(?: \(DO FIRST\))? - ([^\n]*)/);return m?m[1]:''};
+  const name=d=>String(d.property_label||'').replace(/^\S+\s/,'').replace(/^(NEW |R\d SPLIT #\d+ |R\d #\d+ )/,'');
+  const top=data.slice(0,10),rest=data.slice(10);
+  const row=(d,i)=>`<tr><td class="num" style="width:34px"><b>${i+1}</b></td><td><a href="#" onclick="openDeal(${d.id});return false">${esc(name(d).slice(0,70))}</a></td><td class="small">${esc(why(d))}</td></tr>`;
+  const el=document.createElement('div');el.className='card';el.id='ddCard';el.style.marginBottom='14px';
+  el.innerHTML=`<h3 class="sec" style="display:flex;justify-content:space-between;align-items:center"><span>Damien Deep Dive · priority list</span><span class="small muted">${data.length} leads Duet could not crack</span></h3>
+   <p class="small muted" style="margin:4px 0 8px">Work from the top. Open a lead and follow the steps at the top of its notes. When you find a name and city, type it at the top of the notes and move the card to <b>Duet - 🔎 New Leads (Review)</b>. Claude skip traces it and puts it on Olivia's list.</p>
+   <table><tr><th>#</th><th>Lead</th><th>Why / first step</th></tr>${top.map(row).join('')}</table>
+   ${rest.length?`<details style="margin-top:8px"><summary class="small">Show the other ${rest.length}</summary><table>${rest.map((d,i)=>row(d,i+10)).join('')}</table></details>`:''}`;
+  const old=document.getElementById('ddCard');if(old)old.remove();
+  const v=$('view');if(v)v.prepend(el);
+}
 let _dashSeq=0;async function vDashboard(){
   const _my=++_dashSeq;const [a,b,k]=dashRange();
   const opts=[['week','This week'],['month','This month'],['lastmonth','Last month'],['30d','Past 30 days'],['60d','Past 60 days'],['90d','Past 90 days'],['quarter','This quarter'],['year','This year'],['all','All time'],['custom','Custom']];
@@ -534,6 +551,7 @@ let _dashSeq=0;async function vDashboard(){
      return `<tr><td>${esc(d.property_label||'(no address)')}</td><td>${st}</td><td class="right num">${money(bp)}</td><td class="right num">${sp!=null?money(sp):'—'}</td><td class="right num" style="color:#1a9e5a">${fee!=null?money(fee):'—'}${d.as_meta?.jv_cut?`<div class="small muted">after ${money(+d.as_meta.jv_cut)} to ${esc(d.as_meta.jv_partner||'JV')}</div>`:''}</td><td class="right">${du!=null?du+' days':(st!=='Closed'&&closeOf(d)?'closes '+closeOf(d).slice(5).replace('-','/'):'—')}</td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No deals on the Buyer Deals board.</td></tr>'}
    ${dRows.length?`<tr class="tot"><td colspan="2"><b>Total closed</b></td><td class="right num"><b>${money(contractTotal)}</b></td><td></td><td class="right num"><b>${money(feeTotal)}</b></td><td class="right"><b>${avgDur} days avg</b></td></tr>${underD.length?`<tr><td colspan="4" class="muted">Pending (under contract, not counted above)</td><td class="right num muted">${money(pendingFee)}</td><td></td></tr>`:''}`:''}</table></div>`;
   poolNotice('dashboard');
+  deepDiveCard(_my);
   // charts
   CHARTS.forEach(c=>c.destroy());CHARTS=[];if(!window.Chart)return;
   const bk=buckets(a,b),L=bk.map(x=>lbl(x[0]));
