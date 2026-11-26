@@ -193,7 +193,7 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
  ['start','Start here',`
   <h3>Your first day</h3><ol>
    <li>Sign in here with your own login. Never use anyone else's.</li>
-   <li>Open Quo on your line (704) 275-5457 and check that it shows your name, ${me}.</li>
+   <li>Open Quo on your line ${window.LINE||'(704) 275-5457'} and check that it shows your name, ${me}.</li>
    <li>Use the <b>Quo desktop app</b> (not the website) and make it your default calling app, so the green <b>Call</b> buttons open Quo with the number filled in. Windows: Settings → search "default apps" → "Choose default apps by protocol" → set <b>TEL</b> to Quo, then restart your browser. Mac: open FaceTime → Settings → "Default for calls" → Quo.</li>
    <li>Read the SOP, Seller FAQ and Pay tabs.</li>
    <li>Say the opening line out loud 3 times before your first call.</li>
@@ -214,7 +214,7 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
    <li>Never use these leads for anyone else, during or after your time with DLG.</li></ul>`],
  ['sop','SOP',`
   <h3>Your day</h3><p>You call owners and heirs of vacant land in North and South Carolina and book calls for Damien. You never make offers.</p><ol>
-   <li>Make every call from your Quo line (704) 275-5457. Every call is recorded.</li>
+   <li>Make every call from your Quo line ${window.LINE||'(704) 275-5457'}. Every call is recorded.</li>
    <li>Work your list from the top down. It is already in order: follow-ups due today, then Call First, then the county columns, then Low Priority.</li>
    <li>For each lead: read the SUMMARY at the top of the notes, dial, say the opening line, then log the call before you open the next lead.</li>
    <li>No answer: hang up and call right back, up to 3 times in a row. On the 3rd try leave the voicemail. If the number is a mobile, send the text right after. Log it once as Left voicemail and tick "I sent the text".</li>
@@ -232,7 +232,7 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
    <tr><td>"Not right now"</td><td>"No problem. When would be a better time to check back?"</td><td>Follow up</td></tr>
    <tr><td>No</td><td>"Understood. Thank you for your time, have a good day."</td><td>Not interested</td></tr>
    <tr><td>Wrong person</td><td>"Do you know how I can reach [name]?"</td><td>Wrong number (if no help)</td></tr>
-   <tr><td>Voicemail (3rd try)</td><td>"Hi Ms. Johnson, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at 2364 Main Street, Monroe. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to (704) 275-5457. Thank you." It's filled in for you on every lead.</td><td>Left voicemail</td></tr></table>
+   <tr><td>Voicemail (3rd try)</td><td>"Hi Ms. Johnson, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at 2364 Main Street, Monroe. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to ${window.LINE||'(704) 275-5457'}. Thank you." It's filled in for you on every lead.</td><td>Left voicemail</td></tr></table>
   <h3>Live transfer</h3><p>When the top of your screen says <b>Damien is available</b> and a seller is ready to talk now (wants to sell, gave a price, or asks for an offer):</p><ol>
    <li>Say: "Damien is actually free right now. Can I bring him on so he can go over it with you?"</li>
    <li>In Quo, put them on hold and transfer to Damien. When he picks up, tell him who it is, the property, and their price in mind, then connect them.</li>
@@ -312,7 +312,7 @@ $('textForm').onsubmit=async e=>{e.preventDefault();$('tErr').textContent='';
 setInterval(()=>{if(!$('app').classList.contains('hidden'))loadStats()},60000);
 async function start(){$('gate').classList.add('hidden');$('app').classList.remove('hidden');await Promise.all([loadStats(),loadQueue()]);const f=Q.find(x=>!x.skip)||Q[0];if(f)openLead(f.deal_id);else renderEmpty()}
 async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e){return}
-  window.REVIEWS=s.reviews||[];$('availTag').classList.toggle('hidden',!s.damien_available);$('meName').textContent=(PREVIEW?'Previewing as ':'')+(s.name||'');window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
+  window.REVIEWS=s.reviews||[];$('availTag').classList.toggle('hidden',!s.damien_available);$('meName').textContent=(PREVIEW?'Previewing as ':'')+(s.name||'');window.LINE=(d=>d.length===10?'('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6):'')(String(s.line||'').replace(/\D/g,'').slice(-10))||'(704) 275-5457';window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
   $('kpis').innerHTML=[['calls','Calls'],['reached','Reached'],['appointments','Appts'],['follow_ups','Follow-ups'],['not_interested','Not int.'],['bad_numbers','Bad #']]
     .map(([k,l])=>`<span class="kpi"><b>${s[k]||0}</b>${l}</span>`).join('')+'<span class="kpi">today</span>'}
 async function loadQueue(){try{Q=await rpc('caller_queue',{tok:TOK})||[]}catch(e){Q=[];$('queue').innerHTML=`<p class="small muted" style="padding:14px">${esc(e.message)}</p>`;return}
@@ -343,7 +343,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
   let L;try{L=await rpc('caller_lead',{tok:TOK,did:id})}catch(e){$('main').innerHTML=`<div class="empty">${esc(e.message)}</div>`;loadQueue();return}
   CUR=L;document.querySelectorAll('.q').forEach(b=>b.classList.toggle('on',+b.dataset.id===id));
   const P=phonesFrom(L);
-  $('main').innerHTML=`<div class="rules"><b>Before you dial:</b> read the SUMMARY at the top of the notes. Call the person it says to call, mobile first. Never call a number marked DO NOT USE or a deceased owner's number. Call from your Quo line (704) 275-5457. Always ask: <b>"Do you have a price in mind?"</b> and write it down - but never give a price or an offer. Book the call with Damien.</div>
+  $('main').innerHTML=`<div class="rules"><b>Before you dial:</b> read the SUMMARY at the top of the notes. Call the person it says to call, mobile first. Never call a number marked DO NOT USE or a deceased owner's number. Call from your Quo line ${window.LINE||'(704) 275-5457'}. Always ask: <b>"Do you have a price in mind?"</b> and write it down - but never give a price or an offer. Book the call with Damien.</div>
   <div class="card script"><div class="sh"><b>Opening line</b> <span class="small muted">say it to the person you're calling</span>
      <span class="ttl"><button type="button" class="tbtn" data-t="Mr." aria-pressed="false">Mr.</button><button type="button" class="tbtn" data-t="Ms." aria-pressed="true">Ms.</button></span>
      <input id="lname" type="text" aria-label="Last name of the person you are calling" value="${esc(lastName(L))}"></div>
@@ -394,7 +394,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
 function lastName(L){const ln=String(L.last_name||'').trim();if(ln)return cap(ln);const w=String(L.owner||'').replace(/\b(estate of|heirs?( of)?|life estate|etal|et al|jr|sr|ii|iii)\b/gi,'').trim().split(/\s+/);return cap(w.length>1?w[w.length-1]:w[0]||'')}
 // first name for the text: the person the SUMMARY says to call ("Call: Gloria Johnson ..."), else the owner on record
 function firstName(L){const m=String(L.notes||'').match(/Call:\s*(?:Mr\.?|Ms\.?|Mrs\.?)?\s*([A-Z][A-Za-z'\-]+)/);if(m)return cap(m[1]);return /deceased|estate|heirs/i.test(String(L.owner||'')+String(L.notes||'').slice(0,300))?'':cap(String(L.first_name||'').trim().split(/\s+/)[0]||'')}
-// Send text: goes out through Quo from her line (704) 275-5457 to the number picked in step 1, and is written on the lead
+// Send text: goes out through Quo from the caller's own line (window.LINE) to the number picked in step 1, and is written on the lead
 async function sendText(){const b=$('txSend');if(!$('lname').value.trim()){toast('Type their last name first');return}
   const typed=$('other').value.trim(),r=document.querySelector('input[name=ph]:checked');const phone=typed||(r?r.value:'');
   if(!phone)return toast('Pick the number in step 1 first');
@@ -411,7 +411,7 @@ function cap(s){return String(s).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCa
 function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')||{}).dataset?.t||'Ms.';const ln=$('lname').value.trim()||'[last name]';
   const me=window.CALLNAME||'[your name]';
   const st=cap(String(CUR.street||'').trim())||'[property address]';const city=cap(String(CUR.city||'').trim());
-  $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at ${st}${city?', '+city:''}. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to (704) 275-5457. Thank you."`;
+  $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at ${st}${city?', '+city:''}. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to ${window.LINE||'(704) 275-5457'}. Thank you."`;
   if($('txLine'))$('txLine').textContent=`Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I just tried calling about your vacant lot at ${st}${city?', '+city:''}. Do you have any interest in selling? Reply STOP to unsubscribe.`;
   $('line').textContent=`"Hello, ${t} ${ln}. This is ${me} with Dominion Land Group. I was inquiring if you had any interest in selling your vacant land at ${st}${city?', '+city:''}?"`}
 function pickOut(o){OUT=o;document.querySelectorAll('#logForm .out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
