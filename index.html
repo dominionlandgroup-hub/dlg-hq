@@ -2598,6 +2598,14 @@ const CALL_LBL={appointment:'Appointment set',follow_up:'Follow up',not_interest
 async function ownerAvail(on){const {error}=await sb.from('owner_status').upsert({id:1,available:on,updated_at:new Date().toISOString()});if(error)return toast(error.message);toast(on?'Callers see you as available for 4 hours':'Callers see you as not available');vCallers()}
 // week starts Monday, Eastern
 const callerWeek=()=>{const d=new Date(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date())+'T12:00:00');d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10)};
+async function callerSkipBack(id){
+  const {data:c}=await sb.from('caller_calls').select('prev_stage_id').eq('deal_id',id).eq('outcome','skip_trace').order('created_at',{ascending:false}).limit(1).maybeSingle();
+  let st=c&&STAGES.find(s=>s.id===c.prev_stage_id&&/^Duet - /.test(s.name)&&s.name!=='Duet - Needs Skip Trace');
+  if(!st)st=STAGES.find(s=>s.board==='seller'&&/^Duet - .*Call First/.test(s.name));if(!st)return toast('Could not find the column to send it back to');
+  const {data:d}=await sb.from('deals').select('notes').eq('id',id).single();
+  const line='['+new Date().toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})+' ET] Skip trace done - new numbers added, back to callers';
+  const {error}=await sb.from('deals').update({stage_id:st.id,stage:st.name,position:0,notes:(d&&d.notes||'')+'\n\n'+line,updated_at:new Date().toISOString()}).eq('id',id);
+  if(error)return toast(error.message);toast('Back in '+st.name.replace('Duet - ',''));vCallers()}
 async function callerReview(id){const wk=callerWeek(),v=k=>$(`rv_${k}_${id}`).value.trim();
   const {error}=await sb.from('caller_reviews').upsert({caller_id:id,week_of:wk,did_well:v('w')||null,fix:v('f')||null,focus:v('o')||null},{onConflict:'caller_id,week_of'});
   if(error)return toast(error.message);toast('Saved - she sees it on her Guide')}
@@ -2641,8 +2649,8 @@ async function vCallers(){
      <p class="small muted" style="margin:10px 0 4px">Your 3 notes to her this week. She sees them under Guide → Notes from Damien.</p>
      <div style="display:grid;gap:6px;max-width:720px"><input id="rv_w_${a.id}" placeholder="Did well" value="${esc(r.did_well||'')}"><input id="rv_f_${a.id}" placeholder="To fix" value="${esc(r.fix||'')}"><input id="rv_o_${a.id}" placeholder="Focus next week" value="${esc(r.focus||'')}"></div>
      <button class="btn sm" style="margin-top:8px" onclick="callerReview(${a.id})">Save notes</button></div>`}).join('')}
-  ${skipDeals.length?`<div class="card"><b>Needs skip trace (${skipDeals.length})</b><p class="small muted" style="margin:4px 0 8px">Every number was bad. Leads marked "none found" are waiting on you (BeenVerified). The rest are in her skip trace list.</p>
-    ${skipDeals.map(d=>{const last=C.find(c=>c.deal_id===d.id);return `<div class="small"><a href="#" onclick="openDeal(${d.id});return false">${esc(String(d.property_label||'deal').slice(0,60))}</a>${last&&last.outcome==='skip_none'?' · <b>she found none - yours</b>':''}</div>`}).join('')}</div>`:''}
+  ${skipDeals.length?`<div class="card"><b>Needs skip trace (${skipDeals.length})</b><p class="small muted" style="margin:4px 0 8px">Every number was bad, so the caller flagged it. Add the new numbers to the deal notes (every heir, one person per block), then click Back to callers. It returns to the column it came from.</p>
+    <table>${skipDeals.map(d=>`<tr><td class="small"><a href="#" onclick="openDeal(${d.id});return false">${esc(String(d.property_label||'deal').slice(0,70))}</a></td><td style="text-align:right"><button class="btn sm" onclick="callerSkipBack(${d.id})">Back to callers</button></td></tr>`).join('')}</table></div>`:''}
   <div class="card" style="padding:0"><table><tr><th>Recent calls (7 days)</th><th>Outcome</th><th>Note</th></tr>${C.slice(0,150).map(c=>`<tr><td class="small" style="white-space:nowrap">${new Date(c.created_at).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}<br>${esc((A.find(a=>a.id===c.caller_id)||{}).name||'')}<br>${c.deals?`<a href="#" onclick="openDeal(${c.deals.id});return false">${esc(String(c.deals.property_label||'deal').slice(0,40))}</a>`:''}</td>
      <td class="small"><b>${esc(CALL_LBL[c.outcome]||c.outcome)}</b><br>${esc(c.phone||'')}${c.talked_to?`<br>${esc(c.talked_to)}`:''}${c.appt_at?`<br>Appt: ${new Date(c.appt_at).toLocaleString('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} ET`:''}${c.follow_up_at&&c.outcome==='follow_up'?`<br>Call back: ${new Date(c.follow_up_at).toLocaleDateString()}`:''}</td>
      <td class="small" style="white-space:pre-wrap">${esc(c.note||'')}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">No calls in the last 7 days.</td></tr>'}</table></div>`}
