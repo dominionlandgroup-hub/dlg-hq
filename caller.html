@@ -166,7 +166,7 @@ const TEMPLATE="Spoke with: \nRelationship to owner: \nWhat they said: \nPrice i
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
 const etFmt=d=>new Date(d).toLocaleString('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET';
 const myFmt=d=>new Date(d).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
-const PV_FN={caller_queue:a=>['owner_preview_queue',{}],caller_lead:a=>['owner_preview_lead',{did:a.did}],caller_stats:a=>['owner_preview_stats',{cid:+PREVIEW}]};
+const PV_FN={caller_queue:a=>['owner_preview_queue',{cid:+PREVIEW}],caller_lead:a=>['owner_preview_lead',{did:a.did}],caller_stats:a=>['owner_preview_stats',{cid:+PREVIEW}]};
 async function rpc(fn,args){if(PREVIEW){if(!PV_FN[fn]){toast('Preview only - nothing was saved');throw new Error('Preview only - nothing was saved')}[fn,args]=PV_FN[fn](args)}
   const {data,error}=await sb.rpc(fn,args);if(error){if(/sign in again/i.test(error.message)){signOut(true)}throw new Error(error.message)}return data}
 
