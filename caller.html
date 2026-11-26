@@ -240,7 +240,7 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
   <p>If Damien doesn't pick up, go back to the seller and book the appointment instead.</p>
   <h3>Texting</h3><ul>
    <li>Only text a number marked <b>mobile</b> (or Wireless on a search site). Never text a landline, a DO NOT USE number, or a deceased owner's number.</li>
-   <li>Send it right after the voicemail. Check Mr./Ms. and the last name at the top, click <b>Copy text</b>, paste it in Quo on your line and send. Then tick <b>I sent the text</b> before you save.</li>
+   <li>Send it right after the voicemail. Pick the mobile number in step 1, check Mr./Ms. and the last name at the top, and click <b>Send text</b>. It goes out from your Quo line and shows in your Quo inbox. (<b>Copy text</b> is there if you ever need to paste it yourself.)</li>
    <li>The text: "Hi Ms. Johnson, this is ${me} with Dominion Land Group. I just tried calling about your vacant lot at 2364 Main Street, Monroe. Do you have any interest in selling? Reply STOP to unsubscribe." Don't change the opening or the STOP line.</li>
    <li>Send at most 2 texts per person: one after your first voicemail, one more on your next try if they still haven't answered. Never text after they say no or reply STOP.</li>
    <li>Replies come into your Quo inbox. Answer them like a call: ask "Do you have a price in mind?" and book the call with Damien. If they reply STOP, log Not interested and write "Replied STOP".</li>
@@ -351,7 +351,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
      <p class="small" style="margin:10px 0 0"><b>No answer?</b> Hang up and call right back, up to 3 times in a row. On the 3rd try leave this voicemail, then send the text if the number is a mobile.</p>
      <p class="small muted" id="vmLine" style="margin:6px 0 0"></p>
      <div class="tx"><div class="sh" style="margin-top:10px"><b class="small">Text</b> <span class="small muted">mobile numbers only, after the voicemail</span>
-       <button type="button" class="btn ghost" id="txCopy" style="padding:6px 12px">Copy text</button></div>
+       <button type="button" class="btn" id="txSend" style="padding:6px 12px;margin-left:auto">Send text</button><button type="button" class="btn ghost" id="txCopy" style="padding:6px 12px">Copy text</button></div>
        <p class="small" id="txLine" style="margin:6px 0 0;background:#fff;border:1px solid #d9c8ea;border-radius:9px;padding:8px 10px"></p></div>
      <div class="faqq" aria-label="If the seller asks"><span class="small muted" style="align-self:center">If they ask:</span>${FAQ.map(([q],i)=>`<button type="button" class="fq" data-f="${i}" aria-pressed="false">${esc(q)}</button>`).join('')}</div>
      <div class="fa hidden" id="faqA" aria-live="polite"></div></div>
@@ -382,6 +382,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
   document.querySelectorAll('.tbtn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tbtn').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));drawLine()});
   $('lname').oninput=drawLine;drawLine();
   document.querySelectorAll('.callb').forEach(a=>a.onclick=()=>{const r=a.closest('.ph').querySelector('input[type=radio]');if(r)r.checked=true});
+  $('txSend').onclick=sendText;
   $('txCopy').onclick=async()=>{if(!$('lname').value.trim()){toast('Type their last name first');$('lname').focus();return}
     const r=document.querySelector('input[name=ph]:checked'),ctx=r?r.closest('.ph').querySelector('.ctx').textContent:'';
     try{await navigator.clipboard.writeText($('txLine').textContent);toast(/mobile|wireless|cell/i.test(ctx)||$('other')?.value.trim()?'Copied - paste it in Quo, then tick "I sent the text"':'Copied - only send it if this number is a mobile')}catch(e){toast('Select the text and copy it')}};
@@ -393,6 +394,19 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
 function lastName(L){const ln=String(L.last_name||'').trim();if(ln)return cap(ln);const w=String(L.owner||'').replace(/\b(estate of|heirs?( of)?|life estate|etal|et al|jr|sr|ii|iii)\b/gi,'').trim().split(/\s+/);return cap(w.length>1?w[w.length-1]:w[0]||'')}
 // first name for the text: the person the SUMMARY says to call ("Call: Gloria Johnson ..."), else the owner on record
 function firstName(L){const m=String(L.notes||'').match(/Call:\s*(?:Mr\.?|Ms\.?|Mrs\.?)?\s*([A-Z][A-Za-z'\-]+)/);if(m)return cap(m[1]);return /deceased|estate|heirs/i.test(String(L.owner||'')+String(L.notes||'').slice(0,300))?'':cap(String(L.first_name||'').trim().split(/\s+/)[0]||'')}
+// Send text: goes out through Quo from her line (704) 275-5457 to the number picked in step 1, and is written on the lead
+async function sendText(){const b=$('txSend');if(!$('lname').value.trim()){toast('Type their last name first');return}
+  const typed=$('other').value.trim(),r=document.querySelector('input[name=ph]:checked');const phone=typed||(r?r.value:'');
+  if(!phone)return toast('Pick the number in step 1 first');
+  const ctx=typed?'':r.closest('.ph').querySelector('.ctx').textContent;
+  if(!typed&&!/mobile|wireless|cell/i.test(ctx))return toast('That number is not marked mobile. Only text mobile numbers.');
+  if(typed&&!confirm('Only text a mobile number. Send to '+typed+'?'))return;
+  if(PREVIEW)return toast('Preview only - no text was sent');
+  b.disabled=true;b.textContent='Sending...';
+  try{const id=await rpc('caller_send_text',{tok:TOK,did:CUR.deal_id,p_phone:phone,p_body:$('txLine').textContent});
+    let st=null;for(let i=0;i<8&&!(st&&(st.sent||st.error));i++){await new Promise(z=>setTimeout(z,1500));st=await rpc('caller_text_status',{tok:TOK,tid:id})}
+    if(st&&st.error){toast('Text failed: '+st.error)}else{toast(st&&st.sent?'Text sent from your Quo line - it is in your Quo inbox':'Text is sending');const t=$('texted');if(t)t.checked=true}}
+  catch(e){toast(e.message)}finally{b.disabled=false;b.textContent='Send text'}}
 function cap(s){return String(s).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase())}
 function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')||{}).dataset?.t||'Ms.';const ln=$('lname').value.trim()||'[last name]';
   const me=window.CALLNAME||'[your name]';
