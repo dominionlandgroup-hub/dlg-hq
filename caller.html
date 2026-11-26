@@ -212,6 +212,7 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
    <li>Make every call from your Quo line (704) 275-5457. Every call is recorded.</li>
    <li>Work your list from the top down. It is already in order: follow-ups due today, then Call First, then the county columns, then Low Priority.</li>
    <li>For each lead: read the SUMMARY at the top of the notes, dial, say the opening line, then log the call before you open the next lead.</li>
+   <li>No answer: hang up and call right back, up to 3 times in a row. On the 3rd try leave the voicemail. If the number is a mobile, send the text right after. Log it once as Left voicemail and tick "I sent the text".</li>
    <li>Call between 10am and 7pm Eastern, weekdays only.</li></ol>
   <h3>Which number to call</h3><p>Call the person the SUMMARY names after "Call:". If the owner has died, that is an heir, never the owner.</p><ol>
    <li>Start with the MAIN contact's mobile numbers, then their landlines, top to bottom.</li>
@@ -226,13 +227,20 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
    <tr><td>"Not right now"</td><td>"No problem. When would be a better time to check back?"</td><td>Follow up</td></tr>
    <tr><td>No</td><td>"Understood. Thank you for your time, have a good day."</td><td>Not interested</td></tr>
    <tr><td>Wrong person</td><td>"Do you know how I can reach [name]?"</td><td>Wrong number (if no help)</td></tr>
-   <tr><td>Voicemail</td><td>The voicemail line under the opening line.</td><td>Left voicemail</td></tr></table>
+   <tr><td>Voicemail (3rd try)</td><td>"Hi Ms. Johnson, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at 2364 Main Street, Monroe. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to (704) 275-5457. Thank you." It's filled in for you on every lead.</td><td>Left voicemail</td></tr></table>
+  <h3>Texting</h3><ul>
+   <li>Only text a number marked <b>mobile</b> (or Wireless on a search site). Never text a landline, a DO NOT USE number, or a deceased owner's number.</li>
+   <li>Send it right after the voicemail. Type their first name in the box, click <b>Copy text</b>, paste it in Quo on your line and send. Then tick <b>I sent the text</b> before you save.</li>
+   <li>The text: "Hi Gloria, this is ${me} with Dominion Land Group. I just tried calling about your vacant lot at 2364 Main Street, Monroe. Do you have any interest in selling? Reply STOP to unsubscribe." Don't change the opening or the STOP line.</li>
+   <li>Send at most 2 texts per person: one after your first voicemail, one more on your next try if they still haven't answered. Never text after they say no or reply STOP.</li>
+   <li>Replies come into your Quo inbox. Answer them like a call: ask "Do you have a price in mind?" and book the call with Damien. If they reply STOP, log Not interested and write "Replied STOP".</li>
+   <li>Text between 10am and 7pm Eastern only.</li></ul>
   <h3>Outcome boxes</h3><table><tr><th>Box</th><th>Pick it when</th><th>What happens</th></tr>
    <tr><td>Appointment set</td><td>They agreed to a call with Damien</td><td>Pick the day and time in your own time zone. Damien gets a text and a task.</td></tr>
    <tr><td>Follow up</td><td>They want a call back later</td><td>Comes back to your list on the date you pick.</td></tr>
    <tr><td>Not interested</td><td>They said no</td><td>Leaves your list. Don't call again.</td></tr>
    <tr><td>No answer</td><td>It rang out, no voicemail</td><td>Comes back in 2 days. After 3 tries with nobody answering, it leaves your list.</td></tr>
-   <tr><td>Left voicemail</td><td>You left the voicemail</td><td>Comes back in 2 days.</td></tr>
+   <tr><td>Left voicemail</td><td>You called 3 times and left the voicemail (and texted, if mobile)</td><td>Comes back in 2 days.</td></tr>
    <tr><td>Wrong number</td><td>The number isn't this person's</td><td>The number is marked bad. Try the next number on the same lead.</td></tr>
    <tr><td>Needs skip trace</td><td>Every number is wrong, or there are none</td><td>Moves to your Skip trace list at the bottom.</td></tr></table>
   <h3>Note template</h3><pre>Spoke with: Gloria Johnson - daughter
@@ -243,7 +251,7 @@ Other heirs / who must sign: Brother Marcus, lives in Atlanta
 Next step: Call with Damien Thu Dec 3, 2:00pm ET</pre>
   <h3>End-of-day report</h3><p>Send to Damien when you finish. The counts are at the top of this screen.</p><pre>EOD - [date]
 Hours worked:
-Calls: | Reached: | Appointments: | Follow-ups: | Not interested: | Bad numbers:
+Calls: | Reached: | Appointments: | Follow-ups: | Not interested: | Bad numbers: | Texts sent:
 Appointments booked: [owner - day and time ET]
 Skip traced: [how many, how many found]
 Problems or questions:</pre>
@@ -346,7 +354,13 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
   <div class="card script"><div class="sh"><b>Opening line</b> <span class="small muted">say it to the person you're calling</span>
      <span class="ttl"><button type="button" class="tbtn" data-t="Mr." aria-pressed="false">Mr.</button><button type="button" class="tbtn" data-t="Ms." aria-pressed="true">Ms.</button></span>
      <input id="lname" type="text" aria-label="Last name of the person you are calling" value="${esc(lastName(L))}"></div>
-     <p id="line" class="line"></p><p class="small muted" id="vmLine" style="margin:6px 0 0"></p>
+     <p id="line" class="line"></p>
+     <p class="small" style="margin:10px 0 0"><b>No answer?</b> Hang up and call right back, up to 3 times in a row. On the 3rd try leave this voicemail, then send the text if the number is a mobile.</p>
+     <p class="small muted" id="vmLine" style="margin:6px 0 0"></p>
+     <div class="tx"><div class="sh" style="margin-top:10px"><b class="small">Text</b> <span class="small muted">mobile numbers only, after the voicemail</span>
+       <input id="fname" type="text" aria-label="First name of the person you are texting" placeholder="First name" value="${esc(firstName(L))}" style="width:150px;padding:6px 10px;margin-left:auto">
+       <button type="button" class="btn ghost" id="txCopy" style="padding:6px 12px">Copy text</button></div>
+       <p class="small" id="txLine" style="margin:6px 0 0;background:#fff;border:1px solid #d9c8ea;border-radius:9px;padding:8px 10px"></p></div>
      <div class="faqq" aria-label="If the seller asks"><span class="small muted" style="align-self:center">If they ask:</span>${FAQ.map(([q],i)=>`<button type="button" class="fq" data-f="${i}" aria-pressed="false">${esc(q)}</button>`).join('')}</div>
      <div class="fa hidden" id="faqA" aria-live="polite"></div></div>
   <div class="cols">
@@ -366,6 +380,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
      <label>3. What happened?</label>
      <div class="outs">${Object.entries(OUTCOMES).map(([k,[t,s]])=>`<button type="button" class="out${k==='appointment'?' appt':''}" data-o="${k}" aria-pressed="false">${t}<small>${s}</small></button>`).join('')}</div>
      <div id="whenWrap" class="hidden"><label for="when" id="whenLbl">When?</label><input id="when" type="datetime-local"><div class="when-et" id="whenEt"></div></div>
+     <label class="ph" style="font-weight:600;margin:12px 0 0;border:0"><input type="checkbox" id="texted"> I sent the text to this number</label>
      <label for="note">4. Notes <span class="muted">(fill in the lines)</span></label><textarea id="note">${TEMPLATE}</textarea>
      <button class="btn wide" type="submit" id="saveBtn">Save and go to next lead</button>
      <div class="err" id="logErr" role="alert"></div>
@@ -373,7 +388,10 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
    </div>
   </div>`;
   document.querySelectorAll('.tbtn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tbtn').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));drawLine()});
-  $('lname').oninput=drawLine;drawLine();
+  $('lname').oninput=drawLine;$('fname').oninput=drawLine;drawLine();
+  $('txCopy').onclick=async()=>{const f=$('fname').value.trim();if(!f){toast('Type their first name first');$('fname').focus();return}
+    const r=document.querySelector('input[name=ph]:checked'),ctx=r?r.closest('.ph').querySelector('.ctx').textContent:'';
+    try{await navigator.clipboard.writeText($('txLine').textContent);toast(/mobile|wireless|cell/i.test(ctx)||$('other')?.value.trim()?'Copied - paste it in Quo, then tick "I sent the text"':'Copied - only send it if this number is a mobile')}catch(e){toast('Select the text and copy it')}};
   document.querySelectorAll('.fq').forEach(b=>b.onclick=()=>{const on=b.getAttribute('aria-pressed')!=='true';document.querySelectorAll('.fq').forEach(x=>x.setAttribute('aria-pressed',String(on&&x===b)));
     $('faqA').classList.toggle('hidden',!on);$('faqA').textContent=on?FAQ[+b.dataset.f][1]:''});
   if(L.stage===SKIP_STAGE){document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>saveSkip(b.dataset.s));return}
@@ -394,11 +412,15 @@ async function saveSkip(o){$('logErr').textContent='';const raw=$('skNote').valu
     loadStats(s);toast(o==='skip_done'?'Saved - the lead is back in your list':'Saved - left for Damien');await loadQueue();const f=Q.find(x=>!x.skip)||Q[0];if(f)openLead(f.deal_id);else{CUR=null;renderEmpty()}}
   catch(err){$('logErr').textContent=err.message}finally{document.querySelectorAll('[data-s]').forEach(b=>b.disabled=false)}}
 function lastName(L){const ln=String(L.last_name||'').trim();if(ln)return cap(ln);const w=String(L.owner||'').replace(/\b(estate of|heirs?( of)?|life estate|etal|et al|jr|sr|ii|iii)\b/gi,'').trim().split(/\s+/);return cap(w.length>1?w[w.length-1]:w[0]||'')}
+// first name for the text: the person the SUMMARY says to call ("Call: Gloria Johnson ..."), else the owner on record
+function firstName(L){const m=String(L.notes||'').match(/Call:\s*(?:Mr\.?|Ms\.?|Mrs\.?)?\s*([A-Z][A-Za-z'\-]+)/);if(m)return cap(m[1]);return /deceased|estate|heirs/i.test(String(L.owner||'')+String(L.notes||'').slice(0,300))?'':cap(String(L.first_name||'').trim().split(/\s+/)[0]||'')}
 function cap(s){return String(s).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase())}
 function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')||{}).dataset?.t||'Ms.';const ln=$('lname').value.trim()||'[last name]';
   const me=window.CALLNAME||'[your name]';
   const st=cap(String(CUR.street||'').trim())||'[property address]';const city=cap(String(CUR.city||'').trim());
-  $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group calling about your land at ${st}. Please call us back at (704) 275-5457. Thank you."`;
+  $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at ${st}${city?', '+city:''}. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to (704) 275-5457. Thank you."`;
+  const f=$('fname')?$('fname').value.trim():'';
+  if($('txLine'))$('txLine').textContent=`Hi ${f||'[first name]'}, this is ${me} with Dominion Land Group. I just tried calling about your vacant lot at ${st}${city?', '+city:''}. Do you have any interest in selling? Reply STOP to unsubscribe.`;
   $('line').textContent=`"Hello, ${t} ${ln}. This is ${me} with Dominion Land Group. I was inquiring if you had any interest in selling your vacant land at ${st}${city?', '+city:''}?"`}
 function pickOut(o){OUT=o;document.querySelectorAll('#logForm .out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
   const need=o==='appointment'||o==='follow_up';$('whenWrap').classList.toggle('hidden',!need);
@@ -407,7 +429,8 @@ function pickOut(o){OUT=o;document.querySelectorAll('#logForm .out').forEach(b=>
 function showEt(){const v=$('when').value;$('whenEt').textContent=v?`= ${etFmt(new Date(v))} for Damien`:''}
 async function saveLog(e){e.preventDefault();$('logErr').textContent='';
   const phone=$('other').value.trim()||(document.querySelector('input[name=ph]:checked')||{}).value||'';
-  const note=$('note').value.split('\n').filter(l=>!/^[A-Za-z /]+:\s*$/.test(l)).join('\n').trim();
+  let note=$('note').value.split('\n').filter(l=>!/^[A-Za-z /]+:\s*$/.test(l)).join('\n').trim();
+  if($('texted').checked)note=`Texted: ${phone}\n`+note;
   if(!OUT)return $('logErr').textContent='Pick what happened (step 3).';
   let when=null;if(OUT==='appointment'||OUT==='follow_up'){if(!$('when').value)return $('logErr').textContent='Pick the date and time.';when=new Date($('when').value).toISOString()}
   $('saveBtn').disabled=true;
