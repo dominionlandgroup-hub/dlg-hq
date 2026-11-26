@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#5C2977">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<title>DLG Caller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{color-scheme:light;--bg:#f7f6fa;--card:#fff;--ink:#231b30;--muted:#6e6880;--line:#e7e3ee;--brand:#5C2977;--brand2:#7a3f9c;--gold:#D5A940;--red:#b23b3b;--green:#2f6b3a;--chip:#f2ecf7}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45}
+button{font:inherit;cursor:pointer}input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.hidden{display:none!important}
+.muted{color:var(--muted)}.small{font-size:13px}
+h1,h2,h3{font-family:Montserrat,Inter,sans-serif;margin:0}
+/* sign in */
+.gate{min-height:100%;display:grid;place-items:center;padding:16px}
+.gate form{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px;width:100%;max-width:380px}
+.gate h1{font-size:22px;color:var(--brand);margin-bottom:4px}
+label{display:block;font-weight:600;font-size:13px;margin:14px 0 5px}
+input[type=email],input[type=password],input[type=text],input[type=datetime-local],textarea,select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fff}
+textarea{resize:vertical;min-height:150px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px}
+.btn{border:0;border-radius:9px;padding:11px 16px;font-weight:700;background:var(--brand);color:#fff}
+.btn.wide{width:100%;margin-top:18px}.btn.ghost{background:transparent;color:var(--brand);border:1px solid var(--line)}
+.err{color:var(--red);font-size:13px;margin-top:10px;min-height:18px}
+/* app */
+header{background:var(--brand);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header h1{font-size:17px}
+.kpis{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.kpi{background:rgba(255,255,255,.14);border-radius:8px;padding:4px 10px;font-size:12px;white-space:nowrap}
+.kpi b{font-size:15px;margin-right:3px}
+header .btn.ghost{color:#fff;border-color:rgba(255,255,255,.4);padding:6px 12px}
+.wrap{display:grid;grid-template-columns:280px 1fr;min-height:calc(100% - 52px)}
+aside{border-right:1px solid var(--line);background:#fff;overflow:auto;max-height:calc(100vh - 52px)}
+aside h3{font-size:13px;padding:12px 14px 6px;color:var(--muted)}
+.q{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:#fff;padding:9px 14px}
+.q:hover{background:var(--chip)}.q.on{background:#efe7fb;box-shadow:inset 3px 0 0 var(--brand)}
+.q .o{font-weight:600;font-size:14px}.q .s{font-size:12px;color:var(--muted)}
+.q .due{font-size:11px;font-weight:700;color:#8a5a00;background:#fbf1d8;border-radius:6px;padding:1px 6px;margin-left:4px}
+main{padding:18px;max-width:1100px;overflow:auto;max-height:calc(100vh - 52px)}
+.cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;align-items:start}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.card h2{font-size:18px;margin-bottom:2px}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13.5px;margin-top:10px}
+.facts div:nth-child(odd){color:var(--muted)}
+.notes{white-space:pre-wrap;font-size:13.5px;max-height:460px;overflow:auto;border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+.ph{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+.ph:last-child{border-bottom:0}
+.ph input{width:auto;margin:0}
+.ph .num{font-weight:700;white-space:nowrap}.ph .ctx{color:var(--muted);font-size:12.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ph.bad .num{color:var(--red);text-decoration:line-through}.ph.bad .ctx{color:var(--red)}
+.outs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.out{border:2px solid var(--line);background:#fff;border-radius:10px;padding:10px;font-weight:700;text-align:left}
+.out small{display:block;font-weight:500;color:var(--muted);font-size:12px}
+.out[aria-pressed=true]{border-color:var(--brand);background:#efe7fb}
+.out.appt[aria-pressed=true]{border-color:var(--green);background:#e3f1e6}
+.when-et{font-size:12.5px;color:var(--green);margin-top:4px;font-weight:600}
+.hist{font-size:13px;border-top:1px solid var(--line);padding:8px 0;white-space:pre-wrap}
+.empty{text-align:center;padding:60px 16px;color:var(--muted)}
+.script{border-color:#d9c8ea;background:#fbf8fe}.script .sh{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ttl{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:auto}.tbtn{border:0;background:#fff;padding:6px 12px;font-weight:600}.tbtn[aria-pressed=true]{background:var(--brand);color:#fff}
+#lname{width:170px;padding:6px 10px}.line{font-size:18px;font-weight:600;margin:10px 0 0;line-height:1.4}
+.rules{font-size:13px;background:#fbf7ec;border:1px solid #efe1b8;border-radius:10px;padding:10px 12px;margin-bottom:16px}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:9px;font-size:14px;z-index:9}
+@media (max-width:860px){.wrap{grid-template-columns:1fr}aside{max-height:240px;border-right:0;border-bottom:1px solid var(--line)}.cols{grid-template-columns:1fr}main{max-height:none}.kpis{margin-left:0}}
+</style>
+</head>
+<body>
+
+<div id="gate" class="gate hidden">
+  <form id="loginForm" autocomplete="on">
+    <h1>DLG Caller</h1>
+    <p class="muted small" id="gateSub">Dominion Land Group - sign in to start calling.</p>
+    <div id="inviteFields" class="hidden"><p class="small">Welcome <b id="invName"></b>. Pick the email and password you will use to sign in.</p></div>
+    <label for="em">Email</label><input id="em" type="email" autocomplete="username" required>
+    <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required minlength="8">
+    <div id="pw2Wrap" class="hidden"><label for="pw2">Type the password again</label><input id="pw2" type="password" autocomplete="new-password" minlength="8"></div>
+    <button class="btn wide" id="goBtn" type="submit">Sign in</button>
+    <div class="err" id="gateErr" role="alert"></div>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <h1>DLG Caller</h1><span class="small" id="meName"></span>
+    <div class="kpis" id="kpis" aria-label="Today"></div>
+    <button class="btn ghost" id="outBtn" type="button">Sign out</button>
+  </header>
+  <div class="wrap">
+    <aside><h3 id="qHead">Your leads</h3><div id="queue"></div></aside>
+    <main id="main"><div class="empty">Loading…</div></main>
+  </div>
+</div>
+
+<script>
+const SB_URL='https://gdejlpdltnstbwtdpggm.supabase.co',SB_KEY='sb_publishable_E9jIHC9hz6oleR4Qd-68bA_ZWEVcAQ_';
+const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
+let TOK=store.get('dlgCallerTok'),Q=[],CUR=null,OUT=null;
+const invite=new URLSearchParams(location.search).get('invite');
+const OUTCOMES={appointment:['Appointment set','Owner/heir agreed to a call with Damien'],follow_up:['Follow up','Call back on a date they gave you'],
+  not_interested:['Not interested','Said no / does not want to sell'],no_answer:['No answer','Rang out, no voicemail'],
+  voicemail:['Left voicemail','Tries again in 2 days'],wrong_number:['Wrong number','Number is not this person']};
+const LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Wrong number'};
+const TEMPLATE="Spoke with: \nRelationship to owner: \nWhat they said: \nOther heirs / who must sign: \nNext step: ";
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
+const etFmt=d=>new Date(d).toLocaleString('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET';
+const myFmt=d=>new Date(d).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+async function rpc(fn,args){const {data,error}=await sb.rpc(fn,args);if(error){if(/sign in again/i.test(error.message)){signOut(true)}throw new Error(error.message)}return data}
+
+// ---------- sign in ----------
+async function showGate(){$('app').classList.add('hidden');$('gate').classList.remove('hidden');
+  if(invite){$('inviteFields').classList.remove('hidden');$('pw2Wrap').classList.remove('hidden');$('pw2').required=true;$('pw').autocomplete='new-password';
+    $('goBtn').textContent='Create my login';$('gateSub').textContent='Set up your DLG Caller login.';$('invName').textContent='to the team'}}
+$('loginForm').onsubmit=async e=>{e.preventDefault();$('gateErr').textContent='';$('goBtn').disabled=true;
+  try{let r;if(invite){if($('pw').value!==$('pw2').value)throw new Error('The two passwords do not match');
+      r=await rpc('caller_accept_invite',{p_invite:invite,p_email:$('em').value,p_pw:$('pw').value});history.replaceState(null,'',location.pathname)}
+    else r=await rpc('caller_login',{p_email:$('em').value,p_pw:$('pw').value});
+    TOK=r.token;store.set('dlgCallerTok',TOK);$('pw').value='';$('pw2').value='';start()}
+  catch(err){$('gateErr').textContent=err.message}finally{$('goBtn').disabled=false}};
+async function signOut(expired){if(TOK&&!expired)try{await sb.rpc('caller_logout',{tok:TOK})}catch(e){}TOK=null;store.set('dlgCallerTok',null);if(expired)toast('Please sign in again');showGate()}
+$('outBtn').onclick=()=>signOut(false);
+
+// ---------- app ----------
+async function start(){$('gate').classList.add('hidden');$('app').classList.remove('hidden');await Promise.all([loadStats(),loadQueue()]);if(Q.length)openLead(Q[0].deal_id);else renderEmpty()}
+async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e){return}
+  $('meName').textContent=s.name||'';window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
+  $('kpis').innerHTML=[['calls','Calls'],['reached','Reached'],['appointments','Appts'],['follow_ups','Follow-ups'],['not_interested','Not int.'],['bad_numbers','Bad #']]
+    .map(([k,l])=>`<span class="kpi"><b>${s[k]||0}</b>${l}</span>`).join('')+'<span class="kpi">today</span>'}
+async function loadQueue(){try{Q=await rpc('caller_queue',{tok:TOK})||[]}catch(e){Q=[];$('queue').innerHTML=`<p class="small muted" style="padding:14px">${esc(e.message)}</p>`;return}
+  const due=Q.filter(x=>x.due).length;$('qHead').textContent=`Your leads (${Q.length})${due?` · ${due} follow-up${due>1?'s':''} due`:''}`;
+  $('queue').innerHTML=Q.map(x=>`<button type="button" class="q${CUR&&CUR.deal_id===x.deal_id?' on':''}" data-id="${x.deal_id}"><div class="o">${esc(x.owner||'Owner')}${x.due?'<span class="due">FOLLOW-UP DUE</span>':''}</div>
+    <div class="s">${esc(String(x.label||'').replace(/^\S+\s+/,'').slice(0,60))}</div><div class="s">${esc(x.stage.replace('Duet - ',''))}${x.tries?` · ${x.tries} call${x.tries>1?'s':''}, last: ${esc(LBL[x.last_outcome]||'')}`:''}</div></button>`).join('')||'<p class="small muted" style="padding:14px">No leads to call right now.</p>';
+  $('queue').querySelectorAll('.q').forEach(b=>b.onclick=()=>openLead(+b.dataset.id))}
+function renderEmpty(){$('main').innerHTML='<div class="empty"><h2>All caught up</h2><p>No leads to call right now. Follow-ups come back here on their date.</p></div>'}
+
+// pull every phone number out of the notes, with the words around it, so she picks the exact number she dialed
+function phonesFrom(L){const seen=new Map();const add=(raw,ctx)=>{const d=String(raw).replace(/\D/g,'').slice(-10);if(d.length!==10||seen.has(d))return;
+    const fmt=`(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;const bad=/do not (use|call)|deceased|dead|wrong number|bad number|❌|disconnected/i.test(ctx);seen.set(d,{d,fmt,ctx:ctx.trim().slice(0,140),bad})};
+  // a number belongs to the block it sits in: "Walter Johnson - DECEASED - DO NOT USE" above it marks it bad too
+  let hdr='';for(const line of String(L.notes||'').split('\n')){if(!line.trim()){hdr='';continue}
+    const m=line.match(/\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}/g);
+    if(!m){hdr=line.trim();continue}
+    const rest=line.replace(/\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}/g,'').replace(/^[\s\-:•*]+|[\s\-:•*]+$/g,'');
+    m.forEach(p=>add(p,(hdr?hdr+' - ':'')+(rest||'')))}
+  (L.phones||[]).forEach(p=>add(p,'On the contact record'));
+  // a number later marked bad in the caller notes is bad everywhere
+  const badLater=new Set([...String(L.notes||'').matchAll(/BAD NUMBER[^\n]*?(\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4})/g)].map(m=>m[1].replace(/\D/g,'').slice(-10)));
+  return [...seen.values()].map(p=>badLater.has(p.d)?{...p,bad:true}:p)}
+
+async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loading…</div>';
+  let L;try{L=await rpc('caller_lead',{tok:TOK,did:id})}catch(e){$('main').innerHTML=`<div class="empty">${esc(e.message)}</div>`;loadQueue();return}
+  CUR=L;document.querySelectorAll('.q').forEach(b=>b.classList.toggle('on',+b.dataset.id===id));
+  const P=phonesFrom(L);
+  $('main').innerHTML=`<div class="rules"><b>Before you dial:</b> read the SUMMARY at the top of the notes. Call the person it says to call, mobile first. Never call a number marked DO NOT USE or a deceased owner's number. Never talk price - book the call with Damien.</div>
+  <div class="card script"><div class="sh"><b>Opening line</b> <span class="small muted">say it to the person you're calling</span>
+     <span class="ttl"><button type="button" class="tbtn" data-t="Mr." aria-pressed="false">Mr.</button><button type="button" class="tbtn" data-t="Ms." aria-pressed="true">Ms.</button></span>
+     <input id="lname" type="text" aria-label="Last name of the person you are calling" value="${esc(lastName(L))}"></div>
+     <p id="line" class="line"></p><p class="small muted" id="vmLine" style="margin:6px 0 0"></p></div>
+  <div class="cols">
+   <div>
+    <div class="card"><h2>${esc(L.owner||'Owner')}</h2><div class="muted small">${esc(String(L.label||'').replace(/^\S+\s+/,''))}</div>
+     <div class="facts"><div>Property</div><div>${esc(L.property||'—')}</div><div>County</div><div>${esc(L.county||'—')}${L.acres?` · ${esc(L.acres)} ac`:''}</div><div>Parcel</div><div>${esc(L.apn||'—')}</div><div>Owner mailing</div><div>${esc(L.mail||'—')}</div><div>Column</div><div>${esc(L.stage.replace('Duet - ',''))}</div></div>
+     <div class="notes" tabindex="0" aria-label="Lead notes">${esc(L.notes||'No notes on this lead.')}</div></div>
+    ${L.calls.length?`<div class="card"><h3 style="font-size:15px;margin-bottom:6px">Earlier calls</h3>${L.calls.map(c=>`<div class="hist"><b>${esc(LBL[c.outcome]||c.outcome)}</b> · ${esc(etFmt(c.at))} · ${esc(c.by||'')} · ${esc(c.phone||'')}${c.talked_to?` · spoke with ${esc(c.talked_to)}`:''}\n${esc(c.note||'')}${c.next?`\nCall back: ${esc(etFmt(c.next))}`:''}${c.appt?`\nAppointment: ${esc(etFmt(c.appt))}`:''}</div>`).join('')}</div>`:''}
+   </div>
+   <div>
+    <form class="card" id="logForm">
+     <h3 style="font-size:16px">Log this call</h3>
+     <label>1. Which number did you call?</label>
+     <div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span><span class="ctx" title="${esc(p.ctx)}">${p.bad?'DO NOT CALL - ':''}${esc(p.ctx)}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
+     <label for="other">Or type a number you found</label><input id="other" type="text" inputmode="tel" placeholder="(704) 555-0123">
+     <label for="talk">2. Who did you talk to? <span class="muted">(name, or leave blank if nobody)</span></label><input id="talk" type="text" placeholder="e.g. Gloria Smith - daughter">
+     <label>3. What happened?</label>
+     <div class="outs">${Object.entries(OUTCOMES).map(([k,[t,s]])=>`<button type="button" class="out${k==='appointment'?' appt':''}" data-o="${k}" aria-pressed="false">${t}<small>${s}</small></button>`).join('')}</div>
+     <div id="whenWrap" class="hidden"><label for="when" id="whenLbl">When?</label><input id="when" type="datetime-local"><div class="when-et" id="whenEt"></div></div>
+     <label for="note">4. Notes <span class="muted">(fill in the lines)</span></label><textarea id="note">${TEMPLATE}</textarea>
+     <button class="btn wide" type="submit" id="saveBtn">Save and go to next lead</button>
+     <div class="err" id="logErr" role="alert"></div>
+    </form>
+   </div>
+  </div>`;
+  document.querySelectorAll('.tbtn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tbtn').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));drawLine()});
+  $('lname').oninput=drawLine;drawLine();
+  document.querySelectorAll('.out').forEach(b=>b.onclick=()=>pickOut(b.dataset.o));
+  $('when').oninput=showEt;$('logForm').onsubmit=saveLog}
+function lastName(L){const ln=String(L.last_name||'').trim();if(ln)return cap(ln);const w=String(L.owner||'').replace(/\b(estate of|heirs?( of)?|life estate|etal|et al|jr|sr|ii|iii)\b/gi,'').trim().split(/\s+/);return cap(w.length>1?w[w.length-1]:w[0]||'')}
+function cap(s){return String(s).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase())}
+function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')||{}).dataset?.t||'Ms.';const ln=$('lname').value.trim()||'[last name]';
+  const me=window.CALLNAME||'[your name]';
+  const st=cap(String(CUR.street||'').trim())||'[property address]';const city=cap(String(CUR.city||'').trim());
+  $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group calling about your land at ${st}. Please call us back at (704) 387-3482. Thank you."`;
+  $('line').textContent=`"Hello, ${t} ${ln}. This is ${me} with Dominion Land Group. I was inquiring if you had any interest in selling your vacant land at ${st}${city?', '+city:''}?"`}
+function pickOut(o){OUT=o;document.querySelectorAll('.out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
+  const need=o==='appointment'||o==='follow_up';$('whenWrap').classList.toggle('hidden',!need);
+  $('whenLbl').textContent=o==='appointment'?'Appointment date and time (pick in YOUR time - Damien sees it in Eastern)':'Call back date and time (your time)';
+  if(o==='no_answer'||o==='voicemail'){const n=$('note');if(n.value.trim()===TEMPLATE.trim())n.value=o==='voicemail'?'Left voicemail: ':'No answer. ';}showEt()}
+function showEt(){const v=$('when').value;$('whenEt').textContent=v?`= ${etFmt(new Date(v))} for Damien`:''}
+async function saveLog(e){e.preventDefault();$('logErr').textContent='';
+  const phone=$('other').value.trim()||(document.querySelector('input[name=ph]:checked')||{}).value||'';
+  const note=$('note').value.split('\n').filter(l=>!/^[A-Za-z /]+:\s*$/.test(l)).join('\n').trim();
+  if(!OUT)return $('logErr').textContent='Pick what happened (step 3).';
+  let when=null;if(OUT==='appointment'||OUT==='follow_up'){if(!$('when').value)return $('logErr').textContent='Pick the date and time.';when=new Date($('when').value).toISOString()}
+  $('saveBtn').disabled=true;
+  try{const s=await rpc('caller_log',{tok:TOK,did:CUR.deal_id,p_outcome:OUT,p_phone:phone,p_talked_to:$('talk').value,p_note:note||$('note').value,p_when:when});
+    loadStats(s);toast(OUT==='appointment'?'Appointment saved - Damien gets a text':OUT==='wrong_number'?'Number marked bad - try the next one':'Saved');
+    const id=CUR.deal_id;await loadQueue();
+    if(OUT==='wrong_number'&&Q.some(x=>x.deal_id===id))return openLead(id);
+    const i=Q.findIndex(x=>x.deal_id===id),nx=Q[i>=0?i+1:0]||Q[0];if(nx&&nx.deal_id!==id)openLead(nx.deal_id);else if(nx)openLead(nx.deal_id);else{CUR=null;renderEmpty()}}
+  catch(err){$('logErr').textContent=err.message}finally{const b=$('saveBtn');if(b)b.disabled=false}}
+
+if(TOK&&!invite)start().catch(()=>showGate());else showGate();
+</script>
+</body>
+</html>
