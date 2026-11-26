@@ -2594,7 +2594,8 @@ async function delTpl(id){if(!confirm('Delete template?'))return;await sb.from('
 // ---------- tasks ----------
 // ---------- CALLERS (Nov 2026): VA caller logins (landiq.land/caller.html) and their KPIs ----------
 // Callers never get a DLG HQ login. They sign in on caller.html and only see Duet 📞 leads (sql/callers.sql).
-const CALL_LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Wrong number',skip_trace:'Needs skip trace',skip_done:'Skip trace: new numbers',skip_none:'Skip trace: none found (yours)'};
+const CALL_LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Wrong number',skip_trace:'Needs skip trace',skip_done:'Skip trace: new numbers',skip_none:'Skip trace: none found (yours)',transferred:'Live transfer'};
+async function ownerAvail(on){const {error}=await sb.from('owner_status').upsert({id:1,available:on,updated_at:new Date().toISOString()});if(error)return toast(error.message);toast(on?'Callers see you as available for 4 hours':'Callers see you as not available');vCallers()}
 // week starts Monday, Eastern
 const callerWeek=()=>{const d=new Date(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date())+'T12:00:00');d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10)};
 async function callerReview(id){const wk=callerWeek(),v=k=>$(`rv_${k}_${id}`).value.trim();
@@ -2603,6 +2604,8 @@ async function callerReview(id){const wk=callerWeek(),v=k=>$(`rv_${k}_${id}`).va
 async function vCallers(){
   const etDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date());
   const since=new Date(Date.now()-7*86400000).toISOString();
+  const {data:ost}=await sb.from('owner_status').select('*').eq('id',1).maybeSingle();
+  const avail=!!(ost&&ost.available&&new Date(ost.updated_at)>Date.now()-4*3600000);
   const [{data:acc,error:e1},{data:calls},{data:revs},{data:skipSt}]=await Promise.all([
     sb.from('caller_accounts').select('id,name,call_name,email,active,invite_token,invite_expires,last_login,created_at').order('id'),
     sb.from('caller_calls').select('*, deals(id,property_label)').gte('created_at',since).order('created_at',{ascending:false}).limit(500),
@@ -2616,6 +2619,7 @@ async function vCallers(){
   const krow=(lbl,k)=>`<tr><td>${lbl}</td><td><b>${k.calls}</b></td><td>${k.reached}${k.calls?` <span class="small muted">(${Math.round(100*k.reached/k.calls)}%)</span>`:''}</td><td><b>${k.appt}</b></td><td>${k.fu}</td><td>${k.ni}</td><td>${k.na}</td><td>${k.bad}</td></tr>`;
   const link=a=>a.invite_token?`${location.origin}/caller.html?invite=${a.invite_token}`:'';
   $('view').innerHTML=`
+  <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><b>Live transfers:</b> ${avail?`<span style="color:var(--green);font-weight:700">You're available</span> <span class="small muted">since ${new Date(ost.updated_at).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · turns off by itself after 4 hours</span> <button class="btn sm ghost" onclick="ownerAvail(false)">I'm not available</button>`:`<span class="muted">Not available</span> <button class="btn sm" onclick="ownerAvail(true)">I'm available</button> <span class="small muted">Callers see it at the top of their screen and can transfer hot sellers to you in Quo.</span>`}</div>
   <div class="card"><b>Callers</b><p class="small muted" style="margin:4px 0 10px">Each caller signs in at <a href="caller.html" target="_blank">landiq.land/caller.html</a> and sees only the Caller screen: one 📞 Duet lead at a time, the notes, and the outcome buttons. Appointments text you and show up in Tasks and in the Duet - Appointment Set column.</p>
    <table><tr><th>Name</th><th>Calls as</th><th>Login</th><th>Last signed in</th><th></th></tr>${A.map(a=>`<tr><td>${esc(a.name)}</td><td class="small">${esc(a.call_name||'—')} <a href="#" onclick="callerCallName(${a.id},'${jsa(a.call_name||'')}');return false">change</a></td><td class="small">${a.email?esc(a.email):a.invite_token?`<span class="muted">Invite not used yet</span><br><input readonly value="${esc(link(a))}" onclick="this.select()" style="font-size:12px;margin-top:4px"><button class="btn sm" style="margin-top:4px" onclick="navigator.clipboard.writeText('${jsa(link(a))}');toast('Invite link copied - send it to ${jsa(a.name)}')">Copy invite link</button>`:'—'}</td>
      <td class="small">${a.last_login?new Date(a.last_login).toLocaleString():'—'}${a.active?'':' <b style="color:var(--red)">· turned off</b>'}</td>

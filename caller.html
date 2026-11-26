@@ -68,6 +68,7 @@ main{padding:18px;max-width:1100px;overflow:auto;max-height:calc(100vh - 52px)}
 #lname{width:170px;padding:6px 10px}.line{font-size:18px;font-weight:600;margin:10px 0 0;line-height:1.4}
 .rules{font-size:13px;background:#fbf7ec;border:1px solid #efe1b8;border-radius:10px;padding:10px 12px;margin-bottom:16px}
 .hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:9px;padding:6px 12px;font-weight:700}
+.avail{background:#e3f1e6;color:#1f4d29;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:700}
 .hbtn.hot{background:var(--gold);border-color:var(--gold);color:#231b30}
 .pv{background:#fbf1d8;color:#6b4a00;border-bottom:1px solid #efe1b8;padding:8px 16px;font-size:13.5px}
 dialog{border:0;border-radius:14px;padding:0;width:min(860px,calc(100vw - 24px));max-height:calc(100vh - 32px);box-shadow:0 20px 60px rgba(35,27,48,.3)}
@@ -109,6 +110,7 @@ dialog::backdrop{background:rgba(35,27,48,.45)}
   <header>
     <h1>DLG Caller</h1><span class="small" id="meName"></span>
     <div class="kpis" id="kpis" aria-label="Today"></div>
+    <span class="avail hidden" id="availTag" role="status">Damien is available: live transfer hot sellers</span>
     <button class="hbtn" id="guideBtn" type="button">Guide</button>
     <button class="hbtn hot" id="textBtn" type="button">Text Damien</button>
     <button class="btn ghost" id="outBtn" type="button">Sign out</button>
@@ -143,8 +145,9 @@ const invite=new URLSearchParams(location.search).get('invite');
 const OUTCOMES={appointment:['Appointment set','Owner/heir agreed to a call with Damien'],follow_up:['Follow up','Call back on a date they gave you'],
   not_interested:['Not interested','Said no / does not want to sell'],no_answer:['No answer','Rang out, no voicemail'],
   voicemail:['Left voicemail','Tries again in 2 days'],wrong_number:['Wrong number','Number is not this person'],
-  skip_trace:['Needs skip trace','Every number is wrong, or there are none']};
-const LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Wrong number',skip_trace:'Needs skip trace',skip_done:'Skip trace: new numbers',skip_none:'Skip trace: none found'};
+  skip_trace:['Needs skip trace','Every number is wrong, or there are none'],
+  transferred:['Live transfer to Damien','You transferred them to Damien in Quo']};
+const LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Wrong number',skip_trace:'Needs skip trace',skip_done:'Skip trace: new numbers',skip_none:'Skip trace: none found',transferred:'Live transfer'};
 const SKIP_STAGE='Duet - Needs Skip Trace';
 const SKIP_TEMPLATE="Name - relationship to owner: \nMobile: \nLandline: \nAge / city: \nFound on: ";
 const SITES=[['TruePeopleSearch','https://www.truepeoplesearch.com'],['FastPeopleSearch','https://www.fastpeoplesearch.com'],['CyberBackgroundChecks','https://www.cyberbackgroundchecks.com']];
@@ -228,6 +231,11 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
    <tr><td>No</td><td>"Understood. Thank you for your time, have a good day."</td><td>Not interested</td></tr>
    <tr><td>Wrong person</td><td>"Do you know how I can reach [name]?"</td><td>Wrong number (if no help)</td></tr>
    <tr><td>Voicemail (3rd try)</td><td>"Hi Ms. Johnson, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at 2364 Main Street, Monroe. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to (704) 275-5457. Thank you." It's filled in for you on every lead.</td><td>Left voicemail</td></tr></table>
+  <h3>Live transfer</h3><p>When the top of your screen says <b>Damien is available</b> and a seller is ready to talk now (wants to sell, gave a price, or asks for an offer):</p><ol>
+   <li>Say: "Damien is actually free right now. Can I bring him on so he can go over it with you?"</li>
+   <li>In Quo, put them on hold and transfer to Damien. When he picks up, tell him who it is, the property, and their price in mind, then connect them.</li>
+   <li>Log it as <b>Live transfer to Damien</b> with what you learned.</li></ol>
+  <p>If Damien doesn't pick up, go back to the seller and book the appointment instead.</p>
   <h3>Texting</h3><ul>
    <li>Only text a number marked <b>mobile</b> (or Wireless on a search site). Never text a landline, a DO NOT USE number, or a deceased owner's number.</li>
    <li>Send it right after the voicemail. Type their first name in the box, click <b>Copy text</b>, paste it in Quo on your line and send. Then tick <b>I sent the text</b> before you save.</li>
@@ -275,10 +283,12 @@ Problems or questions:</pre>
   <p class="small muted">These sites sometimes block visitors from outside the US. If one won't open for you, try the others. If none work, tell Damien in your end-of-day report.</p>
   <h3>How to search</h3><ol>
    <li>Read the SUMMARY at the top of the notes: who to look for (the owner, or the heir if the owner died) and their last known city.</li>
+   <li>If there's an obituary link in the notes, open it. The survivors line ("survived by his daughter Gloria Johnson of Charlotte, NC...") gives every heir's name and city. Use it to pick the right person on the search site.</li>
    <li>Search the person's full name plus the city and state of the owner's mailing address. Then try the property's city.</li>
    <li>Make sure it's the right person: the age fits, the city matches, and the relatives listed match names in the notes (spouse, children, siblings).</li>
    <li>Copy the numbers listed as <b>Wireless</b> first, then landlines. Most recent first. Skip any number already marked bad on this lead.</li>
-   <li>If the owner has died, search the heirs named in the notes (often from the obituary), never the owner.</li>
+   <li>If the owner has died, search the <b>deceased owner's name</b> too. The site's Relatives list shows the family: click each relative to get their numbers. Heirs are often there even when the notes only name one.</li>
+   <li>Write down <b>every</b> heir you find, each with their own lines. Never call the deceased owner's numbers.</li>
    <li>Check the same person on a second site. A number that shows on two sites is the best one to try.</li></ol>
   <h3>Writing it down</h3><p>Open the lead from your Skip trace list and fill in the lines:</p><pre>Name - relationship to owner: Gloria Johnson - daughter
 Mobile: (704) 555-0101
@@ -317,9 +327,10 @@ $('textForm').onsubmit=async e=>{e.preventDefault();$('tErr').textContent='';
   catch(err){$('tErr').textContent=err.message}finally{$('tSend').disabled=false}};
 
 // ---------- app ----------
+setInterval(()=>{if(!$('app').classList.contains('hidden'))loadStats()},60000);
 async function start(){$('gate').classList.add('hidden');$('app').classList.remove('hidden');await Promise.all([loadStats(),loadQueue()]);const f=Q.find(x=>!x.skip)||Q[0];if(f)openLead(f.deal_id);else renderEmpty()}
 async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e){return}
-  window.REVIEWS=s.reviews||[];$('meName').textContent=(PREVIEW?'Previewing as ':'')+(s.name||'');window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
+  window.REVIEWS=s.reviews||[];$('availTag').classList.toggle('hidden',!s.damien_available);$('meName').textContent=(PREVIEW?'Previewing as ':'')+(s.name||'');window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
   $('kpis').innerHTML=[['calls','Calls'],['reached','Reached'],['appointments','Appts'],['follow_ups','Follow-ups'],['not_interested','Not int.'],['bad_numbers','Bad #']]
     .map(([k,l])=>`<span class="kpi"><b>${s[k]||0}</b>${l}</span>`).join('')+'<span class="kpi">today</span>'}
 async function loadQueue(){try{Q=await rpc('caller_queue',{tok:TOK})||[]}catch(e){Q=[];$('queue').innerHTML=`<p class="small muted" style="padding:14px">${esc(e.message)}</p>`;return}
@@ -425,6 +436,7 @@ function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')|
 function pickOut(o){OUT=o;document.querySelectorAll('#logForm .out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
   const need=o==='appointment'||o==='follow_up';$('whenWrap').classList.toggle('hidden',!need);
   $('whenLbl').textContent=o==='appointment'?'Appointment date and time (pick in YOUR time - Damien sees it in Eastern)':'Call back date and time (your time)';
+  if(o==='transferred'){const n=$('note');if(n.value.trim()===TEMPLATE.trim())n.value='Transferred live to Damien.\nSpoke with: \nRelationship to owner: \nPrice in mind: \nOther heirs / who must sign: ';}
   if(o==='no_answer'||o==='voicemail'){const n=$('note');if(n.value.trim()===TEMPLATE.trim())n.value=o==='voicemail'?'Left voicemail: ':'No answer. ';}showEt()}
 function showEt(){const v=$('when').value;$('whenEt').textContent=v?`= ${etFmt(new Date(v))} for Damien`:''}
 async function saveLog(e){e.preventDefault();$('logErr').textContent='';
@@ -435,7 +447,7 @@ async function saveLog(e){e.preventDefault();$('logErr').textContent='';
   let when=null;if(OUT==='appointment'||OUT==='follow_up'){if(!$('when').value)return $('logErr').textContent='Pick the date and time.';when=new Date($('when').value).toISOString()}
   $('saveBtn').disabled=true;
   try{const s=await rpc('caller_log',{tok:TOK,did:CUR.deal_id,p_outcome:OUT,p_phone:phone,p_talked_to:$('talk').value,p_note:note||$('note').value,p_when:when});
-    loadStats(s);toast(OUT==='appointment'?'Appointment saved - Damien gets a text':OUT==='wrong_number'?'Number marked bad - try the next one':'Saved');
+    loadStats(s);toast(OUT==='transferred'?'Saved - lead moved to Appointment Set for Damien':OUT==='appointment'?'Appointment saved - Damien gets a text':OUT==='wrong_number'?'Number marked bad - try the next one':'Saved');
     const id=CUR.deal_id;await loadQueue();
     if(OUT==='wrong_number'&&Q.some(x=>x.deal_id===id))return openLead(id);
     const C=Q.filter(x=>!x.skip),i=C.findIndex(x=>x.deal_id===id),nx=C[i>=0?i+1:0]||C[0]||Q[0];if(nx)openLead(nx.deal_id);else{CUR=null;renderEmpty()}}
