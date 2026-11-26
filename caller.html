@@ -67,6 +67,25 @@ main{padding:18px;max-width:1100px;overflow:auto;max-height:calc(100vh - 52px)}
 .ttl{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:auto}.tbtn{border:0;background:#fff;padding:6px 12px;font-weight:600}.tbtn[aria-pressed=true]{background:var(--brand);color:#fff}
 #lname{width:170px;padding:6px 10px}.line{font-size:18px;font-weight:600;margin:10px 0 0;line-height:1.4}
 .rules{font-size:13px;background:#fbf7ec;border:1px solid #efe1b8;border-radius:10px;padding:10px 12px;margin-bottom:16px}
+.hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:9px;padding:6px 12px;font-weight:700}
+.hbtn.hot{background:var(--gold);border-color:var(--gold);color:#231b30}
+.pv{background:#fbf1d8;color:#6b4a00;border-bottom:1px solid #efe1b8;padding:8px 16px;font-size:13.5px}
+dialog{border:0;border-radius:14px;padding:0;width:min(860px,calc(100vw - 24px));max-height:calc(100vh - 32px);box-shadow:0 20px 60px rgba(35,27,48,.3)}
+dialog::backdrop{background:rgba(35,27,48,.45)}
+.dh{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:1}
+.dh h2{font-size:18px}.dh .x{margin-left:auto;border:0;background:transparent;font-size:22px;line-height:1;color:var(--muted)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px 0;border-bottom:1px solid var(--line);position:sticky;top:53px;background:#fff;z-index:1}
+.tab{border:0;background:transparent;padding:8px 12px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent}
+.tab[aria-selected=true]{color:var(--brand);border-bottom-color:var(--brand)}
+.gb{padding:6px 18px 22px;overflow:auto;font-size:14.5px}.gb h3{font-size:16px;margin:18px 0 6px;color:var(--brand)}
+.gb ol,.gb ul{padding-left:22px;margin:6px 0}.gb li{margin:4px 0}
+.gb table{border-collapse:collapse;width:100%;font-size:13.5px;margin:6px 0}.gb td,.gb th{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}.gb th{background:var(--chip)}
+.gb pre{background:var(--chip);border-radius:8px;padding:10px 12px;white-space:pre-wrap;font-size:13px}
+.rv{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}.rv b{color:var(--brand)}
+.faqq{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.fq{border:1px solid #d9c8ea;background:#fff;border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;color:var(--brand)}
+.fq[aria-pressed=true]{background:var(--brand);color:#fff;border-color:var(--brand)}
+.fa{margin-top:8px;font-size:15px;font-weight:600;background:#fff;border:1px solid #d9c8ea;border-radius:10px;padding:10px 12px}
+.tf{padding:6px 18px 20px}.kinds{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
 .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:9px;font-size:14px;z-index:9}
 @media (max-width:860px){.wrap{grid-template-columns:1fr}aside{max-height:240px;border-right:0;border-bottom:1px solid var(--line)}.cols{grid-template-columns:1fr}main{max-height:none}.kpis{margin-left:0}}
 </style>
@@ -90,17 +109,32 @@ main{padding:18px;max-width:1100px;overflow:auto;max-height:calc(100vh - 52px)}
   <header>
     <h1>DLG Caller</h1><span class="small" id="meName"></span>
     <div class="kpis" id="kpis" aria-label="Today"></div>
+    <button class="hbtn" id="guideBtn" type="button">Guide</button>
+    <button class="hbtn hot" id="textBtn" type="button">Text Damien</button>
     <button class="btn ghost" id="outBtn" type="button">Sign out</button>
   </header>
+  <div class="pv hidden" id="pvBar" role="status"></div>
   <div class="wrap">
     <aside><h3 id="qHead">Your leads</h3><div id="queue"></div></aside>
     <main id="main"><div class="empty">Loading…</div></main>
   </div>
 </div>
 
+<dialog id="guide" aria-labelledby="gTitle"><div class="dh"><h2 id="gTitle">Caller guide</h2><button class="x" type="button" aria-label="Close" data-close>×</button></div>
+  <div class="tabs" role="tablist" id="gTabs"></div><div class="gb" id="gBody"></div></dialog>
+<dialog id="texter" aria-labelledby="tTitle" style="width:min(520px,calc(100vw - 24px))"><div class="dh"><h2 id="tTitle">Text Damien</h2><button class="x" type="button" aria-label="Close" data-close>×</button></div>
+  <form class="tf" id="textForm"><p class="small muted" style="margin:8px 0 0">Only for a hot lead or an emergency. Everything else goes in your call note or your end-of-day report.</p>
+   <div class="kinds"><button type="button" class="out" data-k="hot" aria-pressed="false">Hot lead<small>Wants to talk now, has another offer, or wants an answer today</small></button>
+   <button type="button" class="out" data-k="emergency" aria-pressed="false">Emergency<small>Angry or threatening, mentions a lawyer, or the system is down</small></button></div>
+   <label for="tMsg">Message</label><textarea id="tMsg" style="min-height:90px;font-family:inherit" placeholder="e.g. Ms. Johnson's daughter wants to talk to Damien today, best number (704) 555-0101"></textarea>
+   <p class="small muted" id="tLead"></p>
+   <button class="btn wide" type="submit" id="tSend">Send text to Damien</button><div class="err" id="tErr" role="alert"></div></form></dialog>
+
 <script>
 const SB_URL='https://gdejlpdltnstbwtdpggm.supabase.co',SB_KEY='sb_publishable_E9jIHC9hz6oleR4Qd-68bA_ZWEVcAQ_';
-const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+const PREVIEW=new URLSearchParams(location.search).get('preview');
+// Preview: Damien, signed in to DLG HQ in this browser, sees the caller's screen. Read only, nothing saves.
+const sb=PREVIEW?supabase.createClient(SB_URL,SB_KEY):supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
@@ -108,13 +142,33 @@ let TOK=store.get('dlgCallerTok'),Q=[],CUR=null,OUT=null;
 const invite=new URLSearchParams(location.search).get('invite');
 const OUTCOMES={appointment:['Appointment set','Owner/heir agreed to a call with Damien'],follow_up:['Follow up','Call back on a date they gave you'],
   not_interested:['Not interested','Said no / does not want to sell'],no_answer:['No answer','Rang out, no voicemail'],
-  voicemail:['Left voicemail','Tries again in 2 days'],wrong_number:['Wrong number','Number is not this person']};
-const LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Wrong number'};
+  voicemail:['Left voicemail','Tries again in 2 days'],wrong_number:['Wrong number','Number is not this person'],
+  skip_trace:['Needs skip trace','Every number is wrong, or there are none']};
+const LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Wrong number',skip_trace:'Needs skip trace',skip_done:'Skip trace: new numbers',skip_none:'Skip trace: none found'};
+const SKIP_STAGE='Duet - Needs Skip Trace';
+const SKIP_TEMPLATE="Name - relationship to owner: \nMobile: \nLandline: \nAge / city: \nFound on: ";
+const SITES=[['TruePeopleSearch','https://www.truepeoplesearch.com'],['FastPeopleSearch','https://www.fastpeoplesearch.com'],['CyberBackgroundChecks','https://www.cyberbackgroundchecks.com']];
+const FAQ=[
+ ['Where are you located?','"We\'re in Charlotte, North Carolina."'],
+ ['Do you have a website?','"Yes, DominionLandGroup.land."'],
+ ['Are you builders?','"No, we source land for builders. We specialize in getting you the highest and best offer, and we cover all closing costs."'],
+ ['Are you a realtor? Commission?','"No, we\'re not listing your land. There\'s no commission, and we cover all closing costs."'],
+ ['How did you get my number?','"Property ownership is public record. We reach out to owners of vacant land in areas where builders are looking."'],
+ ['How long have you been doing this?','"Damien has been in real estate since 2016 and has been sourcing land in Charlotte since 2019."'],
+ ['What\'s your offer?','"Do you have a price in mind?" Write it down. "Damien looks at the property first so he can give you a real offer. He\'ll go over it with you on the call."'],
+ ['Send me something in writing?','"Yes. After Damien talks with you, he\'ll send the offer in writing." Get their email or mailing address.'],
+ ['Family members own it too.','"That\'s very common, and we can work with that. Who else is on it, and how can we reach them?" Write every name in your note.'],
+ ['Back taxes, a lien, paperwork problems?','"We see that often and work with a real estate attorney to handle it. Damien will go over it with you."'],
+ ['Is this a scam?','"I understand, you get a lot of calls. We\'re Dominion Land Group in Charlotte, our website is DominionLandGroup.land, and nothing gets signed until you\'ve talked with Damien and seen the offer in writing."'],
+ ['I have a house, not land.','"Damien may still be able to help. Let me have him call you." Book it and note it\'s a house.'],
+ ['Take me off your list.','"I understand, we won\'t call again." Log Not interested and write "Asked not to be called."']];
 const TEMPLATE="Spoke with: \nRelationship to owner: \nWhat they said: \nPrice in mind: \nOther heirs / who must sign: \nNext step: ";
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
 const etFmt=d=>new Date(d).toLocaleString('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET';
 const myFmt=d=>new Date(d).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
-async function rpc(fn,args){const {data,error}=await sb.rpc(fn,args);if(error){if(/sign in again/i.test(error.message)){signOut(true)}throw new Error(error.message)}return data}
+const PV_FN={caller_queue:a=>['owner_preview_queue',{}],caller_lead:a=>['owner_preview_lead',{did:a.did}],caller_stats:a=>['owner_preview_stats',{cid:+PREVIEW}]};
+async function rpc(fn,args){if(PREVIEW){if(!PV_FN[fn]){toast('Preview only - nothing was saved');throw new Error('Preview only - nothing was saved')}[fn,args]=PV_FN[fn](args)}
+  const {data,error}=await sb.rpc(fn,args);if(error){if(/sign in again/i.test(error.message)){signOut(true)}throw new Error(error.message)}return data}
 
 // ---------- sign in ----------
 async function showGate(){$('app').classList.add('hidden');$('gate').classList.remove('hidden');
@@ -129,16 +183,144 @@ $('loginForm').onsubmit=async e=>{e.preventDefault();$('gateErr').textContent=''
 async function signOut(expired){if(TOK&&!expired)try{await sb.rpc('caller_logout',{tok:TOK})}catch(e){}TOK=null;store.set('dlgCallerTok',null);if(expired)toast('Please sign in again');showGate()}
 $('outBtn').onclick=()=>signOut(false);
 
+// ---------- Guide (read-only copy of the Caller SOP, FAQ and pay terms) ----------
+const SITE_LINKS=()=>SITES.map(([n,u])=>`<a href="${u}" target="_blank" rel="noopener noreferrer">${n}</a>`).join(' · ');
+function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
+ ['start','Start here',`
+  <h3>Your first day</h3><ol>
+   <li>Sign in here with your own login. Never use anyone else's.</li>
+   <li>Open Quo on your line (704) 275-5457 and check that it shows your name, ${me}.</li>
+   <li>Read the SOP, Seller FAQ, Skip trace and Pay tabs.</li>
+   <li>Say the opening line out loud 3 times before your first call.</li>
+   <li>Call from the top of your list down. Log every call before you open the next lead.</li>
+   <li>At the end of your shift, send Damien your end-of-day report (template in the SOP tab).</li></ol>
+  <h3>When to text Damien</h3><p>Use the <b>Text Damien</b> button at the top, only for:</p><ul>
+   <li><b>Hot lead:</b> the seller wants to talk now or today, has another offer, or wants an answer today.</li>
+   <li><b>Emergency:</b> someone is angry or threatening, mentions a lawyer, or this screen stops working.</li></ul>
+  <p>Everything else goes in your call note or your end-of-day report.</p>
+  <h3>Never say</h3><ul>
+   <li>"We're builders." Say: "We source land for builders."</li>
+   <li>A price or an offer. Ask "Do you have a price in mind?" and write it down. Damien makes every offer.</li>
+   <li>A closing date or how fast we can close. Damien covers that on the call.</li>
+   <li>Anything to pressure them. If they say no, thank them and log Not interested.</li></ul>
+  <h3>Keep it private</h3><ul>
+   <li>Never screenshot, copy or save lead names, numbers or notes outside this screen.</li>
+   <li>Never save seller numbers in your personal phone. Call only from Quo.</li>
+   <li>Never use these leads for anyone else, during or after your time with DLG.</li></ul>`],
+ ['sop','SOP',`
+  <h3>Your day</h3><p>You call owners and heirs of vacant land in North and South Carolina and book calls for Damien. You never make offers.</p><ol>
+   <li>Make every call from your Quo line (704) 275-5457. Every call is recorded.</li>
+   <li>Work your list from the top down. It is already in order: follow-ups due today, then Call First, then the county columns, then Low Priority.</li>
+   <li>For each lead: read the SUMMARY at the top of the notes, dial, say the opening line, then log the call before you open the next lead.</li>
+   <li>Call between 10am and 7pm Eastern, weekdays only.</li></ol>
+  <h3>Which number to call</h3><p>Call the person the SUMMARY names after "Call:". If the owner has died, that is an heir, never the owner.</p><ol>
+   <li>Start with the MAIN contact's mobile numbers, then their landlines, top to bottom.</li>
+   <li>If none of the main contact's numbers reach them, move to the next person in the notes.</li>
+   <li>Pick the exact number you dialed on this screen before you save.</li></ol>
+  <p>Never call a number marked DO NOT USE, a number belonging to someone who has died, a number struck through in red, or anyone who asked not to be called again.</p>
+  <p>If the person who answers isn't the person you asked for, ask if they know how to reach them. If not, log <b>Wrong number</b> and try the next number. When every number is bad, log <b>Needs skip trace</b> (see the Skip trace tab).</p>
+  <h3>Call script</h3><p>Use Mr. or Ms. and their last name, and name the property. The opening line at the top of each lead is filled in for you.</p>
+  <table><tr><th>They say</th><th>You say</th><th>Log it as</th></tr>
+   <tr><td>Yes or maybe</td><td>"Great. Do you have a price in mind?" Write it down, then: "Damien handles the details and the offer himself. What's a good time this week for a quick call with him?" Confirm the best number and who else must sign.</td><td>Appointment set</td></tr>
+   <tr><td>"How much will you pay?"</td><td>"Do you have a price in mind?" Write it down, then: "Damien goes over numbers himself. He looks at the property first so he can give you a real offer. When's a good time for him to call?"</td><td>Appointment set or Follow up</td></tr>
+   <tr><td>"Not right now"</td><td>"No problem. When would be a better time to check back?"</td><td>Follow up</td></tr>
+   <tr><td>No</td><td>"Understood. Thank you for your time, have a good day."</td><td>Not interested</td></tr>
+   <tr><td>Wrong person</td><td>"Do you know how I can reach [name]?"</td><td>Wrong number (if no help)</td></tr>
+   <tr><td>Voicemail</td><td>The voicemail line under the opening line.</td><td>Left voicemail</td></tr></table>
+  <h3>Outcome boxes</h3><table><tr><th>Box</th><th>Pick it when</th><th>What happens</th></tr>
+   <tr><td>Appointment set</td><td>They agreed to a call with Damien</td><td>Pick the day and time in your own time zone. Damien gets a text and a task.</td></tr>
+   <tr><td>Follow up</td><td>They want a call back later</td><td>Comes back to your list on the date you pick.</td></tr>
+   <tr><td>Not interested</td><td>They said no</td><td>Leaves your list. Don't call again.</td></tr>
+   <tr><td>No answer</td><td>It rang out, no voicemail</td><td>Comes back in 2 days. After 3 tries with nobody answering, it leaves your list.</td></tr>
+   <tr><td>Left voicemail</td><td>You left the voicemail</td><td>Comes back in 2 days.</td></tr>
+   <tr><td>Wrong number</td><td>The number isn't this person's</td><td>The number is marked bad. Try the next number on the same lead.</td></tr>
+   <tr><td>Needs skip trace</td><td>Every number is wrong, or there are none</td><td>Moves to your Skip trace list at the bottom.</td></tr></table>
+  <h3>Note template</h3><pre>Spoke with: Gloria Johnson - daughter
+Relationship to owner: daughter, owner passed in 2021
+What they said: Open to selling, wants to talk to her brother first
+Price in mind: $40,000
+Other heirs / who must sign: Brother Marcus, lives in Atlanta
+Next step: Call with Damien Thu Dec 3, 2:00pm ET</pre>
+  <h3>End-of-day report</h3><p>Send to Damien when you finish. The counts are at the top of this screen.</p><pre>EOD - [date]
+Hours worked:
+Calls: | Reached: | Appointments: | Follow-ups: | Not interested: | Bad numbers:
+Appointments booked: [owner - day and time ET]
+Skip traced: [how many, how many found]
+Problems or questions:</pre>
+  <h3>Your targets</h3><table><tr><th>KPI</th><th>What counts</th><th>Starting target</th></tr>
+   <tr><td>Calls</td><td>Every call you log</td><td>15+ per hour</td></tr>
+   <tr><td>Reached</td><td>Appointment set, Follow up or Not interested</td><td>10%+ of calls</td></tr>
+   <tr><td>Appointments set</td><td>Calls booked with Damien</td><td>2+ per week</td></tr>
+   <tr><td>Appointments held</td><td>Booked calls that actually happen</td><td>70%+ of appointments</td></tr>
+   <tr><td>Notes</td><td>Calls with a filled-in note</td><td>100%</td></tr>
+   <tr><td>Wrong person called</td><td>Calls to a DO NOT USE or deceased owner's number</td><td>0</td></tr></table>
+  <h3>Rules</h3><ul>
+   <li>Always ask "Do you have a price in mind?" and write the answer in the note. Never give a price or make an offer.</li>
+   <li>Be calm and respectful. Many of these families recently lost someone.</li>
+   <li>If someone asks not to be called again, say "I understand, we won't call again," log Not interested, and write "Asked not to be called."</li>
+   <li>Every call gets a note before you move on.</li></ul>`],
+ ['faq','Seller FAQ',`<p>Say these the same way every time. If a question isn't here, say "That's a great question for Damien, he'll cover it on your call," and write it in your note. The same answers are under the opening line on every lead.</p>
+  <table><tr><th>They ask</th><th>You say</th></tr>${FAQ.map(([q,a])=>`<tr><td>${esc(q)}</td><td>${esc(a)}</td></tr>`).join('')}</table>`],
+ ['skip','Skip trace',`
+  <p>When every number on a lead is wrong (or there are none), log <b>Needs skip trace</b>. The lead moves to the <b>Skip trace</b> list at the bottom of your leads. Do your calling first; skip trace when your call list is done or slow.</p>
+  <h3>Free search sites</h3><p>${SITE_LINKS()}</p>
+  <p class="small muted">These sites sometimes block visitors from outside the US. If one won't open for you, try the others. If none work, tell Damien in your end-of-day report.</p>
+  <h3>How to search</h3><ol>
+   <li>Read the SUMMARY at the top of the notes: who to look for (the owner, or the heir if the owner died) and their last known city.</li>
+   <li>Search the person's full name plus the city and state of the owner's mailing address. Then try the property's city.</li>
+   <li>Make sure it's the right person: the age fits, the city matches, and the relatives listed match names in the notes (spouse, children, siblings).</li>
+   <li>Copy the numbers listed as <b>Wireless</b> first, then landlines. Most recent first. Skip any number already marked bad on this lead.</li>
+   <li>If the owner has died, search the heirs named in the notes (often from the obituary), never the owner.</li>
+   <li>Check the same person on a second site. A number that shows on two sites is the best one to try.</li></ol>
+  <h3>Writing it down</h3><p>Open the lead from your Skip trace list and fill in the lines:</p><pre>Name - relationship to owner: Gloria Johnson - daughter
+Mobile: (704) 555-0101
+Landline: (704) 555-0188
+Age / city: 58, Monroe NC
+Found on: TruePeopleSearch + FastPeopleSearch</pre>
+  <ul><li><b>Found new numbers - back to my list:</b> the numbers go in the notes and the lead goes back where it was in your list.</li>
+   <li><b>Couldn't find any:</b> the lead leaves your list and Damien skip traces it with his paid tool.</li></ul>`],
+ ['pay','Pay',`<p>You earn $6 per hour, plus $10 for every appointment held and $250 for every deal that closes from an appointment you set.</p>
+  <table><tr><th>Pay</th><th>Amount</th><th>When it's paid</th></tr><tr><td>Hourly</td><td>$6 per hour</td><td>With your regular pay</td></tr>
+   <tr><td>Appointment held</td><td>$10 each</td><td>With your regular pay</td></tr><tr><td>Closed deal</td><td>$250 each</td><td>After the deal closes and the money is received</td></tr></table>
+  <ul><li><b>Appointment held:</b> the seller shows up for the call with Damien, owns the land or is an heir, and is open to selling. A no-show, or someone who says they never wanted to sell, doesn't count.</li>
+   <li><b>Closed deal:</b> the deal came from an appointment you set and closes within 6 months of that appointment.</li>
+   <li><b>No bonus</b> for an appointment set by misleading the seller in any way.</li></ul>
+  <p>Example month: about 25 hours a week (~$650) + 4 appointments held ($40) + 1 closed deal ($250) = ~$940.</p>
+  <p>Pay goes out through Wise, Payoneer or Deel.</p>`],
+ ['notes','Notes from Damien',(window.REVIEWS||[]).length?(window.REVIEWS).map(r=>`<div class="rv"><div class="small muted">Week of ${esc(new Date(r.week_of+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}))}</div>
+   ${r.did_well?`<p><b>Did well:</b> ${esc(r.did_well)}</p>`:''}${r.fix?`<p><b>To fix:</b> ${esc(r.fix)}</p>`:''}${r.focus?`<p><b>Focus next week:</b> ${esc(r.focus)}</p>`:''}</div>`).join(''):'<p class="muted">Damien\'s weekly notes to you will show here.</p>']]}
+function openGuide(tab){const T=guideTabs();const cur=tab||store.get('dlgGuideTab')||'start';
+  $('gTabs').innerHTML=T.map(([k,l])=>`<button type="button" class="tab" role="tab" data-g="${k}" aria-selected="${k===cur}">${l}</button>`).join('');
+  $('gBody').innerHTML=(T.find(t=>t[0]===cur)||T[0])[2];$('gBody').scrollTop=0;
+  $('gTabs').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{store.set('dlgGuideTab',b.dataset.g);openGuide(b.dataset.g)});
+  if(!$('guide').open)$('guide').showModal()}
+$('guideBtn').onclick=()=>openGuide();
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
+
+// ---------- Text Damien (hot leads and emergencies only) ----------
+let TKIND=null;
+$('textBtn').onclick=()=>{TKIND=null;$('tMsg').value='';$('tErr').textContent='';document.querySelectorAll('[data-k]').forEach(b=>b.setAttribute('aria-pressed','false'));
+  $('tLead').textContent=CUR?`This lead goes with your text: ${String(CUR.label||'').replace(/^\S+\s+/,'')}`:'';$('texter').showModal()};
+document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{TKIND=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))});
+$('textForm').onsubmit=async e=>{e.preventDefault();$('tErr').textContent='';
+  if(!TKIND)return $('tErr').textContent='Pick Hot lead or Emergency.';
+  if(PREVIEW)return $('tErr').textContent='Preview only - no text was sent.';
+  $('tSend').disabled=true;try{await rpc('caller_text_owner',{tok:TOK,did:CUR?CUR.deal_id:null,p_kind:TKIND,p_msg:$('tMsg').value});$('texter').close();toast('Sent - Damien gets a text')}
+  catch(err){$('tErr').textContent=err.message}finally{$('tSend').disabled=false}};
+
 // ---------- app ----------
-async function start(){$('gate').classList.add('hidden');$('app').classList.remove('hidden');await Promise.all([loadStats(),loadQueue()]);if(Q.length)openLead(Q[0].deal_id);else renderEmpty()}
+async function start(){$('gate').classList.add('hidden');$('app').classList.remove('hidden');await Promise.all([loadStats(),loadQueue()]);const f=Q.find(x=>!x.skip)||Q[0];if(f)openLead(f.deal_id);else renderEmpty()}
 async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e){return}
-  $('meName').textContent=s.name||'';window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
+  window.REVIEWS=s.reviews||[];$('meName').textContent=(PREVIEW?'Previewing as ':'')+(s.name||'');window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
   $('kpis').innerHTML=[['calls','Calls'],['reached','Reached'],['appointments','Appts'],['follow_ups','Follow-ups'],['not_interested','Not int.'],['bad_numbers','Bad #']]
     .map(([k,l])=>`<span class="kpi"><b>${s[k]||0}</b>${l}</span>`).join('')+'<span class="kpi">today</span>'}
 async function loadQueue(){try{Q=await rpc('caller_queue',{tok:TOK})||[]}catch(e){Q=[];$('queue').innerHTML=`<p class="small muted" style="padding:14px">${esc(e.message)}</p>`;return}
-  const due=Q.filter(x=>x.due).length;$('qHead').textContent=`Your leads (${Q.length})${due?` · ${due} follow-up${due>1?'s':''} due`:''}`;
-  $('queue').innerHTML=Q.map(x=>`<button type="button" class="q${CUR&&CUR.deal_id===x.deal_id?' on':''}" data-id="${x.deal_id}"><div class="o">${esc(x.owner||'Owner')}${x.due?'<span class="due">FOLLOW-UP DUE</span>':''}</div>
-    <div class="s">${esc(String(x.label||'').replace(/^\S+\s+/,'').slice(0,60))}</div><div class="s">${esc(x.stage.replace('Duet - ',''))}${x.tries?` · ${x.tries} call${x.tries>1?'s':''}, last: ${esc(LBL[x.last_outcome]||'')}`:''}</div></button>`).join('')||'<p class="small muted" style="padding:14px">No leads to call right now.</p>';
+  const calls=Q.filter(x=>!x.skip),skips=Q.filter(x=>x.skip),due=calls.filter(x=>x.due).length;
+  $('qHead').textContent=`Your leads (${calls.length})${due?` · ${due} follow-up${due>1?'s':''} due`:''}`;
+  const item=x=>`<button type="button" class="q${CUR&&CUR.deal_id===x.deal_id?' on':''}" data-id="${x.deal_id}"><div class="o">${esc(x.owner||'Owner')}${x.due?'<span class="due">FOLLOW-UP DUE</span>':''}</div>
+    <div class="s">${esc(String(x.label||'').replace(/^\S+\s+/,'').slice(0,60))}</div><div class="s">${esc(x.stage.replace('Duet - ',''))}${x.tries?` · ${x.tries} call${x.tries>1?'s':''}, last: ${esc(LBL[x.last_outcome]||'')}`:''}</div></button>`;
+  $('queue').innerHTML=(calls.map(item).join('')||'<p class="small muted" style="padding:14px">No leads to call right now.</p>')
+    +(skips.length?`<h3>Skip trace (${skips.length})</h3><p class="small muted" style="padding:0 14px 6px;margin:0">Find new numbers when your calling is done.</p>`+skips.map(item).join(''):'');
   $('queue').querySelectorAll('.q').forEach(b=>b.onclick=()=>openLead(+b.dataset.id))}
 function renderEmpty(){$('main').innerHTML='<div class="empty"><h2>All caught up</h2><p>No leads to call right now. Follow-ups come back here on their date.</p></div>'}
 
@@ -164,7 +346,9 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
   <div class="card script"><div class="sh"><b>Opening line</b> <span class="small muted">say it to the person you're calling</span>
      <span class="ttl"><button type="button" class="tbtn" data-t="Mr." aria-pressed="false">Mr.</button><button type="button" class="tbtn" data-t="Ms." aria-pressed="true">Ms.</button></span>
      <input id="lname" type="text" aria-label="Last name of the person you are calling" value="${esc(lastName(L))}"></div>
-     <p id="line" class="line"></p><p class="small muted" id="vmLine" style="margin:6px 0 0"></p></div>
+     <p id="line" class="line"></p><p class="small muted" id="vmLine" style="margin:6px 0 0"></p>
+     <div class="faqq" aria-label="If the seller asks"><span class="small muted" style="align-self:center">If they ask:</span>${FAQ.map(([q],i)=>`<button type="button" class="fq" data-f="${i}" aria-pressed="false">${esc(q)}</button>`).join('')}</div>
+     <div class="fa hidden" id="faqA" aria-live="polite"></div></div>
   <div class="cols">
    <div>
     <div class="card"><h2>${esc(L.owner||'Owner')}</h2><div class="muted small">${esc(String(L.label||'').replace(/^\S+\s+/,''))}</div>
@@ -173,10 +357,10 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
     ${L.calls.length?`<div class="card"><h3 style="font-size:15px;margin-bottom:6px">Earlier calls</h3>${L.calls.map(c=>`<div class="hist"><b>${esc(LBL[c.outcome]||c.outcome)}</b> · ${esc(etFmt(c.at))} · ${esc(c.by||'')} · ${esc(c.phone||'')}${c.talked_to?` · spoke with ${esc(c.talked_to)}`:''}\n${esc(c.note||'')}${c.next?`\nCall back: ${esc(etFmt(c.next))}`:''}${c.appt?`\nAppointment: ${esc(etFmt(c.appt))}`:''}</div>`).join('')}</div>`:''}
    </div>
    <div>
-    <form class="card" id="logForm">
+    ${L.stage===SKIP_STAGE?skipForm():`<form class="card" id="logForm">
      <h3 style="font-size:16px">Log this call</h3>
      <label>1. Which number did you call?</label>
-     <div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span><span class="ctx" title="${esc(p.ctx)}">${p.bad?'DO NOT CALL - ':''}${esc(p.ctx)}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
+     ${!P.some(p=>!p.bad)?'<p class="small" style="background:#fbf1d8;border-radius:8px;padding:8px 10px;margin:0 0 6px"><b>No good numbers left.</b> Pick <b>Needs skip trace</b> below.</p>':''}<div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span><span class="ctx" title="${esc(p.ctx)}">${p.bad?'DO NOT CALL - ':''}${esc(p.ctx)}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
      <label for="other">Or type a number you found</label><input id="other" type="text" inputmode="tel" placeholder="(704) 555-0123">
      <label for="talk">2. Who did you talk to? <span class="muted">(name, or leave blank if nobody)</span></label><input id="talk" type="text" placeholder="e.g. Gloria Smith - daughter">
      <label>3. What happened?</label>
@@ -185,13 +369,30 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
      <label for="note">4. Notes <span class="muted">(fill in the lines)</span></label><textarea id="note">${TEMPLATE}</textarea>
      <button class="btn wide" type="submit" id="saveBtn">Save and go to next lead</button>
      <div class="err" id="logErr" role="alert"></div>
-    </form>
+    </form>`}
    </div>
   </div>`;
   document.querySelectorAll('.tbtn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tbtn').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));drawLine()});
   $('lname').oninput=drawLine;drawLine();
-  document.querySelectorAll('.out').forEach(b=>b.onclick=()=>pickOut(b.dataset.o));
+  document.querySelectorAll('.fq').forEach(b=>b.onclick=()=>{const on=b.getAttribute('aria-pressed')!=='true';document.querySelectorAll('.fq').forEach(x=>x.setAttribute('aria-pressed',String(on&&x===b)));
+    $('faqA').classList.toggle('hidden',!on);$('faqA').textContent=on?FAQ[+b.dataset.f][1]:''});
+  if(L.stage===SKIP_STAGE){document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>saveSkip(b.dataset.s));return}
+  document.querySelectorAll('#logForm .out').forEach(b=>b.onclick=()=>pickOut(b.dataset.o));
   $('when').oninput=showEt;$('logForm').onsubmit=saveLog}
+function skipForm(){const who=encodeURIComponent(CUR.owner||'');return `<div class="card"><h3 style="font-size:16px">Skip trace this lead</h3>
+  <p class="small muted" style="margin:4px 0 8px">Every number on this lead is bad. Find new numbers for the person the SUMMARY says to call (an heir if the owner died). Steps are in Guide → Skip trace.</p>
+  <p class="small">${SITE_LINKS()}</p>
+  <label for="skNote">New numbers you found <span class="muted">(fill in the lines, one person at a time)</span></label><textarea id="skNote">${SKIP_TEMPLATE}</textarea>
+  <button type="button" class="btn wide" data-s="skip_done">Found new numbers - back to my list</button>
+  <button type="button" class="btn ghost wide" style="margin-top:8px" data-s="skip_none">Couldn't find any - leave it for Damien</button>
+  <div class="err" id="logErr" role="alert"></div></div>`}
+async function saveSkip(o){$('logErr').textContent='';const raw=$('skNote').value;
+  const note=raw.split('\n').filter(l=>!/^[A-Za-z /]+:\s*$/.test(l)).join('\n').trim()||(o==='skip_none'?'Searched, no new numbers found.':'');
+  if(o==='skip_done'&&!/\d{3}\D{0,3}\d{3}\D?\d{4}/.test(note))return $('logErr').textContent='Type the new phone numbers you found.';
+  document.querySelectorAll('[data-s]').forEach(b=>b.disabled=true);
+  try{const s=await rpc('caller_log',{tok:TOK,did:CUR.deal_id,p_outcome:o,p_phone:'',p_talked_to:'',p_note:note.length>=5?note:'Searched, no new numbers found.',p_when:null});
+    loadStats(s);toast(o==='skip_done'?'Saved - the lead is back in your list':'Saved - left for Damien');await loadQueue();const f=Q.find(x=>!x.skip)||Q[0];if(f)openLead(f.deal_id);else{CUR=null;renderEmpty()}}
+  catch(err){$('logErr').textContent=err.message}finally{document.querySelectorAll('[data-s]').forEach(b=>b.disabled=false)}}
 function lastName(L){const ln=String(L.last_name||'').trim();if(ln)return cap(ln);const w=String(L.owner||'').replace(/\b(estate of|heirs?( of)?|life estate|etal|et al|jr|sr|ii|iii)\b/gi,'').trim().split(/\s+/);return cap(w.length>1?w[w.length-1]:w[0]||'')}
 function cap(s){return String(s).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase())}
 function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')||{}).dataset?.t||'Ms.';const ln=$('lname').value.trim()||'[last name]';
@@ -199,7 +400,7 @@ function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')|
   const st=cap(String(CUR.street||'').trim())||'[property address]';const city=cap(String(CUR.city||'').trim());
   $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group calling about your land at ${st}. Please call us back at (704) 275-5457. Thank you."`;
   $('line').textContent=`"Hello, ${t} ${ln}. This is ${me} with Dominion Land Group. I was inquiring if you had any interest in selling your vacant land at ${st}${city?', '+city:''}?"`}
-function pickOut(o){OUT=o;document.querySelectorAll('.out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
+function pickOut(o){OUT=o;document.querySelectorAll('#logForm .out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
   const need=o==='appointment'||o==='follow_up';$('whenWrap').classList.toggle('hidden',!need);
   $('whenLbl').textContent=o==='appointment'?'Appointment date and time (pick in YOUR time - Damien sees it in Eastern)':'Call back date and time (your time)';
   if(o==='no_answer'||o==='voicemail'){const n=$('note');if(n.value.trim()===TEMPLATE.trim())n.value=o==='voicemail'?'Left voicemail: ':'No answer. ';}showEt()}
@@ -214,10 +415,15 @@ async function saveLog(e){e.preventDefault();$('logErr').textContent='';
     loadStats(s);toast(OUT==='appointment'?'Appointment saved - Damien gets a text':OUT==='wrong_number'?'Number marked bad - try the next one':'Saved');
     const id=CUR.deal_id;await loadQueue();
     if(OUT==='wrong_number'&&Q.some(x=>x.deal_id===id))return openLead(id);
-    const i=Q.findIndex(x=>x.deal_id===id),nx=Q[i>=0?i+1:0]||Q[0];if(nx&&nx.deal_id!==id)openLead(nx.deal_id);else if(nx)openLead(nx.deal_id);else{CUR=null;renderEmpty()}}
+    const C=Q.filter(x=>!x.skip),i=C.findIndex(x=>x.deal_id===id),nx=C[i>=0?i+1:0]||C[0]||Q[0];if(nx)openLead(nx.deal_id);else{CUR=null;renderEmpty()}}
   catch(err){$('logErr').textContent=err.message}finally{const b=$('saveBtn');if(b)b.disabled=false}}
 
-if(TOK&&!invite)start().catch(()=>showGate());else showGate();
+async function startPreview(){const {data:{session}}=await sb.auth.getSession();
+  if(!session){document.body.innerHTML='<div class="empty"><h2>Sign in to DLG HQ first</h2><p>Open landiq.land, sign in, then click Preview on the Callers page again.</p></div>';return}
+  $('outBtn').textContent='Close preview';$('outBtn').onclick=()=>{window.close();location.href='index.html#callers'};
+  $('pvBar').classList.remove('hidden');$('pvBar').innerHTML='<b>Preview.</b> This is exactly what your caller sees. Nothing saves here: outcome buttons and Text Damien are turned off.';
+  start()}
+if(PREVIEW)startPreview();else if(TOK&&!invite)start().catch(()=>showGate());else showGate();
 </script>
 </body>
 </html>
