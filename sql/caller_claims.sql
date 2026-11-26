@@ -39,7 +39,8 @@ begin
        and case when p_test then d.property_label like '🧪%' else d.property_label like '📞%' end
        and (lc.follow_up_at is null or lc.follow_up_at <= now())
        and not (s.name = 'Duet - Follow Up' and lc.id is null)
-       and not (s.name = 'Duet - Needs Skip Trace' and lc.outcome is distinct from 'skip_trace')
+       -- Needs Skip Trace leads wait for Damien's team to add numbers; callers never skip trace
+       and s.name <> 'Duet - Needs Skip Trace'
        and not exists (select 1 from caller_claims k where k.deal_id = d.id and k.caller_id is distinct from p_cid and k.claimed_at > now() - interval '15 minutes')
        and coalesce((select bool_and(c3.outcome in ('no_answer','voicemail')) and count(*) = 3
                        from (select outcome from caller_calls c where c.deal_id = d.id order by created_at desc limit 3) c3), false) = false

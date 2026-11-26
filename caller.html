@@ -193,7 +193,7 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
   <h3>Your first day</h3><ol>
    <li>Sign in here with your own login. Never use anyone else's.</li>
    <li>Open Quo on your line (704) 275-5457 and check that it shows your name, ${me}.</li>
-   <li>Read the SOP, Seller FAQ, Skip trace and Pay tabs.</li>
+   <li>Read the SOP, Seller FAQ and Pay tabs.</li>
    <li>Say the opening line out loud 3 times before your first call.</li>
    <li>Call from the top of your list down. Log every call before you open the next lead.</li>
    <li>At the end of your shift, send Damien your end-of-day report (template in the SOP tab).</li></ol>
@@ -222,7 +222,7 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
    <li>If none of the main contact's numbers reach them, move to the next person in the notes.</li>
    <li>Pick the exact number you dialed on this screen before you save.</li></ol>
   <p>Never call a number marked DO NOT USE, a number belonging to someone who has died, a number struck through in red, or anyone who asked not to be called again.</p>
-  <p>If the person who answers isn't the person you asked for, ask if they know how to reach them. If not, log <b>Wrong number</b> and try the next number. When every number is bad, log <b>Needs skip trace</b> (see the Skip trace tab).</p>
+  <p>If the person who answers isn't the person you asked for, ask if they know how to reach them. If not, log <b>Wrong number</b> and try the next number. When every number is bad, log <b>Needs skip trace</b> and move on. Damien's team finds new numbers and the lead comes back to your list.</p>
   <h3>Call script</h3><p>Use Mr. or Ms. and their last name, and name the property. The opening line at the top of each lead is filled in for you.</p>
   <table><tr><th>They say</th><th>You say</th><th>Log it as</th></tr>
    <tr><td>Yes or maybe</td><td>"Great. Do you have a price in mind?" Write it down, then: "Damien handles the details and the offer himself. What's a good time this week for a quick call with him?" Confirm the best number and who else must sign.</td><td>Appointment set</td></tr>
@@ -250,7 +250,7 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
    <tr><td>No answer</td><td>It rang out, no voicemail</td><td>Comes back in 2 days. After 3 tries with nobody answering, it leaves your list.</td></tr>
    <tr><td>Left voicemail</td><td>You called 3 times and left the voicemail (and texted, if mobile)</td><td>Comes back in 2 days.</td></tr>
    <tr><td>Wrong number</td><td>The number isn't this person's</td><td>The number is marked bad. Try the next number on the same lead.</td></tr>
-   <tr><td>Needs skip trace</td><td>Every number is wrong, or there are none</td><td>Moves to your Skip trace list at the bottom.</td></tr></table>
+   <tr><td>Needs skip trace</td><td>Every number is wrong, or there are none</td><td>Leaves your list. Damien's team finds new numbers and it comes back to you.</td></tr></table>
   <h3>Note template</h3><pre>Spoke with: Gloria Johnson - daughter
 Relationship to owner: daughter, owner passed in 2021
 What they said: Open to selling, wants to talk to her brother first
@@ -261,7 +261,7 @@ Next step: Call with Damien Thu Dec 3, 2:00pm ET</pre>
 Hours worked:
 Calls: | Reached: | Appointments: | Follow-ups: | Not interested: | Bad numbers: | Texts sent:
 Appointments booked: [owner - day and time ET]
-Skip traced: [how many, how many found]
+Sent to skip trace: [how many]
 Problems or questions:</pre>
   <h3>Your targets</h3><table><tr><th>KPI</th><th>What counts</th><th>Starting target</th></tr>
    <tr><td>Calls</td><td>Every call you log</td><td>15+ per hour</td></tr>
@@ -277,26 +277,6 @@ Problems or questions:</pre>
    <li>Every call gets a note before you move on.</li></ul>`],
  ['faq','Seller FAQ',`<p>Say these the same way every time. If a question isn't here, say "That's a great question for Damien, he'll cover it on your call," and write it in your note. The same answers are under the opening line on every lead.</p>
   <table><tr><th>They ask</th><th>You say</th></tr>${FAQ.map(([q,a])=>`<tr><td>${esc(q)}</td><td>${esc(a)}</td></tr>`).join('')}</table>`],
- ['skip','Skip trace',`
-  <p>When every number on a lead is wrong (or there are none), log <b>Needs skip trace</b>. The lead moves to the <b>Skip trace</b> list at the bottom of your leads. Do your calling first; skip trace when your call list is done or slow.</p>
-  <h3>Free search sites</h3><p>${SITE_LINKS()}</p>
-  <p class="small muted">These sites sometimes block visitors from outside the US. If one won't open for you, try the others. If none work, tell Damien in your end-of-day report.</p>
-  <h3>How to search</h3><ol>
-   <li>Read the SUMMARY at the top of the notes: who to look for (the owner, or the heir if the owner died) and their last known city.</li>
-   <li>If there's an obituary link in the notes, open it. The survivors line ("survived by his daughter Gloria Johnson of Charlotte, NC...") gives every heir's name and city. Use it to pick the right person on the search site.</li>
-   <li>Search the person's full name plus the city and state of the owner's mailing address. Then try the property's city.</li>
-   <li>Make sure it's the right person: the age fits, the city matches, and the relatives listed match names in the notes (spouse, children, siblings).</li>
-   <li>Copy the numbers listed as <b>Wireless</b> first, then landlines. Most recent first. Skip any number already marked bad on this lead.</li>
-   <li>If the owner has died, search the <b>deceased owner's name</b> too. The site's Relatives list shows the family: click each relative to get their numbers. Heirs are often there even when the notes only name one.</li>
-   <li>Write down <b>every</b> heir you find, each with their own lines. Never call the deceased owner's numbers.</li>
-   <li>Check the same person on a second site. A number that shows on two sites is the best one to try.</li></ol>
-  <h3>Writing it down</h3><p>Open the lead from your Skip trace list and fill in the lines:</p><pre>Name - relationship to owner: Gloria Johnson - daughter
-Mobile: (704) 555-0101
-Landline: (704) 555-0188
-Age / city: 58, Monroe NC
-Found on: TruePeopleSearch + FastPeopleSearch</pre>
-  <ul><li><b>Found new numbers - back to my list:</b> the numbers go in the notes and the lead goes back where it was in your list.</li>
-   <li><b>Couldn't find any:</b> the lead leaves your list and Damien skip traces it with his paid tool.</li></ul>`],
  ['pay','Pay',`<p>You earn $6 per hour, plus $10 for every appointment held and $250 for every deal that closes from an appointment you set.</p>
   <table><tr><th>Pay</th><th>Amount</th><th>When it's paid</th></tr><tr><td>Hourly</td><td>$6 per hour</td><td>With your regular pay</td></tr>
    <tr><td>Appointment held</td><td>$10 each</td><td>With your regular pay</td></tr><tr><td>Closed deal</td><td>$250 each</td><td>After the deal closes and the money is received</td></tr></table>
@@ -334,7 +314,7 @@ async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e
   $('kpis').innerHTML=[['calls','Calls'],['reached','Reached'],['appointments','Appts'],['follow_ups','Follow-ups'],['not_interested','Not int.'],['bad_numbers','Bad #']]
     .map(([k,l])=>`<span class="kpi"><b>${s[k]||0}</b>${l}</span>`).join('')+'<span class="kpi">today</span>'}
 async function loadQueue(){try{Q=await rpc('caller_queue',{tok:TOK})||[]}catch(e){Q=[];$('queue').innerHTML=`<p class="small muted" style="padding:14px">${esc(e.message)}</p>`;return}
-  const calls=Q.filter(x=>!x.skip),skips=Q.filter(x=>x.skip),due=calls.filter(x=>x.due).length;
+  Q=Q.filter(x=>!x.skip);const calls=Q,skips=[],due=calls.filter(x=>x.due).length;
   $('qHead').textContent=`Your leads (${calls.length})${due?` · ${due} follow-up${due>1?'s':''} due`:''}`;
   const item=x=>`<button type="button" class="q${CUR&&CUR.deal_id===x.deal_id?' on':''}" data-id="${x.deal_id}"><div class="o">${esc(x.owner||'Owner')}${x.due?'<span class="due">FOLLOW-UP DUE</span>':''}</div>
     <div class="s">${esc(String(x.label||'').replace(/^\S+\s+/,'').slice(0,60))}</div><div class="s">${esc(x.stage.replace('Duet - ',''))}${x.tries?` · ${x.tries} call${x.tries>1?'s':''}, last: ${esc(LBL[x.last_outcome]||'')}`:''}</div></button>`;
@@ -382,7 +362,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
     ${L.calls.length?`<div class="card"><h3 style="font-size:15px;margin-bottom:6px">Earlier calls</h3>${L.calls.map(c=>`<div class="hist"><b>${esc(LBL[c.outcome]||c.outcome)}</b> · ${esc(etFmt(c.at))} · ${esc(c.by||'')} · ${esc(c.phone||'')}${c.talked_to?` · spoke with ${esc(c.talked_to)}`:''}\n${esc(c.note||'')}${c.next?`\nCall back: ${esc(etFmt(c.next))}`:''}${c.appt?`\nAppointment: ${esc(etFmt(c.appt))}`:''}</div>`).join('')}</div>`:''}
    </div>
    <div>
-    ${L.stage===SKIP_STAGE?skipForm():`<form class="card" id="logForm">
+    ${L.stage===SKIP_STAGE?'<div class="card"><p>This lead is waiting on new numbers from Damien. It comes back to your list when they are added.</p></div>':`<form class="card" id="logForm">
      <h3 style="font-size:16px">Log this call</h3>
      <label>1. Which number did you call?</label>
      ${!P.some(p=>!p.bad)?'<p class="small" style="background:#fbf1d8;border-radius:8px;padding:8px 10px;margin:0 0 6px"><b>No good numbers left.</b> Pick <b>Needs skip trace</b> below.</p>':''}<div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span><span class="ctx" title="${esc(p.ctx)}">${p.bad?'DO NOT CALL - ':''}${esc(p.ctx)}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
@@ -405,23 +385,9 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
     try{await navigator.clipboard.writeText($('txLine').textContent);toast(/mobile|wireless|cell/i.test(ctx)||$('other')?.value.trim()?'Copied - paste it in Quo, then tick "I sent the text"':'Copied - only send it if this number is a mobile')}catch(e){toast('Select the text and copy it')}};
   document.querySelectorAll('.fq').forEach(b=>b.onclick=()=>{const on=b.getAttribute('aria-pressed')!=='true';document.querySelectorAll('.fq').forEach(x=>x.setAttribute('aria-pressed',String(on&&x===b)));
     $('faqA').classList.toggle('hidden',!on);$('faqA').textContent=on?FAQ[+b.dataset.f][1]:''});
-  if(L.stage===SKIP_STAGE){document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>saveSkip(b.dataset.s));return}
+  if(L.stage===SKIP_STAGE)return;
   document.querySelectorAll('#logForm .out').forEach(b=>b.onclick=()=>pickOut(b.dataset.o));
   $('when').oninput=showEt;$('logForm').onsubmit=saveLog}
-function skipForm(){const who=encodeURIComponent(CUR.owner||'');return `<div class="card"><h3 style="font-size:16px">Skip trace this lead</h3>
-  <p class="small muted" style="margin:4px 0 8px">Every number on this lead is bad. Find new numbers for the person the SUMMARY says to call (an heir if the owner died). Steps are in Guide → Skip trace.</p>
-  <p class="small">${SITE_LINKS()}</p>
-  <label for="skNote">New numbers you found <span class="muted">(fill in the lines, one person at a time)</span></label><textarea id="skNote">${SKIP_TEMPLATE}</textarea>
-  <button type="button" class="btn wide" data-s="skip_done">Found new numbers - back to my list</button>
-  <button type="button" class="btn ghost wide" style="margin-top:8px" data-s="skip_none">Couldn't find any - leave it for Damien</button>
-  <div class="err" id="logErr" role="alert"></div></div>`}
-async function saveSkip(o){$('logErr').textContent='';const raw=$('skNote').value;
-  const note=raw.split('\n').filter(l=>!/^[A-Za-z /]+:\s*$/.test(l)).join('\n').trim()||(o==='skip_none'?'Searched, no new numbers found.':'');
-  if(o==='skip_done'&&!/\d{3}\D{0,3}\d{3}\D?\d{4}/.test(note))return $('logErr').textContent='Type the new phone numbers you found.';
-  document.querySelectorAll('[data-s]').forEach(b=>b.disabled=true);
-  try{const s=await rpc('caller_log',{tok:TOK,did:CUR.deal_id,p_outcome:o,p_phone:'',p_talked_to:'',p_note:note.length>=5?note:'Searched, no new numbers found.',p_when:null});
-    loadStats(s);toast(o==='skip_done'?'Saved - the lead is back in your list':'Saved - left for Damien');await loadQueue();const f=Q.find(x=>!x.skip)||Q[0];if(f)openLead(f.deal_id);else{CUR=null;renderEmpty()}}
-  catch(err){$('logErr').textContent=err.message}finally{document.querySelectorAll('[data-s]').forEach(b=>b.disabled=false)}}
 function lastName(L){const ln=String(L.last_name||'').trim();if(ln)return cap(ln);const w=String(L.owner||'').replace(/\b(estate of|heirs?( of)?|life estate|etal|et al|jr|sr|ii|iii)\b/gi,'').trim().split(/\s+/);return cap(w.length>1?w[w.length-1]:w[0]||'')}
 // first name for the text: the person the SUMMARY says to call ("Call: Gloria Johnson ..."), else the owner on record
 function firstName(L){const m=String(L.notes||'').match(/Call:\s*(?:Mr\.?|Ms\.?|Mrs\.?)?\s*([A-Z][A-Za-z'\-]+)/);if(m)return cap(m[1]);return /deceased|estate|heirs/i.test(String(L.owner||'')+String(L.notes||'').slice(0,300))?'':cap(String(L.first_name||'').trim().split(/\s+/)[0]||'')}
@@ -447,7 +413,7 @@ async function saveLog(e){e.preventDefault();$('logErr').textContent='';
   let when=null;if(OUT==='appointment'||OUT==='follow_up'){if(!$('when').value)return $('logErr').textContent='Pick the date and time.';when=new Date($('when').value).toISOString()}
   $('saveBtn').disabled=true;
   try{const s=await rpc('caller_log',{tok:TOK,did:CUR.deal_id,p_outcome:OUT,p_phone:phone,p_talked_to:$('talk').value,p_note:note||$('note').value,p_when:when});
-    loadStats(s);toast(OUT==='transferred'?'Saved - lead moved to Appointment Set for Damien':OUT==='appointment'?'Appointment saved - Damien gets a text':OUT==='wrong_number'?'Number marked bad - try the next one':'Saved');
+    loadStats(s);toast(OUT==='skip_trace'?'Sent to Damien for new numbers':OUT==='transferred'?'Saved - lead moved to Appointment Set for Damien':OUT==='appointment'?'Appointment saved - Damien gets a text':OUT==='wrong_number'?'Number marked bad - try the next one':'Saved');
     const id=CUR.deal_id;await loadQueue();
     if(OUT==='wrong_number'&&Q.some(x=>x.deal_id===id))return openLead(id);
     const C=Q.filter(x=>!x.skip),i=C.findIndex(x=>x.deal_id===id),nx=C[i>=0?i+1:0]||C[0]||Q[0];if(nx)openLead(nx.deal_id);else{CUR=null;renderEmpty()}}
