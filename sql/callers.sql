@@ -16,9 +16,11 @@
 
 -- 1. tables ---------------------------------------------------------------------------------------------------------
 create table if not exists public.caller_accounts (
-  id bigserial primary key, name text not null, email text unique, pw_hash text,
+  id bigserial primary key, name text not null, call_name text, email text unique, pw_hash text,
   invite_token text unique, invite_expires timestamptz, active boolean not null default true,
   created_at timestamptz not null default now(), last_login timestamptz);
+-- call_name = the name she uses on the phone (e.g. Salsabil calls as "Olivia")
+alter table public.caller_accounts add column if not exists call_name text;
 create table if not exists public.caller_sessions (
   token_hash text primary key, caller_id bigint not null references public.caller_accounts(id) on delete cascade,
   expires_at timestamptz not null, created_at timestamptz not null default now());
@@ -142,7 +144,7 @@ end $$;
 create or replace function public.caller_stats(tok text) returns json language plpgsql security definer set search_path = public as $$
 declare cid bigint := caller_auth(tok); t0 timestamptz := date_trunc('day', now() at time zone 'America/New_York') at time zone 'America/New_York';
 begin
-  return (select json_build_object('name', (select name from caller_accounts where id = cid),
+  return (select json_build_object('name', (select name from caller_accounts where id = cid), 'call_name', (select call_name from caller_accounts where id = cid),
     'calls', count(*), 'reached', count(*) filter (where outcome in ('appointment','follow_up','not_interested')),
     'appointments', count(*) filter (where outcome = 'appointment'), 'follow_ups', count(*) filter (where outcome = 'follow_up'),
     'not_interested', count(*) filter (where outcome = 'not_interested'), 'no_answer', count(*) filter (where outcome in ('no_answer','voicemail')),

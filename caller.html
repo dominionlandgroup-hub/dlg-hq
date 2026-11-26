@@ -132,7 +132,7 @@ $('outBtn').onclick=()=>signOut(false);
 // ---------- app ----------
 async function start(){$('gate').classList.add('hidden');$('app').classList.remove('hidden');await Promise.all([loadStats(),loadQueue()]);if(Q.length)openLead(Q[0].deal_id);else renderEmpty()}
 async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e){return}
-  $('meName').textContent=s.name||'';
+  $('meName').textContent=s.name||'';window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
   $('kpis').innerHTML=[['calls','Calls'],['reached','Reached'],['appointments','Appts'],['follow_ups','Follow-ups'],['not_interested','Not int.'],['bad_numbers','Bad #']]
     .map(([k,l])=>`<span class="kpi"><b>${s[k]||0}</b>${l}</span>`).join('')+'<span class="kpi">today</span>'}
 async function loadQueue(){try{Q=await rpc('caller_queue',{tok:TOK})||[]}catch(e){Q=[];$('queue').innerHTML=`<p class="small muted" style="padding:14px">${esc(e.message)}</p>`;return}
@@ -164,7 +164,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
   <div class="card script"><div class="sh"><b>Opening line</b> <span class="small muted">say it to the person you're calling</span>
      <span class="ttl"><button type="button" class="tbtn" data-t="Mr." aria-pressed="false">Mr.</button><button type="button" class="tbtn" data-t="Ms." aria-pressed="true">Ms.</button></span>
      <input id="lname" type="text" aria-label="Last name of the person you are calling" value="${esc(lastName(L))}"></div>
-     <p id="line" class="line"></p></div>
+     <p id="line" class="line"></p><p class="small muted" id="vmLine" style="margin:6px 0 0"></p></div>
   <div class="cols">
    <div>
     <div class="card"><h2>${esc(L.owner||'Owner')}</h2><div class="muted small">${esc(String(L.label||'').replace(/^\S+\s+/,''))}</div>
@@ -195,8 +195,9 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
 function lastName(L){const ln=String(L.last_name||'').trim();if(ln)return cap(ln);const w=String(L.owner||'').replace(/\b(estate of|heirs?( of)?|life estate|etal|et al|jr|sr|ii|iii)\b/gi,'').trim().split(/\s+/);return cap(w.length>1?w[w.length-1]:w[0]||'')}
 function cap(s){return String(s).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase())}
 function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')||{}).dataset?.t||'Ms.';const ln=$('lname').value.trim()||'[last name]';
-  const me=String($('meName').textContent||'').trim().split(/\s+/)[0]||'[your name]';
+  const me=window.CALLNAME||'[your name]';
   const st=cap(String(CUR.street||'').trim())||'[property address]';const city=cap(String(CUR.city||'').trim());
+  $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group calling about your land at ${st}. Please call us back at (704) 387-3482. Thank you."`;
   $('line').textContent=`"Hello, ${t} ${ln}. This is ${me} with Dominion Land Group. I was inquiring if you had any interest in selling your vacant land at ${st}${city?', '+city:''}?"`}
 function pickOut(o){OUT=o;document.querySelectorAll('.out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
   const need=o==='appointment'||o==='follow_up';$('whenWrap').classList.toggle('hidden',!need);
