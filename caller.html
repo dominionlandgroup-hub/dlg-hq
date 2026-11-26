@@ -110,7 +110,7 @@ const OUTCOMES={appointment:['Appointment set','Owner/heir agreed to a call with
   not_interested:['Not interested','Said no / does not want to sell'],no_answer:['No answer','Rang out, no voicemail'],
   voicemail:['Left voicemail','Tries again in 2 days'],wrong_number:['Wrong number','Number is not this person']};
 const LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Wrong number'};
-const TEMPLATE="Spoke with: \nRelationship to owner: \nWhat they said: \nOther heirs / who must sign: \nNext step: ";
+const TEMPLATE="Spoke with: \nRelationship to owner: \nWhat they said: \nPrice in mind: \nOther heirs / who must sign: \nNext step: ";
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
 const etFmt=d=>new Date(d).toLocaleString('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET';
 const myFmt=d=>new Date(d).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
@@ -160,7 +160,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
   let L;try{L=await rpc('caller_lead',{tok:TOK,did:id})}catch(e){$('main').innerHTML=`<div class="empty">${esc(e.message)}</div>`;loadQueue();return}
   CUR=L;document.querySelectorAll('.q').forEach(b=>b.classList.toggle('on',+b.dataset.id===id));
   const P=phonesFrom(L);
-  $('main').innerHTML=`<div class="rules"><b>Before you dial:</b> read the SUMMARY at the top of the notes. Call the person it says to call, mobile first. Never call a number marked DO NOT USE or a deceased owner's number. Never talk price - book the call with Damien.</div>
+  $('main').innerHTML=`<div class="rules"><b>Before you dial:</b> read the SUMMARY at the top of the notes. Call the person it says to call, mobile first. Never call a number marked DO NOT USE or a deceased owner's number. Call from your Quo line (704) 275-5457. Always ask: <b>"Do you have a price in mind?"</b> and write it down - but never give a price or an offer. Book the call with Damien.</div>
   <div class="card script"><div class="sh"><b>Opening line</b> <span class="small muted">say it to the person you're calling</span>
      <span class="ttl"><button type="button" class="tbtn" data-t="Mr." aria-pressed="false">Mr.</button><button type="button" class="tbtn" data-t="Ms." aria-pressed="true">Ms.</button></span>
      <input id="lname" type="text" aria-label="Last name of the person you are calling" value="${esc(lastName(L))}"></div>
@@ -197,7 +197,7 @@ function cap(s){return String(s).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCa
 function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')||{}).dataset?.t||'Ms.';const ln=$('lname').value.trim()||'[last name]';
   const me=window.CALLNAME||'[your name]';
   const st=cap(String(CUR.street||'').trim())||'[property address]';const city=cap(String(CUR.city||'').trim());
-  $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group calling about your land at ${st}. Please call us back at (704) 387-3482. Thank you."`;
+  $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group calling about your land at ${st}. Please call us back at (704) 275-5457. Thank you."`;
   $('line').textContent=`"Hello, ${t} ${ln}. This is ${me} with Dominion Land Group. I was inquiring if you had any interest in selling your vacant land at ${st}${city?', '+city:''}?"`}
 function pickOut(o){OUT=o;document.querySelectorAll('.out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
   const need=o==='appointment'||o==='follow_up';$('whenWrap').classList.toggle('hidden',!need);
