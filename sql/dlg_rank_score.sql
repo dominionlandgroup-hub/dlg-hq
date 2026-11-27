@@ -22,7 +22,7 @@ begin
   head := coalesce(p_label,'') || ' ' || left(coalesce(p_notes,''), 1500);
   s := yrs * 100 + coalesce(round(amt / 100), 0)::int;
   if head ~* '(heirs?|estate|\mest\M|\mhrs\M|deceased)' then s := s + 200; end if;
-  if coalesce(p_notes,'') ~* '(ATT REF|referred to the county.{0,20}foreclosure|tax foreclosure (case|filed)|foreclosure case \d|\d\dCVD\d+|\d\dSP\d+)' then s := s + 300; end if;
+  if regexp_replace(coalesce(p_notes,''), '\m(no|not|never|without)\s+(\w+\s+){0,2}foreclosure[^.\n]*', '', 'gi') ~* '(ATT REF|referred to the county.{0,20}foreclosure|tax foreclosure (case|filed)|foreclosure case \d|\d\dCVD\d+|\d\dSP\d+)' then s := s + 300; end if;
   if head ~* '(\d+\s*lots|\d+\s*parcels|both parcels|\+\s*\d+\s*lots?)' then s := s + 100; end if;
   return s;
 end $$;
