@@ -624,6 +624,7 @@ function drawDuet(list){
   const cardD=d=>card(d).replace(/<\/div>$/,tag(d)+'</div>');
   $('view').innerHTML=`<div class="board">${DUET_GROUPS.map(g=>{const arr=byG[g.k],park=g.k==='parked';
     return `<div class="col" data-group="${g.k}"><div class="hd" style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${g.name}</span>${park?`<button class="btn ghost sm" onclick="DUET_PARKED_OPEN=!DUET_PARKED_OPEN;$('bf').oninput()">${DUET_PARKED_OPEN?'Hide':'Show'}</button>`:''}</div>
+      ${(()=>{const d=new Date(),gi=DUET_GROUPS.indexOf(g);const [t,r]=VERSES[((d.getFullYear()*372+d.getMonth()*31+d.getDate())+(gi+1)*11)%VERSES.length];return `<div class="verse" style="background:#fbf7ec;border-left:3px solid var(--gold);border-radius:8px;padding:7px 10px;margin:6px 0 8px">${esc(t)}<small>${esc(r)}</small></div>`})()}
       <div class="meta">${arr.length} lead${arr.length===1?'':'s'} · <span class="muted">${g.hint}${g.k==='ready'&&mergedN?` · ${mergedN} extra lot${mergedN===1?'':'s'} merged into these cards, not counted`:''}</span></div>
       <div class="cards">${park&&!DUET_PARKED_OPEN?'':arr.map(cardD).join('')}</div></div>`}).join('')}</div>`;
   wireDuetDnD(ds)}
