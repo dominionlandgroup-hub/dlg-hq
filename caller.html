@@ -32,6 +32,9 @@ textarea{resize:vertical;min-height:150px;font-family:ui-monospace,Menlo,Consola
 /* app */
 header{background:var(--brand);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 header h1{font-size:17px}
+.clock{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cst{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;background:rgba(255,255,255,.18)}
+.cst.working{background:#2f6b3a}.cst.break{background:#D5A940;color:#231b30}.cst.off{background:#b23b3b}
 .kpis{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .kpi{background:rgba(255,255,255,.14);border-radius:8px;padding:4px 10px;font-size:12px;white-space:nowrap}
 .kpi b{font-size:15px;margin-right:3px}
@@ -111,6 +114,7 @@ dialog::backdrop{background:rgba(35,27,48,.45)}
   <header>
     <h1>DLG Caller</h1><span class="small" id="meName"></span>
     <div class="kpis" id="kpis" aria-label="Today"></div>
+    <span class="clock" id="clock" aria-label="Time clock"></span>
     <span class="avail hidden" id="availTag" role="status">Damien is available: live transfer hot sellers</span>
     <button class="hbtn" id="guideBtn" type="button">Guide</button>
     <button class="hbtn hot" id="textBtn" type="button">Text Damien</button>
@@ -170,7 +174,7 @@ const TEMPLATE="Spoke with: \nRelationship to owner: \nWhat they said: \nPrice i
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
 const etFmt=d=>new Date(d).toLocaleString('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET';
 const myFmt=d=>new Date(d).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
-const PV_FN={caller_queue:a=>['owner_preview_queue',{cid:+PREVIEW}],caller_lead:a=>['owner_preview_lead',{did:a.did}],caller_stats:a=>['owner_preview_stats',{cid:+PREVIEW}]};
+const PV_FN={caller_queue:a=>['owner_preview_queue',{cid:+PREVIEW}],caller_lead:a=>['owner_preview_lead',{did:a.did}],caller_stats:a=>['owner_preview_stats',{cid:+PREVIEW}],caller_clock_status:a=>['owner_preview_clock',{cid:+PREVIEW}]};
 async function rpc(fn,args){if(PREVIEW){if(!PV_FN[fn]){toast('Preview only - nothing was saved');throw new Error('Preview only - nothing was saved')}[fn,args]=PV_FN[fn](args)}
   const {data,error}=await sb.rpc(fn,args);if(error){if(/sign in again/i.test(error.message)){signOut(true)}throw new Error(error.message)}return data}
 
@@ -311,7 +315,19 @@ $('textForm').onsubmit=async e=>{e.preventDefault();$('tErr').textContent='';
 
 // ---------- app ----------
 setInterval(()=>{if(!$('app').classList.contains('hidden'))loadStats()},60000);
-async function start(){$('gate').classList.add('hidden');$('app').classList.remove('hidden');await Promise.all([loadStats(),loadQueue()]);const f=Q.find(x=>!x.skip)||Q[0];if(f)openLead(f.deal_id);else renderEmpty()}
+async function start(){$('gate').classList.add('hidden');$('app').classList.remove('hidden');await Promise.all([loadStats(),loadQueue(),loadClock()]);if(CLK&&CLK.state==='off'&&!PREVIEW)toast('You are clocked out. Press Clock in to start your shift.');const f=Q.find(x=>!x.skip)||Q[0];if(f)openLead(f.deal_id);else renderEmpty()}
+// time clock: clock in / break / clock out. Damien sees hours, pay and activity under Callers in DLG HQ.
+let CLK=null,CLKAT=0;
+async function loadClock(c){try{c=c||await rpc('caller_clock_status',{tok:TOK})}catch(e){return}CLK=c;CLKAT=Date.now();drawClock()}
+function hm(m){m=Math.max(0,Math.round(m));return Math.floor(m/60)+'h '+String(m%60).padStart(2,'0')+'m'}
+function drawClock(){const c=CLK;if(!c||!$('clock'))return;const live=c.state==='working'?c.today_minutes+(Date.now()-CLKAT)/60000:c.today_minutes;
+  const lbl={off:'Clocked out',working:'Working',break:'On break'}[c.state]||c.state;
+  const btns=c.state==='off'?[['in','Clock in']]:c.state==='working'?[['break_start','Start break'],['out','Clock out']]:[['break_end','End break'],['out','Clock out']];
+  $('clock').innerHTML=`<span class="cst ${c.state}">${lbl}</span><span class="kpi"><b>${hm(live)}</b> worked today</span>`+btns.map(([k,l])=>`<button class="hbtn" type="button" data-k="${k}">${l}</button>`).join('');
+  $('clock').querySelectorAll('button').forEach(b=>b.onclick=()=>clockDo(b.dataset.k))}
+async function clockDo(k){if(k==='out'&&!confirm('Clock out for the day?'))return;
+  try{const c=await rpc('caller_clock',{tok:TOK,p_kind:k});await loadClock(c);toast({in:'Clocked in',out:'Clocked out',break_start:'Break started',break_end:'Back from break'}[k])}catch(e){toast(e.message)}}
+setInterval(drawClock,30000);
 async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e){return}
   window.REVIEWS=s.reviews||[];$('availTag').classList.toggle('hidden',!s.damien_available);$('meName').textContent=(PREVIEW?'Previewing as ':'')+(s.name||'');window.LINE=(d=>d.length===10?'('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6):'')(String(s.line||'').replace(/\D/g,'').slice(-10))||'(704) 275-5457';window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
   $('kpis').innerHTML=[['calls','Calls'],['reached','Reached'],['appointments','Appts'],['follow_ups','Follow-ups'],['not_interested','Not int.'],['bad_numbers','Bad #']]

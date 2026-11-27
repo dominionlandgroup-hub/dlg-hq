@@ -2627,6 +2627,53 @@ async function callerSkipBack(id){
 async function callerReview(id){const wk=callerWeek(),v=k=>$(`rv_${k}_${id}`).value.trim();
   const {error}=await sb.from('caller_reviews').upsert({caller_id:id,week_of:wk,did_well:v('w')||null,fix:v('f')||null,focus:v('o')||null},{onConflict:'caller_id,week_of'});
   if(error)return toast(error.message);toast('Saved - she sees it on her Guide')}
+// ---------- caller time clock: hours, pay, appointments and idle time per week (sql/caller_timeclock.sql) ----------
+const etMidnight=d=>{const g=new Date(d+'T12:00:00Z');const off=(new Date(g.toLocaleString('en-US',{timeZone:'UTC'}))-new Date(g.toLocaleString('en-US',{timeZone:'America/New_York'})))/60000;return new Date(Date.parse(d+'T00:00:00Z')+off*60000)};
+const hmin=m=>{m=Math.max(0,Math.round(m));return Math.floor(m/60)+'h '+String(m%60).padStart(2,'0')+'m'};
+async function callerTimesheet(A,wk){
+  const t0=etMidnight(wk),t1=new Date(t0.getTime()+7*86400000);
+  const [{data:sh,error:se},{data:cl},{data:acc2}]=await Promise.all([
+    sb.from('caller_shifts').select('caller_id,kind,at').gte('at',new Date(t0.getTime()-86400000).toISOString()).lt('at',t1.toISOString()).order('at').order('id'),
+    sb.from('caller_calls').select('caller_id,deal_id,outcome,created_at,appt_at,deals(property_label,stage_id)').gte('created_at',t0.toISOString()).lt('created_at',t1.toISOString()).order('created_at'),
+    sb.from('caller_accounts').select('id,hourly_rate'),sb.from('board_stages').select('id,name')]).then(r=>(window._BSN=Object.fromEntries((r[3].data||[]).map(b=>[b.id,b.name])),r));
+  if(se)return `<div class="card"><b>Time clock: one-time setup needed.</b><p class="small">Run <code>sql/caller_timeclock.sql</code> in Supabase (SQL Editor, paste, Run), then reload.</p></div>`;
+  const rate=id=>Number((acc2||[]).find(a=>a.id===id)?.hourly_rate||0);
+  const dayOf=t=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date(t));
+  const days=[...Array(7)].map((_,i)=>dayOf(t0.getTime()+i*86400000+12*3600000));
+  const IDLE=20; // minutes clocked in with no call logged
+  const prev=new Date(etMidnight(wk).getTime()-7*86400000+12*3600000),next=new Date(t0.getTime()+7*86400000+12*3600000);
+  const out=A.filter(a=>a.active||(sh||[]).some(x=>x.caller_id===a.id)).map(a=>{
+    const S=(sh||[]).filter(x=>x.caller_id===a.id),K=(cl||[]).filter(x=>x.caller_id===a.id);
+    // working blocks: in/break_end opens, break_start/out closes
+    const blocks=[],breaks=[];let open=null,bopen=null;
+    for(const x of S){const t=new Date(x.at);if(x.kind==='in'||x.kind==='break_end'){open=t;if(x.kind==='break_end'&&bopen){breaks.push([bopen,t]);bopen=null}}
+      else{if(open){blocks.push([open,t]);open=null}if(x.kind==='break_start')bopen=t}}
+    if(open)blocks.push([open,new Date(Math.min(Date.now(),t1.getTime()))]);
+    const clip=([s,e])=>[new Date(Math.max(s,t0)),new Date(Math.min(e,t1))];
+    const W=blocks.map(clip).filter(([s,e])=>e>s),B=breaks.map(clip).filter(([s,e])=>e>s);
+    const per={};days.forEach(d=>per[d]={work:0,brk:0,calls:0,reached:0,appt:0,idle:0,idleList:[]});
+    for(const [s,e] of W){per[dayOf(s)]&&(per[dayOf(s)].work+=(e-s)/60000);
+      const ev=[s,...K.map(c=>new Date(c.created_at)).filter(t=>t>=s&&t<=e),e];
+      for(let i=1;i<ev.length;i++){const g=(ev[i]-ev[i-1])/60000;if(g>=IDLE&&per[dayOf(s)]){per[dayOf(s)].idle+=g;per[dayOf(s)].idleList.push(ev[i-1].toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'})+' ('+Math.round(g)+' min)')}}}
+    for(const [s,e] of B)per[dayOf(s)]&&(per[dayOf(s)].brk+=(e-s)/60000);
+    for(const c of K){const p=per[dayOf(c.created_at)];if(!p)continue;p.calls++;if(['appointment','follow_up','not_interested','transferred'].includes(c.outcome))p.reached++;if(c.outcome==='appointment')p.appt++}
+    const tot=days.reduce((o,d)=>{for(const k of ['work','brk','calls','reached','appt','idle'])o[k]+=per[d][k];return o},{work:0,brk:0,calls:0,reached:0,appt:0,idle:0});
+    const hrs=tot.work/60,pay=hrs*rate(a.id),cph=hrs?tot.calls/hrs:0;
+    const appts=K.filter(c=>c.outcome==='appointment');
+    const dl=d=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px"><b>Time clock · ${esc(a.call_name||a.name)} · week of ${dl(wk)}</b>
+      <span class="small">Rate: $${rate(a.id).toFixed(2)}/hr <a href="#" onclick="callerRate(${a.id},${rate(a.id)});return false">change</a></span></div>
+     <div style="display:flex;gap:18px;flex-wrap:wrap;margin:10px 0"><div><div class="small muted">Hours worked</div><b style="font-size:20px">${hmin(tot.work)}</b></div>
+      <div><div class="small muted">Pay this week</div><b style="font-size:20px">$${pay.toFixed(2)}</b></div>
+      <div><div class="small muted">Calls per hour</div><b style="font-size:20px;color:${hrs&&cph<15?'#8a5a00':'inherit'}">${cph.toFixed(1)}</b> <span class="small muted">target 15+</span></div>
+      <div><div class="small muted">Appointments</div><b style="font-size:20px">${tot.appt}</b></div>
+      <div><div class="small muted">Idle while clocked in</div><b style="font-size:20px;color:${tot.idle>=60?'var(--red)':'inherit'}">${hmin(tot.idle)}</b> <span class="small muted">${IDLE}+ min with no call logged</span></div></div>
+     <table><tr><th>Day</th><th>Worked</th><th>Breaks</th><th>Calls</th><th>Reached</th><th>Appts</th><th>Idle</th></tr>
+      ${days.map(d=>{const p=per[d];if(!p.work&&!p.calls)return '';return `<tr><td>${dl(d)}</td><td>${hmin(p.work)}</td><td>${hmin(p.brk)}</td><td>${p.calls}${p.work?` <span class="small muted">(${(p.calls/(p.work/60)).toFixed(1)}/hr)</span>`:''}</td><td>${p.reached}</td><td>${p.appt}</td><td class="small">${p.idle?`<b style="color:${p.idle>=60?'var(--red)':'#8a5a00'}">${hmin(p.idle)}</b><br>${p.idleList.map(esc).join('<br>')}`:'—'}</td></tr>`}).join('')||'<tr><td colspan="7" class="muted">No clock-ins this week.</td></tr>'}</table>
+     ${appts.length?`<p class="small" style="margin:10px 0 4px"><b>Appointments she set</b> (current column shows if it held)</p><table>${appts.map(c=>`<tr><td class="small">${c.appt_at?new Date(c.appt_at).toLocaleString('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET':''}</td><td class="small"><a href="#" onclick="openDeal(${c.deal_id});return false">${esc(String(c.deals?.property_label||'deal').slice(0,60))}</a></td><td class="small">${esc(String(window._BSN[c.deals?.stage_id]||'').replace('Duet - ',''))}</td></tr>`).join('')}</table>`:''}
+     <p class="small muted" style="margin:8px 0 0"><a href="#" onclick="window.CALLER_TS_WEEK='${dayOf(prev)}';vCallers();return false">← Previous week</a>${wk<callerWeek()?` · <a href="#" onclick="window.CALLER_TS_WEEK='${dayOf(next)}';vCallers();return false">Next week →</a>`:''}</p></div>`}).join('');
+  return out}
+async function callerRate(id,cur){const v=prompt('Hourly rate in dollars (e.g. 15):',cur||'');if(v===null)return;const n=Number(String(v).replace(/[^0-9.]/g,''));if(!(n>=0))return toast('Type a number');const {error}=await sb.from('caller_accounts').update({hourly_rate:n}).eq('id',id);if(error)return toast(error.message);toast('Rate saved');vCallers()}
 async function vCallers(){
   const etDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date());
   const since=new Date(Date.now()-7*86400000).toISOString();
@@ -2645,6 +2692,7 @@ async function vCallers(){
   let skipDeals=[];if(skipSt){const {data}=await sb.from('deals').select('id,property_label').eq('stage_id',skipSt.id).limit(200);skipDeals=data||[]}
   if(e1){$('view').innerHTML=`<div class="card"><b>One-time setup needed.</b><p class="small">Run <code>sql/callers.sql</code> in Supabase (SQL Editor, paste, Run). Then reload this page.</p><p class="small muted">${esc(e1.message)}</p></div>`;return}
   const C=calls||[],A=acc||[];
+  const TS=await callerTimesheet(A,window.CALLER_TS_WEEK||callerWeek());
   const day=c=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date(c.created_at));
   const kp=list=>{const n=o=>list.filter(c=>o.includes(c.outcome)).length;return {calls:list.length,reached:n(['appointment','follow_up','not_interested']),appt:n(['appointment']),fu:n(['follow_up']),ni:n(['not_interested']),na:n(['no_answer','voicemail']),bad:n(['wrong_number'])}};
   const krow=(lbl,k)=>`<tr><td>${lbl}</td><td><b>${k.calls}</b></td><td>${k.reached}${k.calls?` <span class="small muted">(${Math.round(100*k.reached/k.calls)}%)</span>`:''}</td><td><b>${k.appt}</b></td><td>${k.fu}</td><td>${k.ni}</td><td>${k.na}</td><td>${k.bad}</td></tr>`;
@@ -2658,6 +2706,7 @@ async function vCallers(){
    <div style="display:flex;gap:8px;margin-top:10px;max-width:620px"><input id="cl_name" placeholder="Real name (e.g. Salsabil Mohamed)"><input id="cl_call" placeholder="Calls as (e.g. Olivia)" style="max-width:150px"><button class="btn" onclick="callerAdd()">Add caller</button></div></div>
   <div class="card" style="padding:0"><table><tr><th>Which problems book appointments (last 30 days)</th><th>Leads called</th><th>Calls</th><th>Reached</th><th>Appts</th><th>Appts per 100 calls</th></tr>
    ${probRows.map(([k,b])=>`<tr><td>${esc(k)}</td><td>${b.leads.size}</td><td>${b.calls}</td><td>${b.reached}</td><td><b>${b.appt}</b></td><td>${b.calls?(100*b.appt/b.calls).toFixed(1):'0'}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No calls in the last 30 days yet. After a couple of weeks this shows which kind of lead to pull more of.</td></tr>'}</table></div>
+  ${TS}
   <div class="card" style="padding:0"><table><tr><th>KPIs</th><th>Calls</th><th>Reached</th><th>Appts</th><th>Follow-ups</th><th>Not int.</th><th>No answer / VM</th><th>Bad #</th></tr>
    ${A.map(a=>{const mine=C.filter(c=>c.caller_id===a.id);return krow(esc(a.name)+' · today',kp(mine.filter(c=>day(c)===etDay)))+krow(esc(a.name)+' · last 7 days',kp(mine))}).join('')||'<tr><td colspan="8" class="muted">No calls yet.</td></tr>'}</table></div>
   ${A.filter(a=>a.active).map(a=>{const mine=C.filter(c=>c.caller_id===a.id),k=kp(mine),r=(revs||[]).find(x=>x.caller_id===a.id)||{};
