@@ -149,10 +149,10 @@ let TOK=store.get('dlgCallerTok'),Q=[],CUR=null,OUT=null;
 const invite=new URLSearchParams(location.search).get('invite');
 const OUTCOMES={appointment:['Appointment set','Owner/heir agreed to a call with Damien'],follow_up:['Follow up','Call back on a date they gave you'],
   not_interested:['Not interested','Said no / does not want to sell'],no_answer:['No answer','Rang out, no voicemail'],
-  voicemail:['Left voicemail','Tries again in 2 days'],wrong_number:['Wrong number','Number is not this person'],
-  skip_trace:['Needs skip trace','Every number is wrong, or there are none'],
+  voicemail:['Left voicemail','Tries again in 2 days'],wrong_number:['Bad number','Wrong person, disconnected or not in service'],
+  skip_trace:['All numbers bad - re-skip trace','Every number is bad, or there are none. Sends it for new numbers.'],
   transferred:['Live transfer to Damien','You transferred them to Damien in Quo']};
-const LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Wrong number',skip_trace:'Needs skip trace',skip_done:'Skip trace: new numbers',skip_none:'Skip trace: none found',transferred:'Live transfer'};
+const LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Bad number',skip_trace:'Needs skip trace',skip_done:'Skip trace: new numbers',skip_none:'Skip trace: none found',transferred:'Live transfer'};
 const SKIP_STAGE='Duet - Needs Skip Trace';
 const SKIP_TEMPLATE="Name - relationship to owner: \nMobile: \nLandline: \nAge / city: \nFound on: ";
 const SITES=[['TruePeopleSearch','https://www.truepeoplesearch.com'],['FastPeopleSearch','https://www.fastpeoplesearch.com'],['CyberBackgroundChecks','https://www.cyberbackgroundchecks.com']];
@@ -229,15 +229,15 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
    <li>If none of the main contact's numbers reach them, move to the next person in the notes.</li>
    <li>Pick the exact number you dialed on this screen before you save.</li></ol>
   <p>Never call a number marked DO NOT USE, a number belonging to someone who has died, a number struck through in red, or anyone who asked not to be called again.</p>
-  <p>If the person who answers isn't the person you asked for, ask if they know how to reach them. If not, log <b>Wrong number</b> and try the next number. When every number is bad, log <b>Needs skip trace</b> and move on. Damien's team finds new numbers and the lead comes back to your list.</p>
+  <p>If the person who answers isn't the person you asked for, ask if they know how to reach them. If not, log <b>Bad number</b> and try the next number. When the last number is marked bad, the lead goes for a new skip trace on its own. Damien's team finds new numbers and the lead comes back to your list.</p>
   <h3>Call script</h3><p>Use Mr. or Ms. and their last name, and name the property. The opening line at the top of each lead is filled in for you.</p>
   <table><tr><th>They say</th><th>You say</th><th>Log it as</th></tr>
    <tr><td>Yes or maybe</td><td>"Great. Do you have a price in mind?" Write it down, then: "Damien handles the details and the offer himself. What's a good time this week for a quick call with him?" Confirm the best number and who else must sign.</td><td>Appointment set</td></tr>
    <tr><td>"How much will you pay?"</td><td>"Do you have a price in mind?" Write it down, then: "Damien goes over numbers himself. He looks at the property first so he can give you a real offer. When's a good time for him to call?"</td><td>Appointment set or Follow up</td></tr>
    <tr><td>"Not right now"</td><td>"No problem. When would be a better time to check back?"</td><td>Follow up</td></tr>
    <tr><td>No</td><td>"Understood. Thank you for your time, have a good day."</td><td>Not interested</td></tr>
-   <tr><td>Wrong person</td><td>"Do you know how I can reach [name]?"</td><td>Wrong number (if no help)</td></tr>
-   <tr><td>Voicemail (3rd try)</td><td>"Hi Ms. Johnson, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at 2364 Main Street, Monroe. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to ${window.LINE||'(704) 275-5457'}. Thank you." It's filled in for you on every lead.</td><td>Left voicemail</td></tr></table>
+   <tr><td>Wrong person</td><td>"Do you know how I can reach [name]?"</td><td>Bad number (if no help)</td></tr>
+   <tr><td>Voicemail (3rd try)</td><td>"Hi Ms. Johnson, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at 2364 Main Street, Monroe. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to ${window.LINE||'(704) 275-5457'}. Thank you." It's filled in for you on every lead. When there's no street address it names the county instead, like "your 2 vacant lots in Cabarrus County."</td><td>Left voicemail</td></tr></table>
   <h3>Live transfer</h3><p>When the top of your screen says <b>Damien is available</b> and a seller is ready to talk now (wants to sell, gave a price, or asks for an offer):</p><ol>
    <li>Say: "Damien is actually free right now. Can I bring him on so he can go over it with you?"</li>
    <li>In Quo, put them on hold and transfer to Damien. When he picks up, tell him who it is, the property, and their price in mind, then connect them.</li>
@@ -256,7 +256,7 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
    <tr><td>Not interested</td><td>They said no</td><td>Leaves your list. Don't call again.</td></tr>
    <tr><td>No answer</td><td>It rang out, no voicemail</td><td>Comes back in 2 days. After 3 tries with nobody answering, it leaves your list.</td></tr>
    <tr><td>Left voicemail</td><td>You called 3 times and left the voicemail (and texted, if mobile)</td><td>Comes back in 2 days.</td></tr>
-   <tr><td>Wrong number</td><td>The number isn't this person's</td><td>The number is marked bad. Try the next number on the same lead.</td></tr>
+   <tr><td>Bad number</td><td>Wrong person, disconnected or not in service</td><td>The number is marked bad. Try the next number on the same lead. When the last number is marked bad, the lead goes to Damien for a new skip trace on its own.</td></tr>
    <tr><td>Needs skip trace</td><td>Every number is wrong, or there are none</td><td>Leaves your list. Damien's team finds new numbers and it comes back to you.</td></tr></table>
   <h3>Note template</h3><pre>Spoke with: Gloria Johnson - daughter
 Relationship to owner: daughter, owner passed in 2021
@@ -338,7 +338,7 @@ async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e
 async function loadQueue(){try{Q=await rpc('caller_queue',{tok:TOK})||[]}catch(e){Q=[];$('queue').innerHTML=`<p class="small muted" style="padding:14px">${esc(e.message)}</p>`;return}
   Q=Q.filter(x=>!x.skip);const calls=Q,skips=[],due=calls.filter(x=>x.due).length;
   $('qHead').textContent=`Your leads (${calls.length})${due?` · ${due} follow-up${due>1?'s':''} due`:''}`;
-  const item=x=>`<button type="button" class="q${CUR&&CUR.deal_id===x.deal_id?' on':''}" data-id="${x.deal_id}"><div class="o">${esc(x.owner||'Owner')}${x.due?'<span class="due">FOLLOW-UP DUE</span>':''}</div>
+  const item=x=>`<button type="button" class="q${CUR&&CUR.deal_id===x.deal_id?' on':''}" data-id="${x.deal_id}"><div class="o">${esc(niceName(x.owner)||'Owner')}${x.due?'<span class="due">FOLLOW-UP DUE</span>':''}</div>
     <div class="s">${esc(String(x.label||'').replace(/^\S+\s+/,'').slice(0,60))}</div><div class="s">${esc(x.stage.replace('Duet - ',''))}${x.tries?` · ${x.tries} call${x.tries>1?'s':''}, last: ${esc(LBL[x.last_outcome]||'')}`:''}</div></button>`;
   $('queue').innerHTML=(calls.map(item).join('')||'<p class="small muted" style="padding:14px">No leads to call right now.</p>')
     +(skips.length?`<h3>Skip trace (${skips.length})</h3><p class="small muted" style="padding:0 14px 6px;margin:0">Find new numbers when your calling is done.</p>`+skips.map(item).join(''):'');
@@ -382,7 +382,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
      <div class="fa hidden" id="faqA" aria-live="polite"></div></div>
   <div class="cols">
    <div>
-    <div class="card"><h2>${esc(L.owner||'Owner')}</h2><div class="muted small">${esc(String(L.label||'').replace(/^\S+\s+/,''))}</div>
+    <div class="card"><h2>${esc(niceName(L.owner)||'Owner')}</h2>${callPerson(L)?`<div class="small"><b>Call:</b> ${esc(callPerson(L))}</div>`:''}<div class="muted small">${esc(String(L.label||'').replace(/^\S+\s+/,''))}</div>
      <div class="facts"><div>Property</div><div>${esc(L.property||'—')}</div><div>County</div><div>${esc(L.county||'—')}${L.acres?` · ${esc(L.acres)} ac`:''}</div><div>Parcel</div><div>${esc(L.apn||'—')}</div><div>Owner mailing</div><div>${esc(L.mail||'—')}</div><div>Column</div><div>${esc(L.stage.replace('Duet - ',''))}</div></div>
      <div class="notes" tabindex="0" aria-label="Lead notes">${esc(L.notes||'No notes on this lead.')}</div></div>
     ${L.calls.length?`<div class="card"><h3 style="font-size:15px;margin-bottom:6px">Earlier calls</h3>${L.calls.map(c=>`<div class="hist"><b>${esc(LBL[c.outcome]||c.outcome)}</b> · ${esc(etFmt(c.at))} · ${esc(c.by||'')} · ${esc(c.phone||'')}${c.talked_to?` · spoke with ${esc(c.talked_to)}`:''}\n${esc(c.note||'')}${c.next?`\nCall back: ${esc(etFmt(c.next))}`:''}${c.appt?`\nAppointment: ${esc(etFmt(c.appt))}`:''}</div>`).join('')}</div>`:''}
@@ -416,7 +416,29 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
   if(L.stage===SKIP_STAGE)return;
   document.querySelectorAll('#logForm .out').forEach(b=>b.onclick=()=>pickOut(b.dataset.o));
   $('when').oninput=showEt;$('logForm').onsubmit=saveLog}
-function lastName(L){const ln=String(L.last_name||'').trim();if(ln)return cap(ln);const w=String(L.owner||'').replace(/\b(estate of|heirs?( of)?|life estate|etal|et al|jr|sr|ii|iii)\b/gi,'').trim().split(/\s+/);return cap(w.length>1?w[w.length-1]:w[0]||'')}
+// names: county records list LAST FIRST MIDDLE in capitals ("DIXON ELLA MARIE"); show them First Middle Last, and drop Heirs/Estate words
+const NAMEJUNK=/\b(estate of|estate|est|heirs? of|heirs?|hrs|life estate|etal|et al|etux|c\/o|deceased)\b\.?/gi;
+function niceName(s){s=String(s||'').trim();if(!s)return '';
+  if(!/[a-z]/.test(s)){s=s.split(/\s+\/\s+|\s*&\s*|\s+\+\s*|;|\s+%/)[0].replace(NAMEJUNK,' ').replace(/\s+/g,' ').trim();
+    const w=s.split(' ');if(w.length<2)return cap(s);
+    // "DIXON ELLA MARIE R DIXON ELLA" (two names run together): keep the first person only
+    const again=w.indexOf(w[0],1);const one=again>1?w.slice(0,again):w;const sfx=one.filter(x=>/^(JR|SR|II|III|IV)$/.test(x));
+    const rest=one.slice(1).filter(x=>!/^(JR|SR|II|III|IV)$/.test(x));return cap([...rest,one[0]].join(' '))+(sfx.length?' '+cap(sfx.join(' ')):'')}
+  if(s.includes('+')){const lw=s.trim().split(/\s+/).pop();let f=s.split('+')[0].replace(NAMEJUNK,' ').replace(/\s+/g,' ').trim();if(!f.endsWith(lw))f+=' '+lw;return f}
+  return s.replace(NAMEJUNK,' ').replace(/\s+/g,' ').trim()}
+// the person to call, from the "Call: Name (ROLE)" line at the top of the notes
+function callPerson(L){const m=String(L.notes||'').match(/Call:\s*(?:Mr\.?|Ms\.?|Mrs\.?)?\s*([A-Z][A-Za-z'\-]+(?:\s+(?:[A-Z][A-Za-z'\-]*\.?|"[^"]+"))*)/);return m?m[1].trim():''}
+function lastName(L){const cp=callPerson(L).split(/\s+/).filter(x=>!/^(jr|sr|ii|iii|iv)\.?$/i.test(x)&&!/^"/.test(x));if(cp.length>1)return cap(cp[cp.length-1]);
+  const ln=String(L.last_name||'').trim();if(ln)return cap(ln);const w=niceName(L.owner).split(/\s+/);return w[w.length-1]||''}
+// how many lots: "(2 lots)" in the label, or "both parcels" / "2 lots" in the notes
+function lotCount(L){const t=String(L.label||'')+' '+String(L.property||'');let m=t.match(/(\d+)\s*(?:vacant\s+)?(?:lots|parcels)\b/i);if(m)return +m[1];
+  m=String(L.notes||'').slice(0,1500).match(/\b(two|three|four|both|\d)\s+(?:vacant\s+)?(?:lots|parcels)\b/i);if(!m)return 1;
+  const k=m[1].toLowerCase();return k==='both'||k==='two'?2:k==='three'?3:k==='four'?4:+k||1}
+// where the land is: street and city when there's a real street, otherwise "in Cabarrus County"
+function placeOf(L){let st=String(L.street||'').replace(/\([^)]*\)/g,'').trim();if(/^(0\s+)?no street|^n\/?a$|^0$|^none/i.test(st))st='';st=st.replace(/^0\s+/,'');
+  const city=cap(String(L.city||'').trim()),cty=cap(String(L.county||'').trim());
+  if(st)return 'at '+cap(st)+(city?', '+city:(cty?' in '+cty+' County':''));return city?'in '+city+(cty?', '+cty+' County':''):(cty?'in '+cty+' County':'at [property address]')}
+function landOf(L,word){const n=lotCount(L);return n>1?`your ${n} ${word==='land'?'vacant lots':'vacant lots'}`:`your ${word==='land'?'vacant land':'vacant lot'}`}
 // first name for the text: the person the SUMMARY says to call ("Call: Gloria Johnson ..."), else the owner on record
 function firstName(L){const m=String(L.notes||'').match(/Call:\s*(?:Mr\.?|Ms\.?|Mrs\.?)?\s*([A-Z][A-Za-z'\-]+)/);if(m)return cap(m[1]);return /deceased|estate|heirs/i.test(String(L.owner||'')+String(L.notes||'').slice(0,300))?'':cap(String(L.first_name||'').trim().split(/\s+/)[0]||'')}
 // Send text: goes out through Quo from the caller's own line (window.LINE) to the number picked in step 1, and is written on the lead
@@ -435,10 +457,10 @@ async function sendText(){const b=$('txSend');if(!$('lname').value.trim()){toast
 function cap(s){return String(s).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase())}
 function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')||{}).dataset?.t||'Ms.';const ln=$('lname').value.trim()||'[last name]';
   const me=window.CALLNAME||'[your name]';
-  const st=cap(String(CUR.street||'').trim())||'[property address]';const city=cap(String(CUR.city||'').trim());
-  $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at ${st}${city?', '+city:''}. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to ${window.LINE||'(704) 275-5457'}. Thank you."`;
-  if($('txLine'))$('txLine').textContent=`Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I just tried calling about your vacant lot at ${st}${city?', '+city:''}. Do you have any interest in selling? Reply STOP to unsubscribe.`;
-  $('line').textContent=`"Hello, ${t} ${ln}. This is ${me} with Dominion Land Group. I was inquiring if you had any interest in selling your vacant land at ${st}${city?', '+city:''}?"`}
+  const at=placeOf(CUR),lot=landOf(CUR,'lot'),land=landOf(CUR,'land');
+  $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I was inquiring about ${lot} ${at}. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to ${window.LINE||'(704) 275-5457'}. Thank you."`;
+  if($('txLine'))$('txLine').textContent=`Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I just tried calling about ${lot} ${at}. Do you have any interest in selling? Reply STOP to unsubscribe.`;
+  $('line').textContent=`"Hello, ${t} ${ln}. This is ${me} with Dominion Land Group. I was inquiring if you had any interest in selling ${land} ${at}?"`}
 function pickOut(o){OUT=o;document.querySelectorAll('#logForm .out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
   const need=o==='appointment'||o==='follow_up';$('whenWrap').classList.toggle('hidden',!need);
   $('whenLbl').textContent=o==='appointment'?'Appointment date and time (pick in YOUR time - Damien sees it in Eastern)':'Call back date and time (your time)';
@@ -455,7 +477,12 @@ async function saveLog(e){e.preventDefault();$('logErr').textContent='';
   try{const s=await rpc('caller_log',{tok:TOK,did:CUR.deal_id,p_outcome:OUT,p_phone:phone,p_talked_to:$('talk').value,p_note:note||$('note').value,p_when:when});
     loadStats(s);toast(OUT==='skip_trace'?'Sent to Damien for new numbers':OUT==='transferred'?'Saved - lead moved to Appointment Set for Damien':OUT==='appointment'?'Appointment saved - Damien gets a text':OUT==='wrong_number'?'Number marked bad - try the next one':'Saved');
     const id=CUR.deal_id;await loadQueue();
-    if(OUT==='wrong_number'&&Q.some(x=>x.deal_id===id))return openLead(id);
+    if(OUT==='wrong_number'){
+      // every number on this lead is now bad: send it for a new skip trace on its own
+      try{const L2=await rpc('caller_lead',{tok:TOK,did:id}),P2=phonesFrom(L2);
+        if(!P2.length||P2.every(p=>p.bad)){const s2=await rpc('caller_log',{tok:TOK,did:id,p_outcome:'skip_trace',p_phone:'',p_talked_to:'',p_note:'All numbers on this lead are bad. Sent for a new skip trace automatically.',p_when:null});
+          loadStats(s2);toast('Every number was bad - sent to Damien for a new skip trace');await loadQueue()}}catch(e2){}
+      if(Q.some(x=>x.deal_id===id&&!x.skip))return openLead(id)}
     const C=Q.filter(x=>!x.skip),i=C.findIndex(x=>x.deal_id===id),nx=C[i>=0?i+1:0]||C[0]||Q[0];if(nx)openLead(nx.deal_id);else{CUR=null;renderEmpty()}}
   catch(err){$('logErr').textContent=err.message}finally{const b=$('saveBtn');if(b)b.disabled=false}}
 
