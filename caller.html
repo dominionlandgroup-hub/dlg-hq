@@ -521,7 +521,7 @@ function whoLabel(ctx){const seg=String(ctx||'').split(' - ').map(x=>x.trim()).f
   const rel=(par.split(',')[0]||'').trim();const relOk=/^(son|daughter|wife|husband|spouse|widow|widower|brother|sister|nephew|niece|grandson|granddaughter|grandchild|cousin|mother|father|child|stepson|stepdaughter|in-law|.*-in-law|main contact)$/i.test(rel);
   const tc=t=>/[a-z]/.test(t)?t:t.toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase());
   const kind=/mobile|wireless|cell/i.test(ctx)?'mobile':/landline|land line/i.test(ctx)?'landline':'';
-  return [tc(name)+(relOk?` (${rel.toLowerCase()})`:''),role?tc(role):'',kind||'type not marked'].filter(Boolean).join(' · ')}
+  return [tc(name),kind||'type not marked'].join(' · ')}
 function callPerson(L){const m=String(L.notes||'').match(/Call:\s*(?:Mr\.?|Ms\.?|Mrs\.?)?\s*([A-Z][A-Za-z'\-]+(?:\s+(?:[A-Z][A-Za-z'\-]*\.?|"[^"]+"))*)/);
   const v=m?m[1].trim():'';if(v&&!/^(NO NAMED|NONE|UNKNOWN|TBD|NOT FOUND)/i.test(v))return v;
   // no usable "Call:" line: call the first person who has numbers on the card
