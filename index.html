@@ -2660,6 +2660,11 @@ async function callerTimesheet(A,wk){
     const tot=days.reduce((o,d)=>{for(const k of ['work','brk','calls','reached','appt','idle'])o[k]+=per[d][k];return o},{work:0,brk:0,calls:0,reached:0,appt:0,idle:0});
     const hrs=tot.work/60,pay=hrs*rate(a.id),cph=hrs?tot.calls/hrs:0;
     const appts=K.filter(c=>c.outcome==='appointment');
+    // by county: from the lead label (e.g. "NEW Cabarrus - ...", "Gaston #17 ..."), else the column name
+    const CTY=['Union','Gaston','Cabarrus','Mecklenburg','Iredell','York','Lincoln','Rowan','Stanly','Cleveland','Catawba','Lancaster'];
+    const ctyOf=c=>{const s=String(c.deals?.property_label||'')+' '+String(window._BSN[c.deals?.stage_id]||'');return CTY.find(n=>new RegExp('\\b'+n+'\\b','i').test(s))||'Other'};
+    const byC={};for(const c of K){const n=ctyOf(c);const o=byC[n]||(byC[n]={calls:0,reached:0,appt:0});o.calls++;if(['appointment','follow_up','not_interested','transferred'].includes(c.outcome))o.reached++;if(c.outcome==='appointment')o.appt++}
+    const byCRows=Object.entries(byC).sort((x,y)=>y[1].appt-x[1].appt||y[1].calls-x[1].calls);
     const dl=d=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
     return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px"><b>Time clock · ${esc(a.call_name||a.name)} · week of ${dl(wk)}</b>
       <span class="small">Rate: $${rate(a.id).toFixed(2)}/hr <a href="#" onclick="callerRate(${a.id},${rate(a.id)});return false">change</a></span></div>
@@ -2670,6 +2675,7 @@ async function callerTimesheet(A,wk){
       <div><div class="small muted">Idle while clocked in</div><b style="font-size:20px;color:${tot.idle>=60?'var(--red)':'inherit'}">${hmin(tot.idle)}</b> <span class="small muted">${IDLE}+ min with no call logged</span></div></div>
      <table><tr><th>Day</th><th>Worked</th><th>Breaks</th><th>Calls</th><th>Reached</th><th>Appts</th><th>Idle</th></tr>
       ${days.map(d=>{const p=per[d];if(!p.work&&!p.calls)return '';return `<tr><td>${dl(d)}</td><td>${hmin(p.work)}</td><td>${hmin(p.brk)}</td><td>${p.calls}${p.work?` <span class="small muted">(${(p.calls/(p.work/60)).toFixed(1)}/hr)</span>`:''}</td><td>${p.reached}</td><td>${p.appt}</td><td class="small">${p.idle?`<b style="color:${p.idle>=60?'var(--red)':'#8a5a00'}">${hmin(p.idle)}</b><br>${p.idleList.map(esc).join('<br>')}`:'—'}</td></tr>`}).join('')||'<tr><td colspan="7" class="muted">No clock-ins this week.</td></tr>'}</table>
+     ${byCRows.length?`<p class="small" style="margin:10px 0 4px"><b>By county</b> (which markets turn calls into appointments)</p><table><tr><th>County</th><th>Calls</th><th>Reached</th><th>Appts</th><th>Appts per 100 calls</th></tr>${byCRows.map(([n,o])=>`<tr><td>${esc(n)}</td><td>${o.calls}</td><td>${o.reached}</td><td>${o.appt}</td><td>${o.calls?(o.appt*100/o.calls).toFixed(1):'0'}</td></tr>`).join('')}</table>`:''}
      ${appts.length?`<p class="small" style="margin:10px 0 4px"><b>Appointments she set</b> (current column shows if it held)</p><table>${appts.map(c=>`<tr><td class="small">${c.appt_at?new Date(c.appt_at).toLocaleString('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET':''}</td><td class="small"><a href="#" onclick="openDeal(${c.deal_id});return false">${esc(String(c.deals?.property_label||'deal').slice(0,60))}</a></td><td class="small">${esc(String(window._BSN[c.deals?.stage_id]||'').replace('Duet - ',''))}</td></tr>`).join('')}</table>`:''}
      <p class="small muted" style="margin:8px 0 0"><a href="#" onclick="window.CALLER_TS_WEEK='${dayOf(prev)}';vCallers();return false">← Previous week</a>${wk<callerWeek()?` · <a href="#" onclick="window.CALLER_TS_WEEK='${dayOf(next)}';vCallers();return false">Next week →</a>`:''}</p></div>`}).join('');
   return out}
