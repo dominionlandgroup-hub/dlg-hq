@@ -330,11 +330,14 @@ function renderEmpty(){$('main').innerHTML='<div class="empty"><h2>All caught up
 function phonesFrom(L){const seen=new Map();const add=(raw,ctx)=>{const d=String(raw).replace(/\D/g,'').slice(-10);if(d.length!==10||seen.has(d))return;
     const fmt=`(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;const bad=/do not (use|call)|deceased|dead|wrong number|bad number|❌|disconnected/i.test(ctx);seen.set(d,{d,fmt,ctx:ctx.trim().slice(0,140),bad})};
   // a number belongs to the block it sits in: "Walter Johnson - DECEASED - DO NOT USE" above it marks it bad too
-  let hdr='';for(const line of String(L.notes||'').split('\n')){if(!line.trim()){hdr='';continue}
+  // the person is the FIRST line of the block (the name), not the address line right above the numbers
+  let who='',hdr='';const isAddr=s=>/^\d+\s+\S+/.test(s)||/,\s*[A-Z]{2}\s+\d{5}/.test(s);
+  for(const line of String(L.notes||'').split('\n')){if(!line.trim()){who='';hdr='';continue}
     const m=line.match(/\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}/g);
-    if(!m){hdr=line.trim();continue}
+    if(!m){const t=line.trim();if(!who&&!isAddr(t))who=t;else hdr=t;continue}
     const rest=line.replace(/\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}/g,'').replace(/^[\s\-:•*]+|[\s\-:•*]+$/g,'');
-    m.forEach(p=>add(p,(hdr?hdr+' - ':'')+(rest||'')))}
+    const ctx=[who,(hdr&&hdr!==who&&!isAddr(hdr))?hdr:'',rest].filter(Boolean).join(' - ');
+    m.forEach(p=>add(p,ctx))}
   (L.phones||[]).forEach(p=>add(p,'On the contact record'));
   // a number later marked bad in the caller notes is bad everywhere
   const badLater=new Set([...String(L.notes||'').matchAll(/BAD NUMBER[^\n]*?(\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4})/g)].map(m=>m[1].replace(/\D/g,'').slice(-10)));
