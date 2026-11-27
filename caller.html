@@ -399,7 +399,9 @@ function phonesFrom(L){const seen=new Map();const add=(raw,ctx)=>{const d=String
   // a number belongs to the block it sits in: "Walter Johnson - DECEASED - DO NOT USE" above it marks it bad too
   // the person is the FIRST line of the block (the name), not the address line right above the numbers
   let who='',hdr='';const isAddr=s=>/^\d+\s+\S+/.test(s)||/,\s*[A-Z]{2}\s+\d{5}/.test(s);
-  for(const line of String(L.notes||'').split('\n')){if(!line.trim()){who='';hdr='';continue}
+  // section headers ("WHO TO CALL (cleaned ...) - call in this order", "FAMILY TREE", ...) start a block but are never the person
+  const HDR=/^\s*(CALL:|WHO TO CALL|FAMILY TREE|FAMILY RESEARCH|SUMMARY|BACK TAXES|RESEARCH STATUS|LIENS|HEIRS AND NUMBERS|CONTACTS?:?\s*$)/i;
+  for(const line of String(L.notes||'').split('\n')){if(!line.trim()||HDR.test(line)){who='';hdr='';continue}
     // links (obituary ids like id=1672154303) and long digit runs (parcel/case numbers) are not phone numbers
     // a bare 10-digit run with no ( ) - . or space is an Iredell parcel id, not a phone
     let m=(line.replace(/https?:\/\/\S+|www\.\S+/g,' ').match(/(?<![\dA-Za-z])\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)/g)||[]).filter(x=>!/^\d{10}$/.test(x));if(!m.length)m=null;
@@ -425,7 +427,7 @@ function callCard(L,P){const n=String(L.notes||''),cut=n.split(/-{5,}\s*CALLER N
   const bad=new Set(P.filter(p=>p.bad).map(p=>p.d));
   const C=phonesFrom({...L,notes:cut}).filter(p=>!/^On the contact record/.test(p.ctx)||true);
   const groups=[];C.forEach(p=>{const parts=p.ctx.split(' - '),k=(parts[0]||'Contact').replace(/^\d+\.\s*/,'').trim();let g=groups.find(x=>x.k===k);
-    if(!g){g={k,label:parts.slice(0,2).join(' - ').replace(/^\d+\.\s*/,''),nums:[]};groups.push(g)}
+    if(!g){g={k,label:whoLabel(p.ctx).replace(/ · (mobile|landline|type not marked)$/,''),nums:[]};groups.push(g)}
     const kind=/mobile|wireless|cell/i.test(p.ctx)?'mobile':/landline|land line|home/i.test(p.ctx)?'landline':'';g.nums.push({...p,kind,bad:p.bad||bad.has(p.d)})});
   const prop=String(L.property||'').trim()||placeOf(L).replace(/^at |^in /,'');
   return `<div class="facts" style="margin-top:10px">
@@ -436,7 +438,7 @@ function callCard(L,P){const n=String(L.notes||''),cut=n.split(/-{5,}\s*CALLER N
      ${yrs?`<div>Taxes</div><div>${yrs} years behind on property taxes</div>`:''}</div>
    <h3 style="font-size:15px;margin:14px 0 6px">Heirs and numbers <span class="small muted">(call in this order)</span></h3>
    ${groups.length?groups.map(g=>`<div style="border-top:1px solid var(--line);padding:8px 0"><div style="font-weight:600">${esc(g.label)}</div>
-     ${g.nums.map(x=>`<div class="small" style="${x.bad?'text-decoration:line-through;color:var(--red)':''}">${esc(x.fmt)}${x.kind?' · '+x.kind:''}${x.bad?' · bad number':''}</div>`).join('')}</div>`).join('')
+     ${g.nums.map(x=>`<div class="small" style="${x.bad?'text-decoration:line-through;color:var(--red)':''}">${esc(x.fmt)}${x.kind?' · '+x.kind:' · type not marked'}${x.bad?' · bad number':''}</div>`).join('')}</div>`).join('')
      :'<p class="small muted">No numbers on this lead yet.</p>'}`}
 async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loading…</div>';
   let L;try{L=await rpc('caller_lead',{tok:TOK,did:id})}catch(e){$('main').innerHTML=`<div class="empty">${esc(e.message)}</div>`;loadQueue();return}
@@ -469,7 +471,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
     ${L.stage===SKIP_STAGE?'<div class="card"><p>This lead is waiting on new numbers from Damien. It comes back to your list when they are added.</p></div>':`<form class="card" id="logForm">
      <h3 style="font-size:16px">Log this call</h3>
      <label>1. Which number did you call?</label>
-     ${!P.some(p=>!p.bad)?'<p class="small" style="background:#fbf1d8;border-radius:8px;padding:8px 10px;margin:0 0 6px"><b>No good numbers left.</b> Pick <b>Needs skip trace</b> below.</p>':''}<div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span>${p.bad?'':`<a class="callb" href="tel:+1${p.d}" data-d="${p.d}">Call</a> <button type="button" class="badb" data-bad="${esc(p.fmt)}" aria-label="Mark ${esc(p.fmt)} as a bad number">Bad number</button>`}<span class="ctx" title="${esc(p.ctx)}">${p.bad?'DO NOT CALL - ':''}${esc(p.ctx)}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
+     ${!P.some(p=>!p.bad)?'<p class="small" style="background:#fbf1d8;border-radius:8px;padding:8px 10px;margin:0 0 6px"><b>No good numbers left.</b> Pick <b>Needs skip trace</b> below.</p>':''}<div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span>${p.bad?'':`<a class="callb" href="tel:+1${p.d}" data-d="${p.d}">Call</a> <button type="button" class="badb" data-bad="${esc(p.fmt)}" aria-label="Mark ${esc(p.fmt)} as a bad number">Bad number</button>`}<span class="ctx">${p.bad?'Bad number - ':''}${esc(whoLabel(p.ctx))}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
      <input id="other" type="hidden" value="">
      <label for="talk">2. Who did you talk to? <span class="muted">(name, or leave blank if nobody)</span></label><input id="talk" type="text" placeholder="e.g. Gloria Smith - daughter">
      <label>3. What happened?</label>
@@ -511,7 +513,21 @@ function niceName(s){s=String(s||'').trim();if(!s)return '';
   if(s.includes('+')){const lw=s.trim().split(/\s+/).pop();let f=s.split('+')[0].replace(NAMEJUNK,' ').replace(/\s+/g,' ').trim();if(!f.endsWith(lw))f+=' '+lw;return f}
   return s.replace(NAMEJUNK,' ').replace(/\s+/g,' ').trim()}
 // the person to call, from the "Call: Name (ROLE)" line at the top of the notes
-function callPerson(L){const m=String(L.notes||'').match(/Call:\s*(?:Mr\.?|Ms\.?|Mrs\.?)?\s*([A-Z][A-Za-z'\-]+(?:\s+(?:[A-Z][A-Za-z'\-]*\.?|"[^"]+"))*)/);return m?m[1].trim():''}
+// short label for a number: just the person, their role/relationship, and mobile/landline - no research text
+function whoLabel(ctx){const seg=String(ctx||'').split(' - ').map(x=>x.trim()).filter(Boolean);if(!seg.length||/^On the contact record/.test(seg[0]))return 'Contact record';
+  const ROLE=/^(HEIR\s*\d*|CO-?OWNER|PR\/EXECUTOR|PR|EXECUTOR|ADMINISTRATOR|TAX BILL CONTACT|POSSIBLE FAMILY|SPOUSE|C\/O)$/i;
+  let name=seg[0],role='';if(ROLE.test(seg[0])&&seg[1]){role=seg[0];name=seg[1]}
+  name=name.replace(/^\d+[.)]\s*/,'');const par=(name.match(/\(([^)]*)\)/)||[])[1]||'';name=name.replace(/\s*\(.*$/,'').trim();
+  const rel=(par.split(',')[0]||'').trim();const relOk=/^(son|daughter|wife|husband|spouse|widow|widower|brother|sister|nephew|niece|grandson|granddaughter|grandchild|cousin|mother|father|child|stepson|stepdaughter|in-law|.*-in-law|main contact)$/i.test(rel);
+  const tc=t=>/[a-z]/.test(t)?t:t.toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase());
+  const kind=/mobile|wireless|cell/i.test(ctx)?'mobile':/landline|land line/i.test(ctx)?'landline':'';
+  return [tc(name),kind||'type not marked'].join(' · ')}
+function callPerson(L){const m=String(L.notes||'').match(/Call:\s*(?:Mr\.?|Ms\.?|Mrs\.?)?\s*([A-Z][A-Za-z'\-]+(?:\s+(?:[A-Z][A-Za-z'\-]*\.?|"[^"]+"))*)/);
+  const v=m?m[1].trim():'';if(v&&!/^(NO NAMED|NONE|UNKNOWN|TBD|NOT FOUND)/i.test(v))return v;
+  // no usable "Call:" line: call the first person who has numbers on the card
+  const p=phonesFrom({...L,notes:String(L.notes||'').split(/-{5,}\s*CALLER NOTES/)[0]}).find(x=>!x.bad&&!/^On the contact record/.test(x.ctx));
+  if(!p)return '';const nm=whoLabel(p.ctx).split(' · ')[0].replace(/\s*\(.*$/,'').trim();
+  return /^[A-Za-z][A-Za-z'.\- ]+$/.test(nm)&&nm.split(/\s+/).length>=2?nm:''}
 function lastName(L){const cp=callPerson(L).split(/\s+/).filter(x=>!/^(jr|sr|ii|iii|iv)\.?$/i.test(x)&&!/^"/.test(x));if(cp.length>1)return cap(cp[cp.length-1]);
   const ln=String(L.last_name||'').trim();if(ln)return cap(ln);const w=niceName(L.owner).split(/\s+/);return w[w.length-1]||''}
 // how many lots: "(2 lots)" in the label, or "both parcels" / "2 lots" in the notes
