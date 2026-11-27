@@ -284,13 +284,13 @@ Problems or questions:</pre>
    <li>Every call gets a note before you move on.</li></ul>`],
  ['faq','Seller FAQ',`<p>Say these the same way every time. If a question isn't here, say "That's a great question for Damien, he'll cover it on your call," and write it in your note. The same answers are under the opening line on every lead.</p>
   <table><tr><th>They ask</th><th>You say</th></tr>${FAQ.map(([q,a])=>`<tr><td>${esc(q)}</td><td>${esc(a)}</td></tr>`).join('')}</table>`],
- ['pay','Pay',`<p>You earn $6 per hour, plus $10 for every appointment held and $250 for every deal that closes from an appointment you set.</p>
-  <table><tr><th>Pay</th><th>Amount</th><th>When it's paid</th></tr><tr><td>Hourly</td><td>$6 per hour</td><td>With your regular pay</td></tr>
-   <tr><td>Appointment held</td><td>$10 each</td><td>With your regular pay</td></tr><tr><td>Closed deal</td><td>$250 each</td><td>After the deal closes and the money is received</td></tr></table>
+ ['pay','Pay',`<p>You earn $6 per hour, plus $10 for every appointment held and a bonus of $250 to $2,000 for every deal that closes from an appointment you set. All pay goes through PayPal.</p>
+  <table><tr><th>Pay</th><th>Amount</th><th>When it's paid</th></tr><tr><td>Hourly</td><td>$6 per hour</td><td>Through PayPal, with your regular pay</td></tr>
+   <tr><td>Appointment held</td><td>$10 each</td><td>Through PayPal, with your regular pay</td></tr><tr><td>Closed deal</td><td>$250 minimum, up to $2,000, depending on what the deal pays</td><td>Through PayPal, after the deal closes and the money is received</td></tr></table>
   <ul><li><b>Appointment held:</b> the seller shows up for the call with Damien, owns the land or is an heir, and is open to selling. A no-show, or someone who says they never wanted to sell, doesn't count.</li>
    <li><b>Closed deal:</b> the deal came from an appointment you set and closes within 6 months of that appointment.</li>
    <li><b>No bonus</b> for an appointment set by misleading the seller in any way.</li></ul>
-  <p>Example month: about 25 hours a week (~$650) + 4 appointments held ($40) + 1 closed deal ($250) = ~$940.</p>
+  <p>Example month: about 25 hours a week (~$650) + 4 appointments held ($40) + 1 closed deal (at least $250) = ~$940 or more.</p>
   <p>Pay goes out through Wise, Payoneer or Deel.</p>`],
  ['notes','Notes from Damien',(window.REVIEWS||[]).length?(window.REVIEWS).map(r=>`<div class="rv"><div class="small muted">Week of ${esc(new Date(r.week_of+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}))}</div>
    ${r.did_well?`<p><b>Did well:</b> ${esc(r.did_well)}</p>`:''}${r.fix?`<p><b>To fix:</b> ${esc(r.fix)}</p>`:''}${r.focus?`<p><b>Focus next week:</b> ${esc(r.focus)}</p>`:''}</div>`).join(''):'<p class="muted">Damien\'s weekly notes to you will show here.</p>']]}
