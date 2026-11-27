@@ -333,7 +333,8 @@ function phonesFrom(L){const seen=new Map();const add=(raw,ctx)=>{const d=String
   // the person is the FIRST line of the block (the name), not the address line right above the numbers
   let who='',hdr='';const isAddr=s=>/^\d+\s+\S+/.test(s)||/,\s*[A-Z]{2}\s+\d{5}/.test(s);
   for(const line of String(L.notes||'').split('\n')){if(!line.trim()){who='';hdr='';continue}
-    const m=line.match(/\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}/g);
+    // links (obituary ids like id=1672154303) and long digit runs (parcel/case numbers) are not phone numbers
+    const m=line.replace(/https?:\/\/\S+|www\.\S+/g,' ').match(/(?<![\dA-Za-z])\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)/g);
     if(!m){const t=line.trim();if(!who&&!isAddr(t))who=t;else hdr=t;continue}
     const rest=line.replace(/\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}/g,'').replace(/^[\s\-:•*]+|[\s\-:•*]+$/g,'');
     const ctx=[who,(hdr&&hdr!==who&&!isAddr(hdr))?hdr:'',rest].filter(Boolean).join(' - ');
