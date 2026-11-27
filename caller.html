@@ -435,7 +435,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
      <h3 style="font-size:16px">Log this call</h3>
      <label>1. Which number did you call?</label>
      ${!P.some(p=>!p.bad)?'<p class="small" style="background:#fbf1d8;border-radius:8px;padding:8px 10px;margin:0 0 6px"><b>No good numbers left.</b> Pick <b>Needs skip trace</b> below.</p>':''}<div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span>${p.bad?'':`<a class="callb" href="tel:+1${p.d}" data-d="${p.d}">Call</a>`}<span class="ctx" title="${esc(p.ctx)}">${p.bad?'DO NOT CALL - ':''}${esc(p.ctx)}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
-     <label for="other">Or type a number you found</label><input id="other" type="text" inputmode="tel" placeholder="(704) 555-0123">
+     <input id="other" type="hidden" value="">
      <label for="talk">2. Who did you talk to? <span class="muted">(name, or leave blank if nobody)</span></label><input id="talk" type="text" placeholder="e.g. Gloria Smith - daughter">
      <label>3. What happened?</label>
      <div class="outs">${Object.entries(OUTCOMES).map(([k,[t,s]])=>`<button type="button" class="out${k==='appointment'?' appt':''}" data-o="${k}" aria-pressed="false">${t}<small>${s}</small></button>`).join('')}</div>
