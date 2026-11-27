@@ -381,7 +381,7 @@ async function clockDo(k){if(k==='out'&&!confirm('Clock out for the day?'))retur
 setInterval(drawClock,30000);
 async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e){return}
   window.REVIEWS=s.reviews||[];window.MENAME=s.name||'';$('availTag').classList.toggle('hidden',!s.damien_available);$('meName').textContent=(PREVIEW?'Previewing as ':'')+(s.name||'');window.LINE=(d=>d.length===10?'('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6):'')(String(s.line||'').replace(/\D/g,'').slice(-10))||'(704) 275-5457';window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
-  $('kpis').innerHTML=[['calls','Calls'],['reached','Reached'],['appointments','Appts'],['follow_ups','Follow-ups'],['not_interested','Not int.'],['bad_numbers','Bad #']]
+  $('kpis').innerHTML=[['calls','Logged'],['reached','Reached'],['appointments','Appts'],['follow_ups','Follow-ups'],['not_interested','Not int.'],['bad_numbers','Bad #']]
     .map(([k,l])=>`<span class="kpi"><b>${s[k]||0}</b>${l}</span>`).join('')+'<span class="kpi">today</span>'}
 async function loadQueue(){try{Q=await rpc('caller_queue',{tok:TOK})||[]}catch(e){Q=[];$('queue').innerHTML=`<p class="small muted" style="padding:14px">${esc(e.message)}</p>`;return}
   Q=Q.filter(x=>!x.skip);const calls=Q,skips=[],due=calls.filter(x=>x.due).length;
