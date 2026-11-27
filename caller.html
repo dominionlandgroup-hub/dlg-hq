@@ -89,6 +89,10 @@ dialog::backdrop{background:rgba(35,27,48,.45)}
 .rv{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}.rv b{color:var(--brand)}
 .faqq{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.fq{border:1px solid #d9c8ea;background:#fff;border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;color:var(--brand)}
 .fq[aria-pressed=true]{background:var(--brand);color:#fff;border-color:var(--brand)}
+.hotbtn{display:block;width:100%;margin-top:12px;border:0;border-radius:10px;padding:12px;font-weight:800;font-size:15px;background:var(--red);color:#fff}
+.heirq{margin-top:10px;background:#fbf7ff;border:1px solid #d9c8ea;border-radius:10px;padding:8px 12px;font-size:14px}.heirq summary{font-weight:700;cursor:pointer}.heirq ol{margin:6px 0 2px;padding-left:20px}
+.heirbox{margin-top:12px;border:2px solid var(--gold);border-radius:10px;padding:4px 12px 12px;background:#fffbef}
+.holdst{font-size:22px;font-weight:800;text-align:center;padding:18px 10px;border-radius:12px;margin-top:12px;background:#f2ecf7}.holdst.ready{background:#dff3e3;color:var(--green)}.holdst.late{background:#fbe3e3;color:var(--red)}
 .fa{margin-top:8px;font-size:15px;font-weight:600;background:#fff;border:1px solid #d9c8ea;border-radius:10px;padding:10px 12px}
 .tf{padding:6px 18px 20px}.kinds{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
 .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:9px;font-size:14px;z-index:9}
@@ -115,7 +119,7 @@ dialog::backdrop{background:rgba(35,27,48,.45)}
     <h1>DLG Caller</h1><span class="small" id="meName"></span>
     <div class="kpis" id="kpis" aria-label="Today"></div>
     <span class="clock" id="clock" aria-label="Time clock"></span>
-    <span class="avail hidden" id="availTag" role="status">Damien is available: live transfer hot sellers</span>
+    <span class="avail hidden" id="availTag" role="status">Damien is available: hold &amp; transfer hot sellers</span>
     <button class="hbtn" id="guideBtn" type="button">Guide</button>
     <button class="hbtn hot" id="textBtn" type="button">Text Damien</button>
     <button class="btn ghost" id="outBtn" type="button">Sign out</button>
@@ -131,11 +135,20 @@ dialog::backdrop{background:rgba(35,27,48,.45)}
   <div class="tabs" role="tablist" id="gTabs"></div><div class="gb" id="gBody"></div></dialog>
 <dialog id="texter" aria-labelledby="tTitle" style="width:min(520px,calc(100vw - 24px))"><div class="dh"><h2 id="tTitle">Text Damien</h2><button class="x" type="button" aria-label="Close" data-close>×</button></div>
   <form class="tf" id="textForm"><p class="small muted" style="margin:8px 0 0">Only for a hot lead or an emergency. Everything else goes in your call note or your end-of-day report.</p>
-   <div class="kinds"><button type="button" class="out" data-k="hot" aria-pressed="false">Hot lead<small>Wants to talk now, has another offer, or wants an answer today</small></button>
-   <button type="button" class="out" data-k="emergency" aria-pressed="false">Emergency<small>Angry or threatening, mentions a lawyer, or the system is down</small></button></div>
+   <div class="kinds"><button type="button" class="out" data-k="hot" aria-pressed="false">Hot lead (can't hold)<small>Has another offer or wants an answer today but can't stay on the line</small></button>
+   <button type="button" class="out" data-k="emergency" aria-pressed="false">Emergency<small>Threatening, mentions a lawyer, or this screen is down</small></button></div>
    <label for="tMsg">Message</label><textarea id="tMsg" style="min-height:90px;font-family:inherit" placeholder="e.g. Ms. Johnson's daughter wants to talk to Damien today, best number (704) 555-0101"></textarea>
    <p class="small muted" id="tLead"></p>
    <button class="btn wide" type="submit" id="tSend">Send text to Damien</button><div class="err" id="tErr" role="alert"></div></form></dialog>
+<dialog id="hotDlg" aria-labelledby="hTitle" style="width:min(520px,calc(100vw - 24px))"><div class="dh"><h2 id="hTitle">Hot seller - hold &amp; transfer</h2><button class="x" type="button" aria-label="Close" data-close>×</button></div>
+  <div class="tf"><form id="hotForm"><p class="small" style="margin:8px 0 0">Put the seller on hold in Quo first. Then fill this in and send. Damien gets a text with the whole lead.</p>
+   <label for="hWho">Who is on hold? (name and relationship)</label><input id="hWho" type="text" placeholder="e.g. Rachel Dixon - daughter">
+   <label for="hPrice">Price in mind</label><input id="hPrice" type="text" placeholder="e.g. $40,000, or not given">
+   <label for="hHeirs">Heirs - how many, and do they all agree?</label><input id="hHeirs" type="text" placeholder="e.g. 3 heirs, all agree / not asked yet">
+   <button class="btn wide" type="submit" id="hSend">Send to Damien and start the hold timer</button><div class="err" id="hErr" role="alert"></div></form>
+   <div id="hotWait" class="hidden"><div class="holdst" id="hotSt" role="status" aria-live="assertive">Waiting for Damien… 0s</div>
+    <p class="small" id="hotTip" style="margin:10px 0 0">Every 30 seconds, go back to the seller: "Thanks for holding, just a few more seconds."</p>
+    <button class="btn wide ghost" type="button" id="hotDone">Close</button></div></div></dialog>
 
 <script>
 const SB_URL='https://gdejlpdltnstbwtdpggm.supabase.co',SB_KEY='sb_publishable_E9jIHC9hz6oleR4Qd-68bA_ZWEVcAQ_';
@@ -154,6 +167,7 @@ const OUTCOMES={appointment:['Appointment set','Owner/heir agreed to a call with
   transferred:['Live transfer to Damien','You transferred them to Damien in Quo']};
 const LBL={appointment:'Appointment set',follow_up:'Follow up',not_interested:'Not interested',no_answer:'No answer',voicemail:'Left voicemail',wrong_number:'Bad number',skip_trace:'Needs skip trace',skip_done:'Skip trace: new numbers',skip_none:'Skip trace: none found',transferred:'Live transfer'};
 const SKIP_STAGE='Duet - Needs Skip Trace';
+const HEIRQ=['"Are you the only owner, or did other family members inherit it too?"',"\"How many heirs are there? Can you tell me their names and how they're related?\"",'"Have you talked with them about selling? Is everyone on board?"','"Is anyone against it, hard to reach, out of state, or passed away?"','"Was an estate opened? Who is the executor?"','"Would everyone be willing and able to sign?"','"Can you share their numbers, or have them on the call with Damien?"'];
 const SKIP_TEMPLATE="Name - relationship to owner: \nMobile: \nLandline: \nAge / city: \nFound on: ";
 const SITES=[['TruePeopleSearch','https://www.truepeoplesearch.com'],['FastPeopleSearch','https://www.fastpeoplesearch.com'],['CyberBackgroundChecks','https://www.cyberbackgroundchecks.com']];
 const FAQ=[
@@ -169,6 +183,7 @@ const FAQ=[
  ['Back taxes, a lien, paperwork problems?','"We see that often and work with a real estate attorney to handle it. Damien will go over it with you."'],
  ['Is this a scam?','"I understand, you get a lot of calls. We\'re Dominion Land Group in Charlotte, our website is DominionLandGroup.land, and nothing gets signed until you\'ve talked with Damien and seen the offer in writing."'],
  ['There\'s a house on it / I have a house.','"We can still help with that. A few quick questions so Damien can look at it: Is the house vacant, or is someone living there? On a scale of 1 to 10, 10 being excellent and 1 being poor, what condition would you say it\'s in? Do you have a price in mind?" Write all three answers in your note, then book the call with Damien.'],
+ ['Why does everyone need to sign?','"For the sale to close, everyone who inherited a share signs the deed. Damien can walk you through how that works on your call."'],
  ['Take me off your list.','"I understand, we won\'t call again." Log Not interested and write "Asked not to be called."']];
 const TEMPLATE="Spoke with: \nRelationship to owner: \nWhat they said: \nPrice in mind: \nOther heirs / who must sign: \nNext step: ";
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
@@ -205,8 +220,8 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
    <li>Some owners have more than one lot. Their notes say <b>SAME OWNER - OTHER LOTS</b>. Ask about every lot on the same call: "I see your family also has the lot on ___. Would you look at an offer on that one too?" Log the call once, on the lead you opened.</li>
    <li>At the end of your shift, send Damien your end-of-day report (template in the SOP tab).</li></ol>
   <h3>When to text Damien</h3><p>Use the <b>Text Damien</b> button at the top, only for:</p><ul>
-   <li><b>Hot lead:</b> the seller wants to talk now or today, has another offer, or wants an answer today.</li>
-   <li><b>Emergency:</b> someone is angry or threatening, mentions a lawyer, or this screen stops working.</li></ul>
+   <li><b>Hot lead you can't hold:</b> the seller has another offer or wants an answer today but can't stay on the line. (Sellers who can hold go through the red Hot seller button instead.)</li>
+   <li><b>Emergency:</b> someone is threatening, mentions a lawyer, or this screen stops working so you can't call.</li></ul>
   <p>Everything else goes in your call note or your end-of-day report.</p>
   <h3>Never say</h3><ul>
    <li>"We're builders." Say: "We source land for builders."</li>
@@ -232,17 +247,19 @@ function guideTabs(){const me=esc(window.CALLNAME||'Olivia');return [
   <p>If the person who answers isn't the person you asked for, ask if they know how to reach them. If not, log <b>Bad number</b> and try the next number. When the last number is marked bad, the lead goes for a new skip trace on its own. Damien's team finds new numbers and the lead comes back to your list.</p>
   <h3>Call script</h3><p>Use Mr. or Ms. and their last name, and name the property. The opening line at the top of each lead is filled in for you.</p>
   <table><tr><th>They say</th><th>You say</th><th>Log it as</th></tr>
-   <tr><td>Yes or maybe</td><td>"Great. Do you have a price in mind?" Write it down, then: "Damien handles the details and the offer himself. What's a good time this week for a quick call with him?" Confirm the best number and who else must sign.</td><td>Appointment set</td></tr>
+   <tr><td>Yes or maybe</td><td>"Great. Do you have a price in mind?" Write it down, then: "Damien handles the details and the offer himself. What's a good time this week for a quick call with him?" Then ask about the heirs: how many there are, their names, whether they all agree, whether an estate was opened and who the executor is, and whether everyone is willing and able to sign. Get the other heirs' numbers. Write it all in the heir check.</td><td>Appointment set</td></tr>
    <tr><td>"How much will you pay?"</td><td>"Do you have a price in mind?" Write it down, then: "Damien goes over numbers himself. He looks at the property first so he can give you a real offer. When's a good time for him to call?"</td><td>Appointment set or Follow up</td></tr>
    <tr><td>"Not right now"</td><td>"No problem. When would be a better time to check back?"</td><td>Follow up</td></tr>
    <tr><td>No</td><td>"Understood. Thank you for your time, have a good day."</td><td>Not interested</td></tr>
    <tr><td>Wrong person</td><td>"Do you know how I can reach [name]?"</td><td>Bad number (if no help)</td></tr>
    <tr><td>Voicemail (3rd try)</td><td>"Hi Ms. Johnson, this is ${me} with Dominion Land Group. I was inquiring about your vacant lot at 2364 Main Street, Monroe. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to ${window.LINE||'(704) 275-5457'}. Thank you." It's filled in for you on every lead. When there's no street address it names the county instead, like "your 2 vacant lots in Cabarrus County."</td><td>Left voicemail</td></tr></table>
-  <h3>Live transfer</h3><p>When the top of your screen says <b>Damien is available</b> and a seller is ready to talk now (wants to sell, gave a price, or asks for an offer):</p><ol>
-   <li>Say: "Damien is actually free right now. Can I bring him on so he can go over it with you?"</li>
-   <li>In Quo, put them on hold and transfer to Damien. When he picks up, tell him who it is, the property, and their price in mind, then connect them.</li>
-   <li>Log it as <b>Live transfer to Damien</b> with what you learned.</li></ol>
-  <p>If Damien doesn't pick up, go back to the seller and book the appointment instead.</p>
+  <h3>Hot seller: hold and live transfer</h3><p>Anyone who wants to talk to Damien today (wants to sell, gave a price, asks for an offer, or has another offer):</p><ol>
+   <li>Say: "Damien may be free right now. Can I place you on a quick hold while I grab him?"</li>
+   <li>Put them on hold in Quo. Then press the red <b>Hot seller - hold &amp; transfer</b> button on the lead and fill in who is on hold, their price in mind, and the heirs. Damien gets a text with the whole lead.</li>
+   <li>Every 30 seconds, go back to the seller: "Thanks for holding, just a few more seconds."</li>
+   <li>When your screen says <b>Damien is ready - transfer now</b>, transfer the call to Damien in Quo. Tell him who it is, the property and their price in mind, then connect them. Log it as <b>Live transfer to Damien</b> and fill in the heir check.</li>
+   <li>If 90 seconds pass and Damien hasn't answered, go back to the seller: "Damien just stepped into another call. Let's set a time for him to call you." Book it as <b>Appointment set</b>.</li></ol>
+  <p>Never leave anyone on hold more than about 90 seconds.</p>
   <h3>Texting</h3><ul>
    <li>Only text a number marked <b>mobile</b> (or Wireless on a search site). Never text a landline, a DO NOT USE number, or a deceased owner's number.</li>
    <li>Send it right after the voicemail. Pick the mobile number in step 1, check Mr./Ms. and the last name at the top, and click <b>Send text</b>. It goes out from your Quo line and shows in your Quo inbox. (<b>Copy text</b> is there if you ever need to paste it yourself.)</li>
@@ -313,6 +330,30 @@ $('textForm').onsubmit=async e=>{e.preventDefault();$('tErr').textContent='';
   $('tSend').disabled=true;try{await rpc('caller_text_owner',{tok:TOK,did:CUR?CUR.deal_id:null,p_kind:TKIND,p_msg:$('tMsg').value});$('texter').close();toast('Sent - Damien gets a text')}
   catch(err){$('tErr').textContent=err.message}finally{$('tSend').disabled=false}};
 
+// ---------- Hot seller: hold & transfer ----------
+let HOT=null,HOTT=null;
+function hotStop(){if(HOTT)clearInterval(HOTT);HOTT=null}
+document.addEventListener('click',e=>{if(e.target&&e.target.id==='hotBtn'){if(!CUR)return;hotStop();HOT=null;
+  $('hotForm').classList.remove('hidden');$('hotWait').classList.add('hidden');$('hErr').textContent='';
+  $('hWho').value=($('talk')&&$('talk').value)||callPerson(CUR)||'';$('hPrice').value='';$('hHeirs').value='';$('hotDlg').showModal()}});
+$('hotDone').onclick=()=>{hotStop();$('hotDlg').close()};
+$('hotDlg').addEventListener('close',hotStop);
+$('hotForm').onsubmit=async e=>{e.preventDefault();$('hErr').textContent='';
+  if(PREVIEW)return $('hErr').textContent='Preview only - nothing was sent.';
+  const phone=($('other')&&$('other').value.trim())||(document.querySelector('input[name=ph]:checked')||{}).value||'';
+  $('hSend').disabled=true;
+  try{const r=await rpc('caller_hot_start',{tok:TOK,did:CUR.deal_id,p_who:$('hWho').value,p_phone:phone,p_price:$('hPrice').value,p_heirs:$('hHeirs').value});HOT=r.id;
+    $('hotForm').classList.add('hidden');$('hotWait').classList.remove('hidden');
+    const st=$('hotSt'),t0=Date.now();let last=-9;
+    const tick=async()=>{const sec=Math.round((Date.now()-t0)/1000);let ready=false;
+      if(sec-last>=3){last=sec;try{ready=(await rpc('caller_hot_status',{tok:TOK,hid:HOT})).ready}catch(_){}}
+      if(!HOTT&&sec>0)return;
+      if(ready){hotStop();st.className='holdst ready';st.textContent='Damien is ready - transfer now in Quo';$('hotTip').textContent='Transfer the call to Damien, then log it as Live transfer to Damien and fill in the heir check.';try{navigator.vibrate&&navigator.vibrate(300)}catch(_){}return}
+      if(sec>=90){hotStop();st.className='holdst late';st.textContent="Damien isn't free - book the appointment";$('hotTip').textContent='Go back to the seller: "Damien just stepped into another call. Let\'s set a time for him to call you." Then log Appointment set.';return}
+      st.className='holdst';st.textContent=`Waiting for Damien… ${sec}s`+(sec>=30&&sec%30<5?' - check back with the seller':'')};
+    HOTT=setInterval(tick,1000);tick()}
+  catch(err){$('hErr').textContent=err.message}finally{$('hSend').disabled=false}};
+
 // ---------- app ----------
 setInterval(()=>{if(!$('app').classList.contains('hidden'))loadStats()},60000);
 async function start(){$('gate').classList.add('hidden');$('app').classList.remove('hidden');await Promise.all([loadStats(),loadQueue(),loadClock()]);if(CLK&&CLK.state==='off'&&!PREVIEW)toast('You are clocked out. Press Clock in to start your shift.');const f=Q.find(x=>!x.skip)||Q[0];if(f)openLead(f.deal_id);else renderEmpty()}
@@ -379,7 +420,9 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
        <button type="button" class="btn" id="txSend" style="padding:6px 12px;margin-left:auto">Send text</button><button type="button" class="btn ghost" id="txCopy" style="padding:6px 12px">Copy text</button></div>
        <p class="small" id="txLine" style="margin:6px 0 0;background:#fff;border:1px solid #d9c8ea;border-radius:9px;padding:8px 10px"></p></div>
      <div class="faqq" aria-label="If the seller asks"><span class="small muted" style="align-self:center">If they ask:</span>${FAQ.map(([q],i)=>`<button type="button" class="fq" data-f="${i}" aria-pressed="false">${esc(q)}</button>`).join('')}</div>
-     <div class="fa hidden" id="faqA" aria-live="polite"></div></div>
+     <div class="fa hidden" id="faqA" aria-live="polite"></div>
+     <details class="heirq"><summary>Interested? Ask about the heirs before you book</summary><ol>${HEIRQ.map(q=>`<li>${esc(q)}</li>`).join('')}</ol></details>
+     <button type="button" class="hotbtn" id="hotBtn">Wants to talk today? Hot seller - hold &amp; transfer</button></div>
   <div class="cols">
    <div>
     <div class="card"><h2>${esc(niceName(L.owner)||'Owner')}</h2>${callPerson(L)?`<div class="small"><b>Call:</b> ${esc(callPerson(L))}</div>`:''}<div class="muted small">${esc(String(L.label||'').replace(/^\S+\s+/,''))}</div>
@@ -392,11 +435,17 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
      <h3 style="font-size:16px">Log this call</h3>
      <label>1. Which number did you call?</label>
      ${!P.some(p=>!p.bad)?'<p class="small" style="background:#fbf1d8;border-radius:8px;padding:8px 10px;margin:0 0 6px"><b>No good numbers left.</b> Pick <b>Needs skip trace</b> below.</p>':''}<div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span>${p.bad?'':`<a class="callb" href="tel:+1${p.d}" data-d="${p.d}">Call</a>`}<span class="ctx" title="${esc(p.ctx)}">${p.bad?'DO NOT CALL - ':''}${esc(p.ctx)}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
-     <label for="other">Or type a number you found</label><input id="other" type="text" inputmode="tel" placeholder="(704) 555-0123">
+     <input id="other" type="hidden" value="">
      <label for="talk">2. Who did you talk to? <span class="muted">(name, or leave blank if nobody)</span></label><input id="talk" type="text" placeholder="e.g. Gloria Smith - daughter">
      <label>3. What happened?</label>
      <div class="outs">${Object.entries(OUTCOMES).map(([k,[t,s]])=>`<button type="button" class="out${k==='appointment'?' appt':''}" data-o="${k}" aria-pressed="false">${t}<small>${s}</small></button>`).join('')}</div>
      <div id="whenWrap" class="hidden"><label for="when" id="whenLbl">When?</label><input id="when" type="datetime-local"><div class="when-et" id="whenEt"></div></div>
+     <div id="heirWrap" class="heirbox hidden"><label for="hcCount">Heir check (required) - how many heirs or owners?</label><input id="hcCount" type="text" placeholder="e.g. 4, or only heir">
+      <label for="hcAgree">Do all heirs agree to sell?</label><select id="hcAgree"><option value="">Pick one</option><option>Yes, all agree</option><option>No, not all agree</option><option>Unsure / not asked them yet</option><option>Only heir / only owner</option></select>
+      <label for="hcWho">Who doesn't agree, or hasn't been reached? Why?</label><input id="hcWho" type="text" placeholder="e.g. brother Mike (Atlanta) undecided">
+      <label for="hcEstate">Estate opened? Who is the executor?</label><input id="hcEstate" type="text" placeholder="e.g. no estate / yes, sister Linda is executor">
+      <label for="hcSign">Are they all willing and able to sign?</label><input id="hcSign" type="text" placeholder="e.g. yes / one is in a nursing home">
+      <label for="hcOthers">Other heirs - names and numbers</label><input id="hcOthers" type="text" placeholder="e.g. Mike Dixon (404) 555-0101"></div>
      <label class="ph" style="font-weight:600;margin:12px 0 0;border:0"><input type="checkbox" id="texted"> I sent the text to this number</label>
      <label for="note">4. Notes <span class="muted">(fill in the lines)</span></label><textarea id="note">${TEMPLATE}</textarea>
      <button class="btn wide" type="submit" id="saveBtn">Save and go to next lead</button>
@@ -461,7 +510,7 @@ function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')|
   $('vmLine').textContent=`Voicemail: "Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I was inquiring about ${lot} ${at}. We wanted to see if you had any interest in selling. If so, give us a call back or send a text to ${window.LINE||'(704) 275-5457'}. Thank you."`;
   if($('txLine'))$('txLine').textContent=`Hi ${t} ${ln}, this is ${me} with Dominion Land Group. I just tried calling about ${lot} ${at}. Do you have any interest in selling? Reply STOP to unsubscribe.`;
   $('line').textContent=`"Hello, ${t} ${ln}. This is ${me} with Dominion Land Group. I was inquiring if you had any interest in selling ${land} ${at}?"`}
-function pickOut(o){OUT=o;document.querySelectorAll('#logForm .out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
+function pickOut(o){OUT=o;$('heirWrap').classList.toggle('hidden',!(o==='appointment'||o==='transferred'));document.querySelectorAll('#logForm .out').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.o===o)));
   const need=o==='appointment'||o==='follow_up';$('whenWrap').classList.toggle('hidden',!need);
   $('whenLbl').textContent=o==='appointment'?'Appointment date and time (pick in YOUR time - Damien sees it in Eastern)':'Call back date and time (your time)';
   if(o==='transferred'){const n=$('note');if(n.value.trim()===TEMPLATE.trim())n.value='Transferred live to Damien.\nSpoke with: \nRelationship to owner: \nPrice in mind: \nOther heirs / who must sign: ';}
@@ -472,6 +521,10 @@ async function saveLog(e){e.preventDefault();$('logErr').textContent='';
   let note=$('note').value.split('\n').filter(l=>!/^[A-Za-z /]+:\s*$/.test(l)).join('\n').trim();
   if($('texted').checked)note=`Texted: ${phone}\n`+note;
   if(!OUT)return $('logErr').textContent='Pick what happened (step 3).';
+  if(OUT==='appointment'||OUT==='transferred'){const c=$('hcCount').value.trim(),a=$('hcAgree').value;
+    if(!c||!a)return $('logErr').textContent='Fill in the heir check: how many heirs, and do they all agree.';
+    const parts=[`${c} heir(s)/owner(s)`,a];[['hcWho','not agreed / not reached'],['hcEstate','estate'],['hcSign','willing and able to sign'],['hcOthers','other heirs']].forEach(([id,l])=>{const v=$(id).value.trim();if(v)parts.push(`${l}: ${v}`)});
+    note=`HEIR CHECK: ${parts.join('; ')}\n`+note}
   let when=null;if(OUT==='appointment'||OUT==='follow_up'){if(!$('when').value)return $('logErr').textContent='Pick the date and time.';when=new Date($('when').value).toISOString()}
   $('saveBtn').disabled=true;
   try{const s=await rpc('caller_log',{tok:TOK,did:CUR.deal_id,p_outcome:OUT,p_phone:phone,p_talked_to:$('talk').value,p_note:note||$('note').value,p_when:when});
