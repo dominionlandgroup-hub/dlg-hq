@@ -71,6 +71,7 @@ main{padding:18px;max-width:1100px;overflow:auto;max-height:calc(100vh - 52px)}
 #lname{width:170px;padding:6px 10px}.line{font-size:18px;font-weight:600;margin:10px 0 0;line-height:1.4}
 .rules{font-size:13px;background:#fbf7ec;border:1px solid #efe1b8;border-radius:10px;padding:10px 12px;margin-bottom:16px}
 .hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:9px;padding:6px 12px;font-weight:700}
+.called{font-size:12px;font-weight:700;color:#1a7f4b;background:#e6f4ec;border-radius:6px;padding:1px 7px;white-space:nowrap}.called:empty{display:none}
 .badb{border:1px solid var(--red);background:#fff;color:var(--red);border-radius:7px;padding:2px 9px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
 .callb{background:var(--green);color:#fff;border-radius:7px;padding:3px 10px;font-size:12.5px;font-weight:700;text-decoration:none;white-space:nowrap}
 .avail{background:#e3f1e6;color:#1f4d29;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:700}
@@ -382,7 +383,18 @@ setInterval(drawClock,30000);
 async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e){return}
   window.REVIEWS=s.reviews||[];window.MENAME=s.name||'';$('availTag').classList.toggle('hidden',!s.damien_available);$('meName').textContent=(PREVIEW?'Previewing as ':'')+(s.name||'');window.LINE=(d=>d.length===10?'('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6):'')(String(s.line||'').replace(/\D/g,'').slice(-10))||'(704) 275-5457';window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
   $('kpis').innerHTML=[['calls','Logged'],['reached','Reached'],['appointments','Appts'],['follow_ups','Follow-ups'],['not_interested','Not int.'],['bad_numbers','Bad #']]
-    .map(([k,l])=>`<span class="kpi"><b>${s[k]||0}</b>${l}</span>`).join('')+'<span class="kpi">today</span>'}
+    .map(([k,l])=>`<span class="kpi"><b>${s[k]||0}</b>${l}</span>`).join('')+'<span class="kpi">today</span>';loadQuo()}
+// Quo: every dial/text from this caller's line (sql/caller_quo.sql) - counts all dials and marks numbers already called
+let QUO={},QUOT={calls:0,texts:0};
+async function loadQuo(){if(PREVIEW)return;try{const q=await rpc('caller_quo',{tok:TOK});QUO={};(q.dialed||[]).forEach(x=>QUO[x.num]=x);QUOT={calls:q.calls_today||0,texts:q.texts_today||0}}catch(e){return}
+  const k=$('kpis');if(k){k.querySelector('.qk')?.remove();k.insertAdjacentHTML('afterbegin',`<span class="kpi qk" title="Every call and text from your Quo line today"><b>${QUOT.calls}</b>Dials <b style="margin-left:6px">${QUOT.texts}</b>Texts</span>`)}
+  markCalled()}
+const etDayOf=t=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date(t));
+function markCalled(){const today=etDayOf(Date.now());document.querySelectorAll('.called[data-cd]').forEach(el=>{const q=QUO[el.dataset.cd];if(!q){el.textContent='';return}
+  const t=new Date(q.last_at),when=etDayOf(t)===today?t.toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'}):t.toLocaleDateString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric'});
+  el.textContent='✓ Called '+when+(q.n>1?' · '+q.n+'x':'');el.title='Called '+q.n+' time'+(q.n>1?'s':'')+' in the last 14 days'})}
+// after a Call tap, refresh marks once Quo has logged it
+document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.callb'))[20000,60000].forEach(ms=>setTimeout(loadQuo,ms))});
 async function loadQueue(){try{Q=await rpc('caller_queue',{tok:TOK})||[]}catch(e){Q=[];$('queue').innerHTML=`<p class="small muted" style="padding:14px">${esc(e.message)}</p>`;return}
   Q=Q.filter(x=>!x.skip);const calls=Q,skips=[],due=calls.filter(x=>x.due).length;
   $('qHead').textContent=`Your leads (${calls.length})${due?` · ${due} follow-up${due>1?'s':''} due`:''}`;
@@ -471,7 +483,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
     ${L.stage===SKIP_STAGE?'<div class="card"><p>This lead is waiting on new numbers from Damien. It comes back to your list when they are added.</p></div>':`<form class="card" id="logForm">
      <h3 style="font-size:16px">Log this call</h3>
      <label>1. Which number did you call?</label>
-     ${!P.some(p=>!p.bad)?'<p class="small" style="background:#fbf1d8;border-radius:8px;padding:8px 10px;margin:0 0 6px"><b>No good numbers left.</b> Pick <b>Needs skip trace</b> below.</p>':''}<div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span>${p.bad?'':`<a class="callb" href="tel:+1${p.d}" data-d="${p.d}">Call</a> <button type="button" class="badb" data-bad="${esc(p.fmt)}" aria-label="Mark ${esc(p.fmt)} as a bad number">Bad number</button>`}<span class="ctx">${p.bad?'Bad number - ':''}${esc(whoLabel(p.ctx))}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
+     ${!P.some(p=>!p.bad)?'<p class="small" style="background:#fbf1d8;border-radius:8px;padding:8px 10px;margin:0 0 6px"><b>No good numbers left.</b> Pick <b>Needs skip trace</b> below.</p>':''}<div id="phs">${P.length?P.map((p,i)=>`<label class="ph${p.bad?' bad':''}" style="font-weight:400;margin:0"><input type="radio" name="ph" value="${esc(p.fmt)}" ${p.bad?'disabled':''} ${!p.bad&&!P.slice(0,i).some(x=>!x.bad)?'checked':''}><span class="num">${esc(p.fmt)}</span>${p.bad?'':`<a class="callb" href="tel:+1${p.d}" data-d="${p.d}">Call</a> <button type="button" class="badb" data-bad="${esc(p.fmt)}" aria-label="Mark ${esc(p.fmt)} as a bad number">Bad number</button> <span class="called" data-cd="${p.d}"></span>`}<span class="ctx">${p.bad?'Bad number - ':''}${esc(whoLabel(p.ctx))}</span></label>`).join(''):'<p class="small muted">No phone numbers found on this lead. Tell Damien.</p>'}</div>
      <input id="other" type="hidden" value="">
      <label for="talk">2. Who did you talk to? <span class="muted">(name, or leave blank if nobody)</span></label><input id="talk" type="text" placeholder="e.g. Gloria Smith - daughter">
      <label>3. What happened?</label>
@@ -492,7 +504,8 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
   </div>`;
   document.querySelectorAll('.tbtn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tbtn').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));drawLine()});
   $('lname').oninput=drawLine;drawLine();
-  document.querySelectorAll('.callb').forEach(a=>a.onclick=()=>{const r=a.closest('.ph').querySelector('input[type=radio]');if(r)r.checked=true});
+  document.querySelectorAll('.callb').forEach(a=>a.onclick=()=>{const r=a.closest('.ph').querySelector('input[type=radio]');if(r){r.checked=true;syncPerson()}});
+  document.querySelectorAll('input[name=ph]').forEach(r=>r.onchange=syncPerson);syncPerson();
   $('txSend').onclick=sendText;
   $('txCopy').onclick=async()=>{if(!$('lname').value.trim()){toast('Type their last name first');$('lname').focus();return}
     const r=document.querySelector('input[name=ph]:checked'),ctx=r?r.closest('.ph').querySelector('.ctx').textContent:'';
@@ -501,6 +514,7 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
     $('faqA').classList.toggle('hidden',!on);$('faqA').textContent=on?FAQ[+b.dataset.f][1]:''});
   if(L.stage===SKIP_STAGE)return;
   document.querySelectorAll('#logForm .out').forEach(b=>b.onclick=()=>pickOut(b.dataset.o));
+  markCalled();
   $('when').oninput=showEt;$('logForm').onsubmit=saveLog}
 // names: county records list LAST FIRST MIDDLE in capitals ("DIXON ELLA MARIE"); show them First Middle Last, and drop Heirs/Estate words
 const NAMEJUNK=/\b(estate of|estate|est|heirs? of|heirs?|hrs|life estate|etal|et al|etux|c\/o|deceased)\b\.?/gi;
@@ -555,6 +569,14 @@ async function sendText(){const b=$('txSend');if(!$('lname').value.trim()){toast
     if(st&&st.error){toast('Text failed: '+st.error)}else{toast(st&&st.sent?'Text sent from your Quo line - it is in your Quo inbox':'Text is sending');const t=$('texted');if(t)t.checked=true}}
   catch(e){toast(e.message)}finally{b.disabled=false;b.textContent='Send text'}}
 function cap(s){return String(s).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase())}
+// the greeting follows the number picked in step 1: Mr./Ms. + that person's last name (Matthew Rinehardt's number -> "Mr. Rinehardt")
+const MALE=new Set('james john robert michael william david richard joseph thomas charles christopher daniel matthew anthony mark donald steven paul andrew joshua kenneth kevin brian george timothy ronald edward jason jeffrey ryan jacob gary nicholas eric jonathan stephen larry justin scott brandon benjamin samuel gregory alexander frank patrick raymond jack dennis jerry tyler aaron jose adam nathan henry douglas zachary peter kyle ethan walter noah jeremy christian keith roger terry gerald harold sean austin carl arthur lawrence dylan jesse jordan bryan billy joe bruce gabriel logan albert willie alan juan wayne elijah randy roy vincent ralph eugene russell bobby mason philip louis harry howard fred earl clarence leroy leon vaughn clayton clifford rodney otis jimmy johnny tony curtis melvin herman calvin marvin lonnie eddie ricky randall travis troy derrick reginald cedric darnell tyrone'.split(' '));
+const FEMALE=new Set('mary patricia jennifer linda elizabeth barbara susan jessica sarah karen lisa nancy betty margaret sandra ashley kimberly emily donna michelle carol amanda dorothy melissa deborah stephanie rebecca sharon laura cynthia kathleen amy angela shirley anna brenda pamela emma nicole helen samantha katherine christine debra rachel carolyn janet catherine maria heather diane ruth julie olivia joyce virginia victoria kelly lauren christina joan evelyn judith megan andrea cheryl hannah jacqueline martha gloria teresa ann sara madison frances kathryn janice jean abigail alice judy sophia grace denise amber doris marilyn danielle beverly isabella theresa diana natalie brittany charlotte marie kayla alexis lori annie anita beatrice bernice carrie ella ethel geneva golda janie lizzie lucy mae mildred myrtle nellie patsy pauline rosa sherry tina vicki vonnie wanda yvonne felicia kathrene katherene adenia elaine roberta rhonda camilla delzora fannie runeda cheyenne ellarweese'.split(' '));
+function syncPerson(){const r=document.querySelector('input[name=ph]:checked');if(!r||!$('lname'))return;
+  const nm=whoLabel(r.closest('.ph').querySelector('.ctx').textContent.replace(/^Bad number - /,'')).split(' · ')[0];if(!nm||nm==='Contact record')return;
+  const w=nm.replace(/"[^"]*"/g,'').split(/\s+/).filter(x=>x&&!/^(jr|sr|ii|iii|iv)\.?$/i.test(x));if(w.length<2)return;
+  $('lname').value=cap(w[w.length-1]);const f=w[0].toLowerCase();const t=MALE.has(f)?'Mr.':FEMALE.has(f)?'Ms.':null;
+  if(t)document.querySelectorAll('.tbtn').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.t===t)));drawLine()}
 function drawLine(){const t=(document.querySelector('.tbtn[aria-pressed=true]')||{}).dataset?.t||'Ms.';const ln=$('lname').value.trim()||'[last name]';
   const me=window.CALLNAME||'[your name]';
   const at=placeOf(CUR),lot=landOf(CUR,'lot'),land=landOf(CUR,'land');
