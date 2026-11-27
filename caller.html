@@ -442,7 +442,8 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
   let L;try{L=await rpc('caller_lead',{tok:TOK,did:id})}catch(e){$('main').innerHTML=`<div class="empty">${esc(e.message)}</div>`;loadQueue();return}
   CUR=L;document.querySelectorAll('.q').forEach(b=>b.classList.toggle('on',+b.dataset.id===id));
   const P=phonesFrom(L);
-  $('main').innerHTML=verseHtml(L.deal_id||id)+`
+  $('main').innerHTML=verseHtml(L.deal_id||id)+`<div class="rules"><b>Before you dial:</b> read the SUMMARY at the top of the notes. Call the person it says to call, mobile first, then every other heir on the card - a lead isn't a miss until every heir's numbers have been tried. Call from your Quo line ${window.LINE||'(704) 275-5457'}. Never give a price or an offer - Damien does that. Book the call with Damien.</div>
+  
   <div class="card script"><div class="sh"><b>Opening line</b> <span class="small muted">say it to the person you're calling</span>
      <span class="ttl"><button type="button" class="tbtn" data-t="Mr." aria-pressed="false">Mr.</button><button type="button" class="tbtn" data-t="Ms." aria-pressed="true">Ms.</button></span>
      <input id="lname" type="text" aria-label="Last name of the person you are calling" value="${esc(lastName(L))}"></div>
