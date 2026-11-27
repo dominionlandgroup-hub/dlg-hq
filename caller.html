@@ -320,13 +320,16 @@ async function start(){$('gate').classList.add('hidden');$('app').classList.remo
 let CLK=null,CLKAT=0;
 async function loadClock(c){try{c=c||await rpc('caller_clock_status',{tok:TOK})}catch(e){return}CLK=c;CLKAT=Date.now();drawClock()}
 function hm(m){m=Math.max(0,Math.round(m));return Math.floor(m/60)+'h '+String(m%60).padStart(2,'0')+'m'}
-function drawClock(){const c=CLK;if(!c||!$('clock'))return;const live=c.state==='working'?c.today_minutes+(Date.now()-CLKAT)/60000:c.today_minutes;
-  const lbl={off:'Clocked out',working:'Working',break:'On break'}[c.state]||c.state;
-  const btns=c.state==='off'?[['in','Clock in']]:c.state==='working'?[['break_start','Start break'],['out','Clock out']]:[['break_end','End break'],['out','Clock out']];
-  $('clock').innerHTML=`<span class="cst ${c.state}">${lbl}</span><span class="kpi"><b>${hm(live)}</b> worked today</span>`+btns.map(([k,l])=>`<button class="hbtn" type="button" data-k="${k}">${l}</button>`).join('');
+function drawClock(){const c=CLK;if(!c||!$('clock'))return;const el=(Date.now()-CLKAT)/60000;
+  // paid time: working always counts; breaks count up to 30 min a day; lunch never counts
+  const live=c.state==='working'?c.today_minutes+el:c.state==='break'?c.today_minutes+Math.max(0,Math.min(el,30-(c.break_minutes||0))):c.today_minutes;
+  const lbl={off:'Clocked out',working:'Working',break:'On break (paid)',lunch:'At lunch (unpaid)'}[c.state]||c.state;
+  const btns=c.state==='off'?[['in','Clock in']]:c.state==='working'?[['break_start','Start break'],['lunch_start','Start lunch'],['out','Clock out']]:c.state==='lunch'?[['lunch_end','End lunch'],['out','Clock out']]:[['break_end','End break'],['out','Clock out']];
+  const bl=c.state!=='off'&&c.break_minutes!=null?` <span class="small">· breaks ${Math.round(c.break_minutes)}/30 min</span>`:'';
+  $('clock').innerHTML=`<span class="cst ${c.state==='lunch'?'break':c.state}">${lbl}</span><span class="kpi"><b>${hm(live)}</b> paid today${bl}</span>`+btns.map(([k,l])=>`<button class="hbtn" type="button" data-k="${k}">${l}</button>`).join('');
   $('clock').querySelectorAll('button').forEach(b=>b.onclick=()=>clockDo(b.dataset.k))}
 async function clockDo(k){if(k==='out'&&!confirm('Clock out for the day?'))return;
-  try{const c=await rpc('caller_clock',{tok:TOK,p_kind:k});await loadClock(c);toast({in:'Clocked in',out:'Clocked out',break_start:'Break started',break_end:'Back from break'}[k])}catch(e){toast(e.message)}}
+  try{const c=await rpc('caller_clock',{tok:TOK,p_kind:k});await loadClock(c);toast({in:'Clocked in',out:'Clocked out',break_start:'Break started (paid, 15 min)',break_end:'Back from break',lunch_start:'Lunch started (unpaid)',lunch_end:'Back from lunch'}[k])}catch(e){toast(e.message)}}
 setInterval(drawClock,30000);
 async function loadStats(s){try{s=s||await rpc('caller_stats',{tok:TOK})}catch(e){return}
   window.REVIEWS=s.reviews||[];$('availTag').classList.toggle('hidden',!s.damien_available);$('meName').textContent=(PREVIEW?'Previewing as ':'')+(s.name||'');window.LINE=(d=>d.length===10?'('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6):'')(String(s.line||'').replace(/\D/g,'').slice(-10))||'(704) 275-5457';window.CALLNAME=(s.call_name||'').trim()||String(s.name||'').trim().split(/\s+/)[0]||'';
