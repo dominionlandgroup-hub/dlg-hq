@@ -694,6 +694,32 @@ function dealNav(id){if(!id)return null;const me=document.querySelector(`.dcard[
   const inCol=all.filter(x=>x.col===myCol),pos=inCol.findIndex(x=>x.id===+id)+1;
   return {prev:all[i-1]?.id||null,next:all[i+1]?.id||null,nextName:all[i+1]?.name||'',where:`${pos} of ${inCol.length} in this stage`}}
 document.addEventListener('keydown',e=>{if($('drawer')?.style.display!=='block'||/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''))return;const n=window._dl&&dealNav(window._dl.id);if(!n)return;if(e.key==='ArrowRight'&&n.next)openDeal(n.next);if(e.key==='ArrowLeft'&&n.prev)openDeal(n.prev)});
+// Heir deal -> Nicole Merritt (Merritt Law). Builds the summary from this card and opens a Gmail draft. Damien attaches the contract, obituary and family tree and sends it himself.
+function emailNicole(){const d=window._dl||{},l=d.leads||{},p=d.properties||{};
+  const raw=typeof d.notes==='string'?d.notes:JSON.stringify(d.notes||'');
+  const txt=(()=>{try{const j=JSON.parse(raw);if(Array.isArray(j))return j.map(n=>n.body||'').join('\n\n')}catch(e){}return raw})();
+  const grab=re=>{const m=txt.match(re);return m?m[0].trim():''};
+  const addr=[p.address||l.prop_address,p.city||l.prop_city].filter(Boolean).join(', ')||String(d.property_label||'').replace(/^\S+\s+/,'');
+  const cty=p.county||l.county||'',apn=p.apn||l.apn||'';
+  const owner=l.full_name||[l.first_name,l.last_name].filter(Boolean).join(' ')||'';
+  const tax=grab(/BACK TAXES[^\n]*/).replace(/^BACK TAXES\s*\([^)]*\):\s*/,'');
+  const summ=grab(/SUMMARY:[^\n]*/)||grab(/Owner deceased[^\n]*/);
+  const estate=grab(/Estate file:[^\n]*/)||grab(/ESTATE SEARCH[^\n]*/);
+  const obit=(txt.match(/https?:\/\/\S*(obit|legacy|funeral|findagrave|tributearchive)\S*/i)||[''])[0];
+  const heir=grab(/HEIR CHECK:[^\n]*/);
+  const tree=(txt.match(/FAMILY TREE[^\n]*\n([\s\S]*?)(\n\n[A-Z][A-Z ]{3,}|$)/)||['',''])[1].trim();
+  const who=(txt.match(/WHO TO CALL[^\n]*\n([\s\S]*?)(\n\n(?:[A-Z][A-Z ()]{6,}:|FAMILY RESEARCH|CANOPY|EARLIER NOTES|HEIR NUMBERS|-{5})|$)/)||['',''])[1].trim();
+  const su=`HEIR DEAL - ${addr}${cty?', '+cty+' County':''}${apn?' - Parcel '+apn:''}`;
+  const body=[`Hi Nicole,`,``,`I have a new heir deal and wanted to get the title work started.`,``,
+    `Property: ${addr}${cty?' - '+cty+' County':''}${apn?' - Parcel '+apn:''}`,`Owner(s) on record: ${owner}`,
+    `Purchase price: $____ | Buyer: ____ | Closing: on or before ____`, tax?`Back taxes: ${tax}`:'' ,``,
+    `Deceased owner(s):`, summ?'- '+summ.replace(/^SUMMARY:\s*/,''):'- ____', estate?'- '+estate:'- Estate file: ____', obit?'- Obituary: '+obit:'- Obituary: ____',``,
+    tree?`Family tree:\n${tree}\n`:'', `Heirs and contacts:`, who||'____', heir?`\n${heir}`:'',``,
+    `Please confirm what you need to clear title. If there's no estate file, I'll start on the death certificate(s) and the 2 heirship affidavits per deceased owner.`,``,
+    `Attached: contract, obituary, family tree.`,``,`Thanks,`,`Damien Dupee`,`Dominion Land Group`,`(704) 387-3482`,`dominionlandgroup@gmail.com`].filter(x=>x!=='').join('\n').replace(/\n{3,}/g,'\n\n').slice(0,6500);
+  const mobile=/iPhone|iPad|Android/i.test(navigator.userAgent);
+  const url=mobile?`mailto:nicole@merrittlawnc.com?subject=${encodeURIComponent(su)}&body=${encodeURIComponent(body)}`:`https://mail.google.com/mail/u/${encodeURIComponent(MAIL_FROM)}/?view=cm&fs=1&tf=1&to=nicole@merrittlawnc.com&su=${encodeURIComponent(su)}&body=${encodeURIComponent(body)}`;
+  window.open(url,'_blank');toast('Draft opened - fill in price/buyer/closing, attach the contract, obituary and family tree, then send')}
 async function openDealForm(d){
   const xp=(d?.extra_property_ids||[]).length?((await sb.from('properties').select('id,apn,address,city,county,acres').in('id',d.extra_property_ids)).data||[]):[];
   if(!BUYERS)BUYERS=await loadBuyers();
@@ -759,7 +785,7 @@ async function openDealForm(d){
    </div><div>
    ${d.id?`<div class="card"><h3 class="sec" style="margin-top:0">Tasks</h3>${(tasks||[]).map(t=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" style="width:auto" ${t.status==='done'?'checked':''} onchange="toggleTask(${t.id},this.checked)"><span style="flex:1;${t.status==='done'?'text-decoration:line-through;color:var(--muted)':''}">${esc(t.title)}</span><span class="small muted">${t.due_at?fmtDate(t.due_at):''}</span>${t.due_at?`<a class="ico" title="Add to Google Calendar" target="_blank" href="${gcalLink(t.title,t.due_at,leadName(l))}">📅</a>`:''}</div>`).join('')||'<div class="muted small" style="margin-top:6px">No tasks.</div>'}
      <div class="row" style="margin-top:10px"><input id="d_task" placeholder="New task"><input id="d_taskdue" type="date" style="flex:0 0 150px"><button class="btn ghost" style="flex:0" onclick="addTask(${d.id},${d.lead_id||'null'})">Add</button></div></div>
-   <div class="card"><h3 class="sec" style="margin-top:0">Notes</h3><textarea id="d_newnote" placeholder="Add a note" style="min-height:70px"></textarea>
+   <div class="card"><h3 class="sec" style="margin-top:0;display:flex;align-items:center;gap:8px">Notes ${board==='seller'?`<button type="button" class="pbtn" style="margin-left:auto" onclick="emailNicole()" title="Opens a Gmail draft to Nicole Merritt with the heir deal summary from this card">✉ Email Nicole (heir deal)</button>`:''}</h3><textarea id="d_newnote" placeholder="Add a note" style="min-height:70px"></textarea>
      <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn" style="flex:0" onclick="addDealNote(${d.id})">Save note</button></div>
      <div id="d_notes_list">${notes.map((n,i)=>`<div class="note"><div class="row" style="align-items:baseline"><b>${esc(n.who||'Note')}</b><span class="small muted" style="margin-left:8px">${esc(n.when||'')}</span><button class="ico" style="margin-left:auto" title="Edit note" onclick="editDealNote(${d.id},${i})">✏️</button><button class="ico" title="Delete note" onclick="delDealNote(${d.id},${i})">🗑</button></div><div class="nb" id="dn_${i}">${linkify(esc(n.body))}</div></div>`).join('')||'<div class="muted small" style="margin-top:8px">No notes yet.</div>'}</div></div>`
    :`<div class="card muted small">Save the deal first, then add tasks, notes and contracts.</div>`}
