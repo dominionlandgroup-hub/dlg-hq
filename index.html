@@ -569,20 +569,66 @@ let _dashSeq=0;async function vDashboard(){
 // They get their own tab and stay off Seller Deals and the dashboard counts until they become real conversations.
 const isDuetStage=s=>/^Duet - /.test((s&&s.name)||'');
 async function vBoard(board,mode){
-  $('actions').innerHTML=`<input id="bf" placeholder="Filter name / address / APN" style="width:210px"><select id="bp" style="width:auto"><option value="">Any priority</option><option>hot</option><option>warm</option><option>cold</option></select><button class="btn" onclick="newDeal('${board}')">+ Add Deal</button><button class="btn ghost" onclick="addStage('${board}'${mode==='duet'?",'Duet - '":''})">+ Stage</button>`;
+  $('actions').innerHTML=`<input id="bf" placeholder="Filter name / address / APN" style="width:210px"><select id="bp" style="width:auto"><option value="">Any priority</option><option>hot</option><option>warm</option><option>cold</option></select><button class="btn" onclick="newDeal('${board}')">+ Add Deal</button>${mode==='duet'?`<select id="bc" style="width:auto"><option value="">All counties</option>${DUET_COUNTIES.slice(0,7).map(c=>`<option>${c}</option>`).join('')}</select>`:`<button class="btn ghost" onclick="addStage('${board}')">+ Stage</button>`}`;
   let data=[],error=null;for(let f=0;;f+=1000){const r=await sb.from('deals').select('*, leads(id,full_name,first_name,last_name,phone), properties(apn,address,city,zip,county,county_state,acres,fields)').eq('board',board).order('position').order('id').range(f,f+999);if(r.error){error=r.error;break}data.push(...r.data);if(r.data.length<1000)break}
   if(error){$('view').innerHTML=`<div class="card">${esc(error.message)}</div>`;return}
   window._deals=data||[];
   const draw=()=>{
     const f=($('bf').value||'').toLowerCase(),pr=$('bp').value;
     const list=_deals.filter(d=>(!pr||d.priority===pr)&&(!f||[d.property_label,leadName(d.leads),d.properties?.address,d.properties?.apn].join(' ').toLowerCase().includes(f)));
+    if(mode==='duet')return drawDuet(list);
     const st=STAGES.filter(s=>s.board===board&&(board!=='seller'||(mode==='duet'?isDuetStage(s):!isDuetStage(s))));
     $('view').innerHTML=`<div class="board">${st.map(s=>{const ds=list.filter(d=>d.stage_id===s.id),tot=ds.reduce((a,d)=>a+(+d.value||0),0);
       return `<div class="col" data-stage="${s.id}"><div class="hd" draggable="true" title="Drag to move this stage" style="cursor:grab;display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${esc(s.name)}</span><span style="white-space:nowrap"><button class="btn ghost sm" title="Rename stage" onclick="renameStage(${s.id},'${board}')">✎</button><button class="btn ghost sm" title="Delete stage" onclick="deleteStage(${s.id},'${board}')">🗑</button></span></div><div class="meta">${ds.length} deal${ds.length===1?'':'s'}${tot?' / '+money(tot):''}</div>
       <div class="cards">${ds.map(card).join('')}</div><button class="addcard" onclick="newDeal('${board}',${s.id})">+ Add Deal</button></div>`}).join('')}</div>`;
     wireDnD(board);};
+  if(mode==='duet'){const cs=$('bc');if(cs)cs.onchange=draw}
   $('bf').oninput=draw;$('bp').onchange=draw;draw();
 }
+// DUET BOARD - 5 columns (Nov 27, 2026, Damien: too many county columns). The stages underneath stay the same
+// (the caller list, the lead machine and the re-skip job keep using them); the board just groups them on screen.
+const DUET_COUNTIES=['Union','Gaston','Cabarrus','Mecklenburg','Iredell','York','Lincoln','Rowan','Stanly','Cleveland','Catawba','Lancaster'];
+const duetCounty=d=>{const p=d.properties||{};const c=String(p.county||'').replace(/\s*county\s*$/i,'').trim();if(c)return c[0].toUpperCase()+c.slice(1).toLowerCase();const t=String(d.property_label||'')+' '+String((STAGES.find(x=>x.id===d.stage_id)||{}).name||'');return DUET_COUNTIES.find(n=>new RegExp('\\b'+n+'\\b','i').test(t))||''};
+const DUET_GROUPS=[
+  {k:'research',name:'Research',hint:'No contact yet, new leads to review, all numbers bad',test:n=>/Damien Deep Dive|New Leads \(Review\)|Needs Skip Trace/.test(n)},
+  {k:'ready',name:'Ready to Call',hint:'Verified heirs + numbers, all counties, best first',test:null},
+  {k:'follow',name:'Follow Up',hint:'Talked to someone - call back on a date',test:n=>/Follow Up/.test(n)},
+  {k:'appt',name:'Appointment Set',hint:'Booked or live-transferred to Damien',test:n=>/Appointment Set/.test(n)},
+  {k:'parked',name:'Parked',hint:'Not interested, no motivation, dead',test:n=>/Not Interested|No Motivation|Dead Lead/.test(n)}];
+const duetGroupOf=s=>{const n=(s&&s.name)||'';const g=DUET_GROUPS.find(g=>g.test&&g.test(n));return g?g.k:'ready'};
+const duetShort=n=>String(n||'').replace(/^Duet - /,'').replace(/[⭐🔎]\s*/gu,'').replace('Damien Deep Dive','Deep dive').replace('New Leads (Review)','New - review');
+let DUET_PARKED_OPEN=false;
+function drawDuet(list){
+  const ds=STAGES.filter(s=>s.board==='seller'&&isDuetStage(s));
+  const cty=($('bc')||{}).value||'';
+  const L=list.filter(d=>ds.some(s=>s.id===d.stage_id)&&(!cty||duetCounty(d)===cty));
+  const byG={};DUET_GROUPS.forEach(g=>byG[g.k]=[]);
+  L.forEach(d=>{const s=ds.find(x=>x.id===d.stage_id);byG[duetGroupOf(s)].push(d)});
+  const sc=d=>d.call_score==null?-1:+d.call_score;
+  ['research','ready','follow'].forEach(k=>byG[k].sort((a,b)=>sc(b)-sc(a)||a.id-b.id));
+  const tag=d=>{const c=duetCounty(d),s=ds.find(x=>x.id===d.stage_id),g=duetGroupOf(s);
+    return `<div class="s" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">${c?`<span class="pill" style="background:var(--chip,#efe8f6);color:var(--brand,#5C2977)">${esc(c)}</span>`:''}${g==='research'||g==='parked'?`<span class="pill">${esc(duetShort(s&&s.name))}</span>`:''}${d.call_score!=null&&g!=='parked'?`<span class="small muted" title="Rank score: years delinquent first, then amount owed">score ${d.call_score}</span>`:''}</div>`};
+  const cardD=d=>card(d).replace(/<\/div>$/,tag(d)+'</div>');
+  $('view').innerHTML=`<div class="board">${DUET_GROUPS.map(g=>{const arr=byG[g.k],park=g.k==='parked';
+    return `<div class="col" data-group="${g.k}"><div class="hd" style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${g.name}</span>${park?`<button class="btn ghost sm" onclick="DUET_PARKED_OPEN=!DUET_PARKED_OPEN;$('bf').oninput()">${DUET_PARKED_OPEN?'Hide':'Show'}</button>`:''}</div>
+      <div class="meta">${arr.length} lead${arr.length===1?'':'s'} · <span class="muted">${g.hint}</span></div>
+      <div class="cards">${park&&!DUET_PARKED_OPEN?'':arr.map(cardD).join('')}</div></div>`}).join('')}</div>`;
+  wireDuetDnD(ds)}
+function duetTargetStage(g,d,ds){const by=re=>ds.find(s=>re.test(s.name));
+  if(g==='research')return by(/Damien Deep Dive/);
+  if(g==='follow')return by(/Follow Up/);
+  if(g==='appt')return by(/Appointment Set/);
+  if(g==='parked'){const a=prompt('Why is it parked?\n1 = Not interested\n2 = No motivation\n3 = Dead lead','1');if(!a)return null;return a.trim()==='2'?by(/No Motivation/):a.trim()==='3'?by(/Dead Lead/):by(/Not Interested/)}
+  const c=duetCounty(d);return (c&&ds.find(s=>new RegExp('^Duet - '+c+'\\b','i').test(s.name)))||by(/Call First/)}
+function wireDuetDnD(ds){let dragId=null;
+  document.querySelectorAll('.dcard').forEach(c=>{c.ondragstart=e=>{dragId=+c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c.dataset.id)};c.ondragend=()=>c.classList.remove('dragging')});
+  document.querySelectorAll('.col[data-group]').forEach(col=>{col.ondragover=e=>{e.preventDefault();col.classList.add('over')};col.ondragleave=()=>col.classList.remove('over');
+    col.ondrop=async e=>{e.preventDefault();col.classList.remove('over');if(!dragId)return;const d=_deals.find(x=>x.id===dragId);dragId=null;if(!d)return;
+      const g=col.dataset.group,cur=ds.find(x=>x.id===d.stage_id);if(duetGroupOf(cur)===g)return;
+      const s=duetTargetStage(g,d,ds);if(!s)return;
+      const {error}=await sb.from('deals').update({stage_id:s.id,stage:s.name,updated_at:new Date().toISOString(),status:stIsDead(s)?'lost':'open'}).eq('id',d.id);
+      if(error)return toast(error.message);toast('Moved to '+duetShort(s.name));await syncDealStage(d.id,s.id,d.stage_id);
+      if(d.lead_id)sb.from('activity').insert({lead_id:d.lead_id,kind:'status',body:'Deal moved to '+s.name});d.stage_id=s.id;$('bf').oninput()}})}
 // BOTH PARCEL NUMBERS (Nov 2026): counties have two IDs for one lot (Gaston: PIN 3583-44-1869 and Parcel ID 190500).
 // Canopy, the tax office and county GIS often search by the second one, so show both and search both.
 // ZIPs that lost their leading 0 in Excel (8109 -> 08109): only states whose zips start with 0
