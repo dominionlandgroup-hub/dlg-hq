@@ -1497,7 +1497,7 @@ async function threadUnread(tid){if(_rdBusy)return;_rdBusy=true;const btn=$('rdt
 // Quo compliance (Oct 29, 2026): first texts to someone who has never replied must say who is texting and how to opt out.
 window.quoCompliant=function(t){t=String(t||'').trim();if(!/dominion land group/i.test(t))t+=' - Damien with Dominion Land Group';if(!/\bSTOP\b/.test(t))t+=' Reply STOP to unsubscribe.';return t};
 async function sendTextT(tid){let b=$('reply').value.trim();if(!b)return;const btn=event?.target;if(btn){btn.disabled=true;btn.textContent='Sending…'}
-  const {count:inb}=await sb.from('messages').select('id',{count:'exact',head:true}).eq('thread_id',tid).eq('direction','in');if(!inb){const c=quoCompliant(b);if(c!==b){b=c;toast('First text to this number: added who you are and "Reply STOP to unsubscribe"')}}
+  const {count:inb}=await sb.from('messages').select('id',{count:'exact',head:true}).eq('thread_id',tid).eq('direction','in');if(!inb){const c=quoCompliant(b);if(c!==b){b=c;toast('First text to this number: added who you are and "Reply STOP to unsubscribe"')}}else if(!/reply stop to unsubscribe/i.test(b)){b=b.replace(/\s+$/,'')+' Reply STOP to unsubscribe.'}
   const {data,error}=await sb.functions.invoke('quo/send',{body:{thread_id:tid,text:b}});
   if(btn){btn.disabled=false;btn.textContent='Send Now'}
   const err=error?(await error.context?.json?.().catch(()=>null))?.error||error.message:data?.error;

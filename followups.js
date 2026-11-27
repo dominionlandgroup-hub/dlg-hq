@@ -138,7 +138,7 @@
           // Quo compliance: every automated text says who is texting and how to opt out
           let text = fill(step.body, vars).trim();
           if (!/dominion land group/i.test(text)) text += ' - Damien with Dominion Land Group';
-          if (!/\bSTOP\b/.test(text)) text += ' Reply STOP to unsubscribe.';
+          if (!/reply stop to unsubscribe/i.test(text)) text = text.replace(/\s+$/, '') + ' Reply STOP to unsubscribe.';
           sentText = text;
           rep.texts.push({ to: name, phone, text });
           if (!dry) {
