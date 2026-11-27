@@ -442,11 +442,12 @@ async function openLead(id){OUT=null;$('main').innerHTML='<div class="empty">Loa
   let L;try{L=await rpc('caller_lead',{tok:TOK,did:id})}catch(e){$('main').innerHTML=`<div class="empty">${esc(e.message)}</div>`;loadQueue();return}
   CUR=L;document.querySelectorAll('.q').forEach(b=>b.classList.toggle('on',+b.dataset.id===id));
   const P=phonesFrom(L);
-  $('main').innerHTML=verseHtml(L.deal_id||id)+`<div class="rules"><b>Before you dial:</b> read the SUMMARY at the top of the notes. Call the person it says to call, mobile first, then every other heir on the card - a lead isn't a miss until every heir's numbers have been tried. When someone answers, ask <b>"How are you related to ${esc(niceName(L.owner)||'the owner')}?"</b> and write it in step 2. Never call a number marked DO NOT USE or a deceased owner's number. Call from your Quo line ${window.LINE||'(704) 275-5457'}. Always ask: <b>"Do you have a price in mind?"</b> and write it down - but never give a price or an offer. Book the call with Damien.</div>
+  $('main').innerHTML=verseHtml(L.deal_id||id)+`<div class="rules"><b>Who to call:</b> start with the person on the <b>Call first</b> line below, mobile first. No luck? Call every other heir on the card before you move to the next lead. Call from your Quo line ${window.LINE||'(704) 275-5457'}.</div>
   <div class="card script"><div class="sh"><b>Opening line</b> <span class="small muted">say it to the person you're calling</span>
      <span class="ttl"><button type="button" class="tbtn" data-t="Mr." aria-pressed="false">Mr.</button><button type="button" class="tbtn" data-t="Ms." aria-pressed="true">Ms.</button></span>
      <input id="lname" type="text" aria-label="Last name of the person you are calling" value="${esc(lastName(L))}"></div>
      <p id="line" class="line"></p>
+     <p class="small" style="margin:10px 0 0"><b>They answer and they're family, not the owner?</b> Ask: "How are you related to ${esc(niceName(L.owner)||'the owner')}?" and write it in step 2.<br><b>Interested?</b> Ask: "Do you have a price in mind?" and write it down. Never give a price or an offer. Book the call with Damien.</p>
      <p class="small" style="margin:10px 0 0"><b>No answer?</b> Hang up and call right back, up to 3 times in a row. On the 3rd try leave this voicemail, send the text if the number is a mobile, then call the next heir on the card. A lead that misses 3 times in a row comes back in 7 days.</p>
      <p class="small muted" id="vmLine" style="margin:6px 0 0"></p>
      <div class="tx"><div class="sh" style="margin-top:10px"><b class="small">Text</b> <span class="small muted">mobile numbers only, after the voicemail</span>
