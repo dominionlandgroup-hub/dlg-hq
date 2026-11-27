@@ -613,7 +613,10 @@ function drawDuet(list){
   const cty=($('bc')||{}).value||'';
   const L=list.filter(d=>ds.some(s=>s.id===d.stage_id)&&(!cty||duetCounty(d)===cty));
   const byG={};DUET_GROUPS.forEach(g=>byG[g.k]=[]);
-  L.forEach(d=>{const s=ds.find(x=>x.id===d.stage_id);byG[duetGroupOf(s)].push(d)});
+  // extra lots merged into another card ("🔗 ... MERGED into #2542") are called on that card, so they don't count as leads to call
+  const isMerged=d=>/^\s*🔗/u.test(d.property_label||'')||/^MERGED into #/.test(String(d.notes||'').trim());
+  let mergedN=0;
+  L.forEach(d=>{const s=ds.find(x=>x.id===d.stage_id);const g=duetGroupOf(s);if(g==='ready'&&isMerged(d)){mergedN++;return}byG[g].push(d)});
   const sc=d=>d.call_score==null?-1:+d.call_score;
   ['research','ready','follow'].forEach(k=>byG[k].sort((a,b)=>sc(b)-sc(a)||a.id-b.id));
   const tag=d=>{const c=duetCounty(d),s=ds.find(x=>x.id===d.stage_id),g=duetGroupOf(s);
@@ -621,7 +624,7 @@ function drawDuet(list){
   const cardD=d=>card(d).replace(/<\/div>$/,tag(d)+'</div>');
   $('view').innerHTML=`<div class="board">${DUET_GROUPS.map(g=>{const arr=byG[g.k],park=g.k==='parked';
     return `<div class="col" data-group="${g.k}"><div class="hd" style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${g.name}</span>${park?`<button class="btn ghost sm" onclick="DUET_PARKED_OPEN=!DUET_PARKED_OPEN;$('bf').oninput()">${DUET_PARKED_OPEN?'Hide':'Show'}</button>`:''}</div>
-      <div class="meta">${arr.length} lead${arr.length===1?'':'s'} · <span class="muted">${g.hint}</span></div>
+      <div class="meta">${arr.length} lead${arr.length===1?'':'s'} · <span class="muted">${g.hint}${g.k==='ready'&&mergedN?` · ${mergedN} extra lot${mergedN===1?'':'s'} merged into these cards, not counted`:''}</span></div>
       <div class="cards">${park&&!DUET_PARKED_OPEN?'':arr.map(cardD).join('')}</div></div>`}).join('')}</div>`;
   wireDuetDnD(ds)}
 function duetTargetStage(g,d,ds){const by=re=>ds.find(s=>re.test(s.name));
